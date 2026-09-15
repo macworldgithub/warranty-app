@@ -49,8 +49,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const fetchCases = useCallback(async () => {
     try {
       const data = await casesApi.getCases();
-      setCases(data || []);
-    } catch (err) {
+      const pending = offlineStorage.getPendingUploads();
+      const serverList = Array.isArray(data) ? data : [];
+      const serverIds = new Set(serverList.map(c => c.id));
+      const merged = [
+        ...pending.filter(p => !serverIds.has(p.id)),
+        ...serverList,
+      ];
+      setCases(merged);
+    } catch (_err) {
       // Load offline pending drafts
       const pending = offlineStorage.getPendingUploads();
       setCases(pending);
