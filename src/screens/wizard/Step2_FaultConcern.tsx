@@ -130,7 +130,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.introHeader}>
-        <Text style={styles.sectionTitle}>Step 2 · Concern & Fault Classification</Text>
+        <Text style={styles.sectionTitle}>Step 2 Â· Concern & Fault Classification</Text>
         <Text style={styles.sectionDesc}>
           Answers configure dynamic Brand Pack evidence gates (serials, video, DTCs, Tier 2 extras).
         </Text>
@@ -391,7 +391,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
           variant="primary"
           disabled={!isValidConcern || !faultCategory}
           onPress={onNext}
-          rightIcon={<Icon name="chevron-right" size={18} color={colors.textPrimary} />}
+          rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}
         />
       </View>
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   categoryChipSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primaryGlow,
+    backgroundColor: colors.surfaceHighlight,
   },
   radioCircle: {
     width: 20,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   categoryTextSelected: {
-    color: colors.textPrimary,
+    color: colors.primary,
     fontWeight: typography.weights.bold,
   },
   questionBlock: {
@@ -494,10 +494,10 @@ const styles = StyleSheet.create({
   },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: spacing.borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
     padding: 2,
   },
   toggleBtn: {
@@ -514,13 +514,15 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
   toggleTextActive: {
-    color: colors.textPrimary,
+    color: colors.textInverse,
   },
   serialsBox: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.md,
     marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   serialInputRow: {
     flexDirection: 'row',
@@ -544,10 +546,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: spacing.sm,
     borderRadius: spacing.borderRadius.sm,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
   },
   stageChipSelected: {
     backgroundColor: colors.primary,
@@ -559,14 +561,14 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   stageChipTextSelected: {
-    color: colors.textPrimary,
+    color: colors.textInverse,
     fontWeight: typography.weights.bold,
   },
   summaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryGlow,
-    borderColor: colors.primary,
+    backgroundColor: colors.surfaceHighlight,
+    borderColor: 'rgba(225, 31, 38, 0.25)',
     borderWidth: 1,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.md,
@@ -576,7 +578,7 @@ const styles = StyleSheet.create({
   summaryText: {
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.bold,
-    color: colors.primaryLight,
+    color: colors.primary,
   },
   navRow: {
     flexDirection: 'row',

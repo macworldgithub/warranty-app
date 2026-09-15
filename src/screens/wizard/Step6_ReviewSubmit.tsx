@@ -76,7 +76,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 6 · Review & Quality Gates</Text>
+          <Text style={styles.sectionTitle}>Step 6 Â· Review & Quality Gates</Text>
           <Badge
             label={isReadyForSubmission ? 'Submission Ready' : 'Gates Incomplete'}
             variant={isReadyForSubmission ? 'success' : 'danger'}
@@ -251,7 +251,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
             </Text>
             {missingRules.map((r, i) => (
               <Text key={i} style={styles.missingItemName}>
-                • {r.name}
+                â€¢ {r.name}
               </Text>
             ))}
           </View>
@@ -271,7 +271,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
           loading={submitting}
           disabled={!isReadyForSubmission}
           onPress={handleSubmit}
-          leftIcon={<Icon name="check-circle" size={22} color={colors.textPrimary} />}
+          leftIcon={<Icon name="check-circle" size={22} color={colors.textInverse} />}
           fullWidth
         />
 
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
   editStepText: {
     fontSize: typography.sizes.xs,
-    color: colors.primaryLight,
+    color: colors.primary,
     fontWeight: typography.weights.bold,
   },
   metaGrid: {
@@ -397,16 +397,16 @@ const styles = StyleSheet.create({
   checklistItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.sm,
     borderWidth: 1,
   },
   itemPass: {
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
   },
   itemFail: {
-    borderColor: colors.danger,
+    borderColor: 'rgba(220, 38, 38, 0.3)',
     backgroundColor: colors.dangerLight,
   },
   checkCircle: {
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     backgroundColor: colors.dangerLight,
     borderWidth: 1,
-    borderColor: colors.danger,
+    borderColor: 'rgba(220, 38, 38, 0.25)',
     borderRadius: spacing.borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
   },
   missingItemName: {
     fontSize: typography.sizes.xs,
-    color: colors.textPrimary,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   actionBlock: {
@@ -488,3 +488,4 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
 });
+

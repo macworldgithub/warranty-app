@@ -54,25 +54,25 @@ export const Button: React.FC<ButtonProps> = ({
       case 'success':
         return {
           bg: colors.success,
-          text: colors.textPrimary,
+          text: colors.textInverse,
           border: 'transparent',
         };
       case 'danger':
         return {
           bg: colors.danger,
-          text: colors.textPrimary,
+          text: colors.textInverse,
           border: 'transparent',
         };
       case 'secondary':
         return {
-          bg: colors.surfaceElevated,
+          bg: colors.surface,
           text: colors.textPrimary,
           border: colors.borderHighlight,
         };
       case 'outline':
         return {
           bg: 'transparent',
-          text: colors.primaryLight,
+          text: colors.primary,
           border: colors.primary,
         };
       case 'ghost':
@@ -85,7 +85,7 @@ export const Button: React.FC<ButtonProps> = ({
       default:
         return {
           bg: colors.primary,
-          text: colors.textPrimary,
+          text: colors.textInverse,
           border: 'transparent',
         };
     }

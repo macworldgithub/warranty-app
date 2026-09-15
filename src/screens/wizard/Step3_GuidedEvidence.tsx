@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   View,
   Text,
@@ -55,7 +55,7 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 3 · Tier 1 Guided Evidence</Text>
+          <Text style={styles.sectionTitle}>Step 3 Â· Tier 1 Guided Evidence</Text>
           <Badge
             label={`${completedTier1.length}/${mandatoryTier1.length} Completed`}
             variant={isTier1Complete ? 'success' : 'primary'}
@@ -110,7 +110,7 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
           variant="primary"
           disabled={!isTier1Complete}
           onPress={onNext}
-          rightIcon={<Icon name="chevron-right" size={18} color={colors.textPrimary} />}
+          rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}
         />
       </View>
@@ -164,3 +164,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
 });
+

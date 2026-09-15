@@ -57,6 +57,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.lg,
     marginBottom: spacing.md,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   cardHighlighted: {
     borderColor: colors.primary,

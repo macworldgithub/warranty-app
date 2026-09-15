@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -67,7 +67,7 @@ export const FlagResolutionScreen: React.FC<FlagResolutionScreenProps> = ({
     <View style={styles.container}>
       <Header
         title="Resolve Clerk Flags"
-        subtitle={`RO: ${caseItem.roNumber} · ${caseItem.brandName || 'OEM'}`}
+        subtitle={`RO: ${caseItem.roNumber} Â· ${caseItem.brandName || 'OEM'}`}
         roNumber={caseItem.roNumber}
         onBack={onBack}
       />
@@ -122,7 +122,7 @@ export const FlagResolutionScreen: React.FC<FlagResolutionScreenProps> = ({
           size="huge"
           loading={submitting}
           onPress={handleResubmit}
-          leftIcon={<Icon name="check-circle" size={20} color={colors.textPrimary} />}
+          leftIcon={<Icon name="check-circle" size={20} color={colors.textInverse} />}
           fullWidth
         />
       </View>
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   flagHeaderCard: {
     backgroundColor: colors.flaggedLight,
-    borderColor: colors.flagged,
+    borderColor: 'rgba(225, 31, 38, 0.25)',
     borderWidth: 1,
     borderRadius: spacing.borderRadius.lg,
     padding: spacing.lg,
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   },
   flagInstruction: {
     fontSize: typography.sizes.xs,
-    color: colors.textPrimary,
+    color: colors.textSecondary,
     lineHeight: 18,
   },
   sectionHeading: {
@@ -174,10 +174,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(11, 15, 25, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
 });
+

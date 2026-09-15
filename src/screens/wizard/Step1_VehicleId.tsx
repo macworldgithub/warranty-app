@@ -150,7 +150,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
       {/* Step Header */}
       <View style={styles.headerArea}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 1 · Vehicle Identity (Fast Path)</Text>
+          <Text style={styles.sectionTitle}>Step 1 Â· Vehicle Identity (Fast Path)</Text>
           <Badge
             label={isGatePassed ? 'Gate Complete' : 'Mandatory Gate'}
             variant={isGatePassed ? 'success' : 'danger'}
@@ -184,9 +184,9 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             style={styles.scanbotBtn}
           >
             {isScanningWithScanbot ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Icon name="sparkles" size={20} color="#00D1FF" />
+              <Icon name="sparkles" size={20} color={colors.primary} />
             )}
             <View style={{ flex: 1 }}>
               <Text style={styles.scanbotBtnTitle}>Scan VIN Barcode (Scanbot)</Text>
@@ -214,7 +214,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
               size="sm"
               loading={isVinDecoding}
               disabled={!vin || vin.length < 11}
-              leftIcon={<Icon name="check" size={16} color={colors.textPrimary} />}
+              leftIcon={<Icon name="check" size={16} color={colors.textInverse} />}
               onPress={() => decodeVinNow()}
               style={{ flex: 1 }}
             />
@@ -258,7 +258,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
               <Text style={styles.scannedMetaText}>
                 {lastScannedResult.manufacturerHint || getVinManufacturerHint(vin)}
               </Text>
-              <Text style={styles.scannedMetaText}>· 17 Chars Valid</Text>
+              <Text style={styles.scannedMetaText}>Â· 17 Chars Valid</Text>
             </View>
           </View>
         )}
@@ -335,7 +335,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             variant={hasOdoPhoto ? 'outline' : 'primary'}
             size="md"
             loading={isCapturingPhoto === 'odometer_photo'}
-            leftIcon={<Icon name="camera" size={18} color={colors.textPrimary} />}
+            leftIcon={<Icon name="camera" size={18} color={colors.primary} />}
             onPress={() =>
               handleDirectCameraCapture('odometer_photo', 'Odometer Dash Cluster')
             }
@@ -403,7 +403,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             variant={hasFrontPhoto ? 'outline' : 'primary'}
             size="md"
             loading={isCapturingPhoto === 'front_vehicle_photo'}
-            leftIcon={<Icon name="camera" size={18} color={colors.textPrimary} />}
+            leftIcon={<Icon name="camera" size={18} color={colors.primary} />}
             onPress={() =>
               handleDirectCameraCapture('front_vehicle_photo', 'Front of Vehicle Reference')
             }
@@ -451,7 +451,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           variant="primary"
           disabled={!isGatePassed}
           onPress={onNext}
-          rightIcon={<Icon name="chevron-right" size={18} color={colors.textPrimary} />}
+          rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}
         />
       </View>
@@ -494,15 +494,15 @@ const styles = StyleSheet.create({
   scanbotBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0F1E36',
+    backgroundColor: colors.surfaceHighlight,
     borderWidth: 1.5,
-    borderColor: '#00D1FF',
+    borderColor: 'rgba(225, 31, 38, 0.4)',
     borderRadius: spacing.borderRadius.md,
     padding: spacing.md,
     gap: spacing.sm,
   },
   scanbotBtnTitle: {
-    color: '#00D1FF',
+    color: colors.primary,
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
   },
@@ -518,12 +518,12 @@ const styles = StyleSheet.create({
   thumbnailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.sm,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
     gap: spacing.sm,
   },
   thumbnailImg: {
@@ -552,13 +552,13 @@ const styles = StyleSheet.create({
   },
   retakeMiniText: {
     fontSize: 11,
-    color: colors.primaryLight,
+    color: colors.primary,
     fontWeight: typography.weights.medium,
   },
   scannedConfirmationCard: {
-    backgroundColor: 'rgba(0, 209, 255, 0.08)',
+    backgroundColor: colors.successLight,
     borderWidth: 1,
-    borderColor: 'rgba(0, 209, 255, 0.4)',
+    borderColor: 'rgba(5, 150, 105, 0.3)',
     borderRadius: spacing.borderRadius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   scannedTitle: {
-    color: '#00D1FF',
+    color: colors.success,
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.bold,
     flex: 1,
@@ -601,19 +601,19 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: spacing.borderRadius.md,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
   decodedCard: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.md,
     marginTop: spacing.xs,
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
   },
   decodedRow: {
     flexDirection: 'row',
@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
   },
   decodedLabel: {
     fontSize: 9,
-    color: colors.primaryLight,
+    color: colors.primary,
     fontWeight: typography.weights.bold,
   },
   decodedSpec: {
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   ptChipTextActive: {
-    color: colors.textPrimary,
+    color: colors.textInverse,
     fontWeight: typography.weights.bold,
   },
   navRow: {
@@ -667,3 +667,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
 });
+

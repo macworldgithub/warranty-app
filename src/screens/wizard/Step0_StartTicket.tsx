@@ -25,7 +25,7 @@ interface Step0Props {
   onCancel: () => void;
 }
 
-/* ── Mock fallback data (dev only) ── */
+/* -- Mock fallback data (dev only) -- */
 const MOCK_SITES: Site[] = [
   { id: 'site_cranbourne_byd', name: 'Booran BYD Cranbourne', code: 'CRANBOURNE_BYD', authorizedBrands: ['brand_byd'] },
   { id: 'site_dandenong_multi', name: 'Booran Dandenong Multi', code: 'DANDENONG_MULTI', authorizedBrands: ['brand_hyundai', 'brand_kia', 'brand_mitsubishi'] },
@@ -64,7 +64,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
   // authorizedBrandIds for the currently selected site (null = not yet loaded)
   const [siteAuthorizedIds, setSiteAuthorizedIds] = useState<string[] | null>(null);
 
-  /* ── Initial load: all sites + all brands ── */
+  /* -- Initial load: all sites + all brands -- */
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -102,7 +102,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
     fetchData();
   }, []);
 
-  /* ── When user selects a different site, fetch its authorized brands ── */
+  /* -- When user selects a different site, fetch its authorized brands -- */
   const handleSiteSelect = async (site: Site) => {
     // Clear brand selection if it won't be valid for the new site
     setSite(site);
@@ -128,7 +128,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
     }
   };
 
-  /* ── Derived: brands that are authorized for the selected site ── */
+  /* -- Derived: brands that are authorized for the selected site -- */
   const availableBrands = useMemo(() => {
     if (!siteId || siteAuthorizedIds === null) return allBrands;
     return allBrands.filter((b) => siteAuthorizedIds.includes(b.id));
@@ -139,7 +139,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.introHeader}>
-        <Text style={styles.sectionTitle}>Step 0 — Start Warranty Ticket</Text>
+        <Text style={styles.sectionTitle}>Step 0 â€” Start Warranty Ticket</Text>
         <Text style={styles.sectionDesc}>
           Select dealership rooftop and OEM brand to initialize the live compliance rules engine.
         </Text>
@@ -170,14 +170,14 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
         )}
       </Card>
 
-      {/* Brand Selection — filtered by selected site */}
+      {/* Brand Selection â€” filtered by selected site */}
       <Card title="2. OEM Vehicle Brand">
         {!siteId ? (
           <Text style={styles.subtext}>Select a rooftop above to see its authorized brands.</Text>
         ) : brandLoading ? (
           <View style={styles.brandLoadingRow}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={[styles.subtext, { marginLeft: 8 }]}>Loading authorized brands…</Text>
+            <Text style={[styles.subtext, { marginLeft: 8 }]}>Loading authorized brandsâ€¦</Text>
           </View>
         ) : availableBrands.length === 0 ? (
           <Text style={styles.subtext}>No brands are linked to this site yet. Contact your admin.</Text>
@@ -241,7 +241,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
           variant="primary"
           disabled={!isValidRo || !siteId || !brandId}
           onPress={onNext}
-          rightIcon={<Icon name="chevron-right" size={18} color={colors.textPrimary} />}
+          rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}
         />
       </View>
@@ -279,9 +279,9 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
     borderRadius: spacing.borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   },
   chipSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primaryGlow,
+    backgroundColor: colors.surfaceHighlight,
   },
   chipText: {
     fontSize: typography.sizes.sm,
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   chipTextSelected: {
-    color: colors.primaryLight,
+    color: colors.primary,
     fontWeight: typography.weights.bold,
   },
   chipsGrid: {
@@ -308,9 +308,9 @@ const styles = StyleSheet.create({
   brandChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
+    borderColor: colors.border,
     borderRadius: spacing.borderRadius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   brandChipSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primaryGlow,
+    backgroundColor: colors.surfaceHighlight,
   },
   brandChipText: {
     fontSize: typography.sizes.sm,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   brandChipTextSelected: {
-    color: colors.primaryLight,
+    color: colors.primary,
     fontWeight: typography.weights.bold,
   },
   brandLoadingRow: {
@@ -340,3 +340,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
 });
+
+

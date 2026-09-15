@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: spacing.borderRadius.md,
     borderWidth: 1,
     borderColor: colors.borderHighlight,
@@ -124,8 +124,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerLight,
   },
   inputWrapperDisabled: {
-    opacity: 0.6,
-    backgroundColor: colors.surface,
+    opacity: 0.7,
+    backgroundColor: colors.backgroundSecondary,
   },
   leftIconContainer: {
     marginRight: spacing.sm,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -65,7 +65,7 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 5 · Voice to Tech Dictation</Text>
+          <Text style={styles.sectionTitle}>Step 5 Â· Voice to Tech Dictation</Text>
           <Badge
             label={`${voiceNotes.length} Note${voiceNotes.length !== 1 ? 's' : ''}`}
             variant={voiceNotes.length > 0 ? 'success' : 'neutral'}
@@ -215,7 +215,7 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
           title="Next: Review & Submit"
           variant="primary"
           onPress={onNext}
-          rightIcon={<Icon name="chevron-right" size={18} color={colors.textPrimary} />}
+          rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}
         />
       </View>
@@ -371,3 +371,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
 });
+

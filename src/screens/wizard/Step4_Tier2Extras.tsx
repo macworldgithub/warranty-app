@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   View,
   Text,
@@ -49,7 +49,7 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 4 · Tier 2 Component Extras</Text>
+          <Text style={styles.sectionTitle}>Step 4 Â· Tier 2 Component Extras</Text>
           <Badge
             label={
               tier2Rules.length > 0
@@ -113,7 +113,7 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
           variant="primary"
           disabled={!isTier2Complete}
           onPress={onNext}
-          rightIcon={<Icon name="chevron-right" size={18} color={colors.textPrimary} />}
+          rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}
         />
       </View>
@@ -168,3 +168,4 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
 });
+

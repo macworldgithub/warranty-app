@@ -35,31 +35,31 @@ export const Badge: React.FC<BadgeProps> = ({
       case 'success':
         return {
           bg: colors.successLight,
-          border: colors.success,
+          border: 'rgba(5, 150, 105, 0.25)',
           text: colors.success,
         };
       case 'warning':
         return {
           bg: colors.warningLight,
-          border: colors.warning,
+          border: 'rgba(217, 119, 6, 0.25)',
           text: colors.warning,
         };
       case 'danger':
         return {
           bg: colors.dangerLight,
-          border: colors.danger,
+          border: 'rgba(220, 38, 38, 0.25)',
           text: colors.danger,
         };
       case 'flagged':
         return {
           bg: colors.flaggedLight,
-          border: colors.flagged,
+          border: 'rgba(225, 31, 38, 0.25)',
           text: colors.flagged,
         };
       case 'neutral':
         return {
-          bg: colors.surfaceElevated,
-          border: colors.borderHighlight,
+          bg: colors.backgroundSecondary,
+          border: colors.border,
           text: colors.textSecondary,
         };
       case 'outline':
@@ -71,9 +71,9 @@ export const Badge: React.FC<BadgeProps> = ({
       case 'primary':
       default:
         return {
-          bg: colors.primaryGlow,
-          border: colors.primary,
-          text: colors.primaryLight,
+          bg: colors.surfaceHighlight,
+          border: 'rgba(225, 31, 38, 0.25)',
+          text: colors.primary,
         };
     }
   };

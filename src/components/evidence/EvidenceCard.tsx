@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   },
   cardCaptured: {
     borderColor: colors.borderHighlight,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
   },
   cardFlagged: {
     borderColor: colors.flagged,
@@ -305,7 +305,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconMissing: {
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   iconCaptured: {
     backgroundColor: colors.successLight,
@@ -321,8 +323,9 @@ const styles = StyleSheet.create({
   oemFileName: {
     fontSize: 10,
     fontFamily: typography.fontFamily,
-    color: colors.primaryLight,
+    color: colors.primary,
     marginTop: 2,
+    fontWeight: typography.weights.semibold,
   },
 
   guidanceText: {
@@ -334,12 +337,12 @@ const styles = StyleSheet.create({
   flagAlert: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: colors.flaggedLight,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.sm,
     marginBottom: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: 'rgba(225, 31, 38, 0.25)',
     gap: spacing.xs,
   },
   flagAlertTextContainer: {
@@ -352,7 +355,7 @@ const styles = StyleSheet.create({
   },
   flagAlertDesc: {
     fontSize: 11,
-    color: colors.textPrimary,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   unopenedContainer: {
@@ -367,7 +370,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: spacing.borderRadius.md,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -378,7 +381,7 @@ const styles = StyleSheet.create({
   },
   previewMediaBox: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: spacing.borderRadius.md,
     padding: spacing.sm,
     marginBottom: spacing.sm,
@@ -397,7 +400,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 56,
     borderRadius: spacing.borderRadius.sm,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -431,7 +434,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: spacing.borderRadius.md,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

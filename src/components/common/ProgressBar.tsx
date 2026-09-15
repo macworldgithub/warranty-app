@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: typography.sizes.xs,
-    color: colors.primaryLight,
+    color: colors.primary,
     fontWeight: typography.weights.bold,
     textTransform: 'uppercase',
   },
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 4,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.backgroundSecondary,
     borderRadius: spacing.borderRadius.full,
     overflow: 'hidden',
     marginBottom: spacing.xs,
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.borderHighlight,
   },
   dotDone: {
     backgroundColor: colors.success,

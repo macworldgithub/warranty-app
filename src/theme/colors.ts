@@ -1,50 +1,50 @@
 export const colors = {
   // Backgrounds
-  background: '#0B0F19', // Deep dark slate workshop background
-  backgroundSecondary: '#111827',
-  surface: '#151C2C', // Glassmorphic card surface
-  surfaceElevated: '#1E293B',
-  surfaceHighlight: '#243048',
-  surfaceGlass: 'rgba(21, 28, 44, 0.85)',
+  background: '#F8FAFC', // Slate 50 clean workshop canvas
+  backgroundSecondary: '#F1F5F9', // Slate 100
+  surface: '#FFFFFF', // Pure white card surface
+  surfaceElevated: '#F8FAFC', // Slate 50 subtle elevation
+  surfaceHighlight: '#FEF2F2', // Soft red tint for active/highlighted states
+  surfaceGlass: 'rgba(255, 255, 255, 0.95)', // Frosted white header
 
-  // Brand & Accents
-  primary: '#3B82F6', // Vibrant Electric Blue
-  primaryDark: '#1D4ED8',
-  primaryLight: '#60A5FA',
-  primaryGlow: 'rgba(59, 130, 246, 0.25)',
-  
-  secondary: '#6366F1', // Indigo
-  accentCyan: '#06B6D4',
+  // Brand & Accents (Booran Corporate Red)
+  primary: '#E11F26', // Official Booran Red
+  primaryDark: '#C81A20', // Hover/pressed red
+  primaryLight: '#EF4444', // Red 500
+  primaryGlow: 'rgba(225, 31, 38, 0.08)', // Soft red glow / tint
+
+  secondary: '#334155', // Slate 700
+  accentCyan: '#0284C7', // Sky 600
 
   // Status & Quality Gates
-  success: '#10B981', // Emerald Pass Green
+  success: '#059669', // Emerald 600 Pass Green
   successDark: '#047857',
-  successLight: 'rgba(16, 185, 129, 0.15)',
-  
-  warning: '#F59E0B', // Amber Alert
-  warningLight: 'rgba(245, 158, 11, 0.15)',
-  
-  danger: '#EF4444', // Red Gate Block
-  dangerDark: '#B91C1C',
-  dangerLight: 'rgba(239, 68, 68, 0.15)',
+  successLight: '#F0FDF4', // Emerald 50 soft pill background
 
-  flagged: '#EC4899', // Pink/Magenta for Clerk Flag
-  flaggedLight: 'rgba(236, 72, 153, 0.15)',
+  warning: '#D97706', // Amber 600 Alert
+  warningLight: '#FFFBEB', // Amber 50 soft pill background
+
+  danger: '#DC2626', // Red 600 Gate Block
+  dangerDark: '#B91C1C',
+  dangerLight: '#FEF2F2', // Red 50 soft pill background
+
+  flagged: '#E11F26', // Booran Red for Clerk Flag
+  flaggedLight: '#FEF2F2', // Red 50 soft pill background
 
   // Typography
-  textPrimary: '#F9FAFB', // Crisp high contrast white
-  textSecondary: '#94A3B8', // Muted slate
-  textMuted: '#64748B',
-  textDisabled: '#475569',
-  textInverse: '#0B0F19',
+  textPrimary: '#0F172A', // Slate 900 crisp high contrast text
+  textSecondary: '#475569', // Slate 600 readable body text
+  textMuted: '#94A3B8', // Slate 400 labels and hints
+  textDisabled: '#CBD5E1', // Slate 300 disabled text
+  textInverse: '#FFFFFF', // White text on primary buttons and dark pills
 
   // Borders & Dividers
-  border: '#1E293B',
-  borderHighlight: '#334155',
-  borderActive: '#3B82F6',
-  divider: '#1E293B',
+  border: '#E2E8F0', // Slate 200 clean border
+  borderHighlight: '#CBD5E1', // Slate 300 input border
+  borderActive: '#E11F26', // Booran Red active focus border
+  divider: '#E2E8F0', // Slate 200
 
   // Overlay
-  overlay: 'rgba(11, 15, 25, 0.85)',
+  overlay: 'rgba(15, 23, 42, 0.5)',
   cameraMask: 'rgba(0, 0, 0, 0.65)',
 };

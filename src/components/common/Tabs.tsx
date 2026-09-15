@@ -89,19 +89,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tabActive: {
-    backgroundColor: colors.primaryGlow,
+    backgroundColor: colors.surfaceHighlight,
     borderColor: colors.primary,
   },
   tabInactive: {
-    backgroundColor: colors.surfaceElevated,
-    borderColor: 'transparent',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
   },
   tabText: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
   },
   tabTextActive: {
-    color: colors.primaryLight,
+    color: colors.primary,
   },
   tabTextInactive: {
     color: colors.textSecondary,
@@ -116,14 +116,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   countBadgeInactive: {
-    backgroundColor: colors.borderHighlight,
+    backgroundColor: colors.backgroundSecondary,
   },
   countText: {
     fontSize: typography.sizes.xs - 1,
     fontWeight: typography.weights.bold,
   },
   countTextActive: {
-    color: colors.textPrimary,
+    color: colors.textInverse,
   },
   countTextInactive: {
     color: colors.textSecondary,
