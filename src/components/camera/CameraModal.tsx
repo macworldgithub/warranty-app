@@ -7,7 +7,11 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
+  Platform,
+  PermissionsAndroid,
+  Alert,
 } from 'react-native';
+
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -96,10 +100,40 @@ export const CameraModal: React.FC<CameraModalProps> = ({
     return undefined;
   };
 
+  // Request Android Camera Permission
+  const requestCameraPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        {
+          title: 'Workshop Camera Permission',
+          message: 'Camera access is required to capture warranty evidence, VIN plates, and odometers.',
+          buttonPositive: 'Grant Access',
+          buttonNegative: 'Cancel',
+        }
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      console.warn('Camera permission request error:', err);
+      return true;
+    }
+  };
+
   // Launch Native Device Camera
   const handleOpenNativeCamera = async () => {
     setIsCapturing(true);
     try {
+      const hasPermission = await requestCameraPermission();
+      if (!hasPermission) {
+        setIsCapturing(false);
+        Alert.alert(
+          'Camera Permission Denied',
+          'Camera permission is required. You can also import from gallery or use simulated capture.'
+        );
+        return;
+      }
+
       const result = await launchCamera({
         mediaType: isVideo ? 'video' : 'photo',
         cameraType: 'back',
@@ -125,6 +159,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       handleSimulatedCapture();
     }
   };
+
 
   // Launch Photo / Video Gallery
   const handleOpenGallery = async () => {

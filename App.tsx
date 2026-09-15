@@ -191,7 +191,15 @@ function MainNavigator() {
   );
 }
 
+import { scanbotService } from './src/services/scanbot.service';
+
 export default function App() {
+  React.useEffect(() => {
+    scanbotService.initialize().then(initialized => {
+      console.log('[App] Scanbot SDK initialization status:', initialized);
+    });
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" />
@@ -205,6 +213,7 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
 
 const styles = StyleSheet.create({
   wizardContainer: {
