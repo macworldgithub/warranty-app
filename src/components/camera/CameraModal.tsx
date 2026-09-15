@@ -47,6 +47,14 @@ export const CameraModal: React.FC<CameraModalProps> = ({
   const [isCapturing, setIsCapturing] = useState(false);
   const isVideo = rule.mediaType === 'video';
 
+  // Automatically trigger hardware camera immediately when modal opens
+  React.useEffect(() => {
+    if (visible) {
+      handleOpenNativeCamera();
+    }
+  }, [visible]);
+
+
   const getOverlayGuide = () => {
     const key = rule.ruleKey.toLowerCase();
     if (key.includes('vin')) {
