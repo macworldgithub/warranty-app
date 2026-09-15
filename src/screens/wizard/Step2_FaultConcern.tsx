@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -12,11 +13,10 @@ import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { Badge } from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { VoiceToTechButton } from '../../components/voice/VoiceToTechButton';
-import { BarcodeScannerModal } from '../../components/evidence/BarcodeScannerModal';
+import { scanbotService } from '../../services/scanbot.service';
 import { RepairStage } from '../../types';
 
 interface Step2Props {
@@ -63,7 +63,42 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
     mandatoryCount,
   } = useCaseWizard();
 
-  const [activeBarcodeModal, setActiveBarcodeModal] = useState<'old' | 'new' | null>(null);
+  const [isScanningPart, setIsScanningPart] = useState<'old' | 'new' | null>(null);
+
+  const handleScanPart = async (type: 'old' | 'new') => {
+    setIsScanningPart(type);
+    try {
+      const prompt =
+        type === 'new'
+          ? 'Align NEW replacement part barcode / QR within bracket'
+          : 'Align OLD defective part barcode / QR within bracket';
+
+      const result = await scanbotService.scanPartBarcode(prompt);
+      setIsScanningPart(null);
+
+      if (result.success && result.serial) {
+        if (type === 'new') {
+          if (oldPartSerial && result.serial === oldPartSerial.trim().toUpperCase()) {
+            Alert.alert(
+              'Quality Gate Warning',
+              'The scanned new part serial is identical to the old defective part serial. Please verify you scanned the new replacement component.'
+            );
+          }
+          setNewPartSerial(result.serial);
+        } else {
+          setOldPartSerial(result.serial);
+        }
+      } else if (result.error && !result.error.includes('cancelled')) {
+        Alert.alert('Scan Result', result.error);
+      }
+    } catch (err: any) {
+      setIsScanningPart(null);
+      Alert.alert(
+        'Scanner Notice',
+        'Could not open part scanner. You can enter the serial number manually.'
+      );
+    }
+  };
 
   const handleCategorySelect = (cat: string) => {
     setFaultCategory(cat);
@@ -207,11 +242,12 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
                   containerStyle={{ flex: 1, marginBottom: 0 }}
                 />
                 <Button
-                  title="Scan"
+                  title={isScanningPart === 'old' ? 'Scanning...' : 'Scan'}
                   variant="secondary"
                   size="md"
+                  disabled={isScanningPart !== null}
                   leftIcon={<Icon name="barcode" size={16} color={colors.primaryLight} />}
-                  onPress={() => setActiveBarcodeModal('old')}
+                  onPress={() => handleScanPart('old')}
                   style={{ alignSelf: 'flex-end', height: 48 }}
                 />
               </View>
@@ -225,11 +261,12 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
                   containerStyle={{ flex: 1, marginBottom: 0 }}
                 />
                 <Button
-                  title="Scan"
+                  title={isScanningPart === 'new' ? 'Scanning...' : 'Scan'}
                   variant="secondary"
                   size="md"
+                  disabled={isScanningPart !== null}
                   leftIcon={<Icon name="barcode" size={16} color={colors.primaryLight} />}
-                  onPress={() => setActiveBarcodeModal('new')}
+                  onPress={() => handleScanPart('new')}
                   style={{ alignSelf: 'flex-end', height: 48 }}
                 />
               </View>
@@ -339,24 +376,6 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
           Rules Evaluated: {resolvedRules.length} Total ({mandatoryCount} Mandatory Gates)
         </Text>
       </View>
-
-      {/* Barcode Scanner Modal */}
-      {activeBarcodeModal && (
-        <BarcodeScannerModal
-          visible={!!activeBarcodeModal}
-          title={activeBarcodeModal === 'new' ? 'Scan New Part Barcode' : 'Scan Old Part Barcode'}
-          isNewPart={activeBarcodeModal === 'new'}
-          oldSerial={oldPartSerial}
-          onClose={() => setActiveBarcodeModal(null)}
-          onScanSuccess={serial => {
-            if (activeBarcodeModal === 'new') {
-              setNewPartSerial(serial);
-            } else {
-              setOldPartSerial(serial);
-            }
-          }}
-        />
-      )}
 
       {/* Navigation */}
       <View style={styles.navRow}>

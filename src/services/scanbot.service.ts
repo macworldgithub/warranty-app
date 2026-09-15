@@ -26,6 +26,14 @@ export interface ScanVinResult {
   error?: string;
 }
 
+export interface ScanPartBarcodeResult {
+  success: boolean;
+  serial?: string;
+  rawValue?: string;
+  source: 'SCANBOT_SDK' | 'FALLBACK_SIMULATION' | 'MANUAL';
+  error?: string;
+}
+
 export interface LicenseStatus {
   isInitialized: boolean;
   isValid: boolean;
@@ -102,7 +110,6 @@ export const scanbotService = {
               minimumNumberOfRequiredFramesWithEqualRecognitionResult: 1, // Single-frame instant trigger
               oneDConfirmationMode: 'MINIMAL', // Fastest confirmation for instant auto-scan
             }),
-
           ],
         }),
 
@@ -199,6 +206,103 @@ export const scanbotService = {
       isValidVin: isValidVIN(normalized),
       manufacturerHint: getVinManufacturerHint(normalized),
       source: 'FALLBACK_SIMULATION',
+    };
+  },
+
+  /**
+   * Launches Scanbot Ready-To-Use UI Barcode Scanner to scan 1D / 2D part barcodes, labels, and QR serials.
+   */
+  scanPartBarcode: async (
+    guidancePrompt: string = 'Align part barcode / DataMatrix within bracket'
+  ): Promise<ScanPartBarcodeResult> => {
+    try {
+      const configuration = new BarcodeScannerScreenConfiguration({
+        scannerConfiguration: new BarcodeScannerConfiguration({
+          engineMode: 'NEXT_GEN',
+          directAcceptanceAreaFraction: 0.0, // Instantly accepts barcode the millisecond it is detected
+          optimizedForOverlays: true,
+          barcodeFormatConfigurations: [
+            new BarcodeFormatCommonConfiguration({
+              strictMode: false,
+              enableOneDBlurScanner: true,
+              addAdditionalQuietZone: true,
+              minimumNumberOfRequiredFramesWithEqualRecognitionResult: 1,
+              oneDConfirmationMode: 'MINIMAL',
+            }),
+          ],
+        }),
+
+        // Balanced bracket for 1D barcodes and 2D DataMatrix/QR part serials
+        viewFinder: new ViewFinderConfiguration({
+          visible: true,
+          aspectRatio: new AspectRatio({ width: 2.4, height: 1.4 }),
+          overlayColor: '#66000000',
+          style: new FinderCorneredStyle({
+            strokeColor: '#FF00D1FF',
+            strokeWidth: 4.0,
+            cornerRadius: 10.0,
+          }),
+        }),
+
+        cameraConfiguration: new CameraConfiguration({
+          cameraModule: 'BACK',
+          touchToFocusEnabled: true,
+          pinchToZoomEnabled: true,
+          defaultZoomFactor: 1.0,
+          fpsLimit: 30,
+          cameraLiveScannerResolution: 'FULL_HD',
+        }),
+
+        useCase: new SingleScanningMode({
+          confirmationSheetEnabled: false,
+        }),
+
+        sound: new Sound({
+          successBeepEnabled: true,
+        }),
+        vibration: new Vibration({
+          enabled: true,
+        }),
+
+        userGuidance: new UserGuidanceConfiguration({
+          visible: true,
+          title: {
+            text: guidancePrompt,
+            color: '#FFFFFFFF',
+          },
+        }),
+      });
+
+      console.log('[ScanbotService] Launching Scanbot Part Barcode Scanner UI...');
+      const result = await ScanbotBarcodeSDK.Barcode.startScanner(configuration);
+      console.log('[ScanbotService] Part scan result status:', result?.status);
+
+      if (result && result.status === 'OK' && result.data?.items && result.data.items.length > 0) {
+        const item = result.data.items[0];
+        const rawValue = item.barcode?.text || '';
+        const cleanSerial = rawValue.trim().toUpperCase();
+
+        return {
+          success: true,
+          serial: cleanSerial,
+          rawValue,
+          source: 'SCANBOT_SDK',
+        };
+      } else if (result?.status === 'CANCELED') {
+        return {
+          success: false,
+          error: 'Scan cancelled by technician',
+          source: 'SCANBOT_SDK',
+        };
+      }
+    } catch (sdkError: any) {
+      console.warn('[ScanbotService] Part scanner exception:', sdkError?.message || sdkError);
+    }
+
+    return {
+      success: false,
+      error: 'Scanner unavailable',
+      source: 'MANUAL',
     };
   },
 };

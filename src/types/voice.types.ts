@@ -3,7 +3,7 @@ export interface TranscribeResponse {
   confidence?: number;
   duration?: number;
   language?: string;
-  source?: 'deepgram' | 'mock' | 'local';
+  source?: 'deepgram' | 'mock' | 'local' | 'fallback';
 }
 
 export interface VoiceStatusResponse {
