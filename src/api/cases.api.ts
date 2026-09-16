@@ -11,8 +11,12 @@ export interface CaseFilters {
   brandId?: string;
   status?: string;
   technicianId?: string;
+  technicianName?: string;
   roNumber?: string;
   vin?: string;
+  search?: string;
+  limit?: number;
+  page?: number;
 }
 
 export const casesApi = {
@@ -21,12 +25,15 @@ export const casesApi = {
     if (filters) {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([key, val]) => {
-        if (val) params.append(key, val);
+        if (val !== undefined && val !== null && val !== '') {
+          params.append(key, String(val));
+        }
       });
       const str = params.toString();
       if (str) query = `?${str}`;
     }
-    return apiClient.get<WarrantyCase[]>(`/warranty-cases${query}`);
+    const res = await apiClient.get<any>(`/warranty-cases${query}`);
+    return Array.isArray(res) ? res : (res?.data ?? []);
   },
 
   getCaseById: async (id: string): Promise<WarrantyCase> => {

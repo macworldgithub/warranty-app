@@ -48,11 +48,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   const fetchCases = useCallback(async () => {
     try {
-      const data = await casesApi.getCases();
+      const data = await casesApi.getCases({
+        technicianId: user?.id,
+        technicianName: user?.name,
+        limit: 100,
+      });
       const pending = offlineStorage.getPendingUploads();
-      const serverList = Array.isArray(data) ? data : [];
-      const serverIds = new Set(serverList.map(c => c.id));
-      const merged = [
+      const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
+      const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
+      const merged: WarrantyCase[] = [
         ...pending.filter(p => !serverIds.has(p.id)),
         ...serverList,
       ];
@@ -65,7 +69,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.id, user?.name]);
 
   useEffect(() => {
     fetchCases();
