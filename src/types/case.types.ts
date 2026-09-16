@@ -29,24 +29,31 @@ export interface EvidenceItem {
   id?: string;
   ruleKey: string;
   ruleName?: string;
+  name?: string;
   mediaType: MediaType;
   originalFileName?: string;
-  oemFileName: string;
+  oemFileName?: string;
   fileUri?: string;
   serverUrl?: string;
+  storageUrl?: string;
+  thumbnailUrl?: string;
   fileSize?: number;
   mimeType?: string;
-  capturedAt: string;
+  capturedAt?: string;
+  uploadedAt?: string;
   serialNumber?: string;
   ocrExtractedText?: string;
+  ocrConfidence?: number;
   durationSeconds?: number;
   qualityStatus?: 'PASSED' | 'WARNING' | 'FAILED';
   qualityCheck?: QualityCheckResult;
-  isMandatory: boolean;
+  isMandatory?: boolean;
   tier?: 1 | 2;
   pinnedVoiceNoteIds?: string[];
   notes?: string;
+  technicianNote?: string;
   isUploaded?: boolean;
+  isVerifiedByClerk?: boolean;
 }
 
 export interface VoiceNote {
