@@ -40,6 +40,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 }) => {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [showSampleGuide, setShowSampleGuide] = useState(false);
 
   const isCaptured = !!evidence && (!!evidence.fileUri || !!evidence.serverUrl);
   const isVideo = rule.mediaType === 'video';
@@ -139,6 +140,62 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
           {rule.guidanceText}
         </Text>
       )}
+
+      {/* OEM Benchmark / Sample Reference Preview (Spec §5.4 / §7) */}
+      {rule.exampleImageUrl ? (
+        <View style={styles.sampleGuideContainer}>
+          <TouchableOpacity
+            style={styles.sampleGuideHeader}
+            onPress={() => setShowSampleGuide(!showSampleGuide)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.sampleGuideTitleRow}>
+              <Icon name="eye" size={14} color={colors.accentCyan || '#06B6D4'} />
+              <Text style={styles.sampleGuideTitle}>OEM Benchmark Reference Shot</Text>
+            </View>
+            <Text style={styles.sampleGuideToggleText}>
+              {showSampleGuide ? 'Hide Sample ▲' : 'View Sample Shot ▼'}
+            </Text>
+          </TouchableOpacity>
+
+          {showSampleGuide && (
+            <View style={styles.sampleImageFrame}>
+              {rule.exampleImageUrl.startsWith('data:application/pdf') || rule.exampleImageUrl.includes('.pdf') || rule.mediaType === 'document' ? (
+                <View style={{ alignItems: 'center', justifyContent: 'center', padding: spacing.sm, gap: 4 }}>
+                  <Icon name="file-text" size={32} color={colors.accentCyan || '#06B6D4'} />
+                  <Text style={{ color: colors.textPrimary || '#FFFFFF', fontSize: 11, fontWeight: typography.weights.bold }}>
+                    OEM Diagnostic Spec PDF Attached
+                  </Text>
+                  <Text style={styles.sampleGuideCaption}>
+                    Diagnostic scan log / OEM technical specification
+                  </Text>
+                </View>
+              ) : rule.exampleImageUrl.startsWith('data:video') || rule.exampleImageUrl.includes('.mp4') ? (
+                <View style={{ alignItems: 'center', justifyContent: 'center', padding: spacing.sm, gap: 4 }}>
+                  <Icon name="video" size={32} color={colors.primaryLight || '#E11F26'} />
+                  <Text style={{ color: colors.textPrimary || '#FFFFFF', fontSize: 11, fontWeight: typography.weights.bold }}>
+                    Sample Video Demonstration Attached
+                  </Text>
+                  <Text style={styles.sampleGuideCaption}>
+                    Record 15–30s video with sound demonstrating the fault
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Image
+                    source={{ uri: rule.exampleImageUrl }}
+                    style={styles.sampleRealImage}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.sampleGuideCaption}>
+                    Framing & angle required by {rule.name}
+                  </Text>
+                </>
+              )}
+            </View>
+          )}
+        </View>
+      ) : null}
 
       {/* Captured Evidence Preview */}
       {isCaptured ? (
@@ -445,5 +502,56 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  sampleGuideContainer: {
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: spacing.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  sampleGuideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sampleGuideTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sampleGuideTitle: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.accentCyan || '#06B6D4',
+  },
+  sampleGuideToggleText: {
+    fontSize: 10,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary,
+  },
+  sampleImageFrame: {
+    marginTop: spacing.sm,
+    height: 140,
+    borderRadius: spacing.borderRadius.sm,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleRealImage: {
+    width: '100%',
+    height: 115,
+  },
+  sampleGuideCaption: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontWeight: typography.weights.regular,
+    marginTop: 2,
+    textAlign: 'center',
   },
 });
