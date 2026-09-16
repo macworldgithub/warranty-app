@@ -46,7 +46,11 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
   useEffect(() => {
     if (visible) {
-      setDigits(['', '', '', '', '', '']);
+      if (devOtp && devOtp.length === 6) {
+        setDigits(devOtp.split(''));
+      } else {
+        setDigits(['', '', '', '', '', '']);
+      }
       setCountdown(60);
       setTimeout(() => {
         if (inputRefs.current[0] && typeof inputRefs.current[0].focus === 'function') {
@@ -54,7 +58,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         }
       }, 300);
     }
-  }, [visible]);
+  }, [visible, devOtp]);
 
   useEffect(() => {
     if (!visible || countdown <= 0) return;
