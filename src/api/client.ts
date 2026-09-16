@@ -9,6 +9,7 @@ export interface ApiResponse<T = any> {
 
 class ApiClient {
   private token: string | null = null;
+  private onUnauthorizedCallback: (() => void) | null = null;
 
   public setToken(token: string | null) {
     this.token = token;
@@ -16,6 +17,10 @@ class ApiClient {
 
   public getToken() {
     return this.token;
+  }
+
+  public setOnUnauthorized(callback: () => void) {
+    this.onUnauthorizedCallback = callback;
   }
 
   public async request<T = any>(
@@ -58,6 +63,10 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        if (response.status === 401 && this.onUnauthorizedCallback) {
+          this.onUnauthorizedCallback();
+        }
+
         const errorMessage =
           (data && data.message) ||
           (Array.isArray(data?.message) ? data.message.join(', ') : null) ||

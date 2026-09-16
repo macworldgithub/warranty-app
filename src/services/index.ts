@@ -4,6 +4,7 @@ export * from './qualityGates';
 export * from './offlineStorage';
 export * from './syncManager';
 export * from './scanbot.service';
+export * from './barcodeScanner.service';
 export * from './cameraService';
 
 

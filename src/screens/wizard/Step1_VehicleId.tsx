@@ -17,8 +17,9 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Badge } from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
+import { BarcodeScannerModal } from '../../components/evidence/BarcodeScannerModal';
 import { useCaseWizard } from '../../context/CaseWizardContext';
-import { scanbotService, ScanVinResult } from '../../services/scanbot.service';
+import { barcodeScannerService, ScanVinResult } from '../../services/barcodeScanner.service';
 import { cameraService } from '../../services/cameraService';
 import { normalizeVIN, isValidVIN, getVinManufacturerHint } from '../../utils/vin';
 import { PowertrainType } from '../../types';
@@ -46,7 +47,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
     roNumber,
   } = useCaseWizard();
 
-  const [isScanningWithScanbot, setIsScanningWithScanbot] = useState(false);
+  const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
   const [isCapturingPhoto, setIsCapturingPhoto] = useState<string | null>(null);
   const [lastScannedResult, setLastScannedResult] = useState<ScanVinResult | null>(null);
 
@@ -64,38 +65,32 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
   const isGatePassed =
     (hasVinPhoto || isVinValid) && hasVinString && hasOdoPhoto && hasOdoReading && hasFrontPhoto;
 
-  // Handle Scanbot Barcode Scanner trigger
-  const handleLaunchScanbot = async () => {
-    setIsScanningWithScanbot(true);
-    try {
-      const result = await scanbotService.scanVINBarcode();
-      setIsScanningWithScanbot(false);
+  // Handle VisionCamera Barcode Scanner trigger
+  const handleLaunchScanner = () => {
+    setIsScannerModalOpen(true);
+  };
 
-      if (result.success && result.vin) {
-        setLastScannedResult(result);
-        const normalized = normalizeVIN(result.vin);
-        setVin(normalized);
+  const handleVinBarcodeScanned = (scannedRawText: string) => {
+    const result = barcodeScannerService.processScannedVin(scannedRawText);
+    if (result.success && result.vin) {
+      setLastScannedResult(result);
+      const normalized = normalizeVIN(result.vin);
+      setVin(normalized);
 
-        // Auto-save VIN evidence if not present
-        if (!hasVinPhoto) {
-          saveEvidenceItem({
-            ruleKey: 'vin_photo',
-            ruleName: 'VIN Plate / Windscreen Barcode',
-            fileUri: `file:///data/user/0/com.warrantyapp/cache/vin_barcode_${Date.now()}.jpg`,
-            fileSize: 1540000,
-            ocrExtractedText: normalized,
-            capturedAt: new Date().toISOString(),
-          });
-        }
-
-        // Auto-trigger backend decode
-        decodeVinNow(normalized);
-      } else if (result.error && !result.error.includes('cancelled')) {
-        Alert.alert('Scan Result', result.error);
+      // Auto-save VIN evidence if not present
+      if (!hasVinPhoto) {
+        saveEvidenceItem({
+          ruleKey: 'vin_photo',
+          ruleName: 'VIN Plate / Windscreen Barcode',
+          fileUri: `file:///data/user/0/com.warrantyapp/cache/vin_barcode_${Date.now()}.jpg`,
+          fileSize: 1540000,
+          ocrExtractedText: normalized,
+          capturedAt: new Date().toISOString(),
+        });
       }
-    } catch (err: any) {
-      setIsScanningWithScanbot(false);
-      Alert.alert('Scanner Notice', 'Could not open live scanner. You can enter the VIN manually or capture a photo.');
+
+      // Auto-trigger backend decode
+      decodeVinNow(normalized);
     }
   };
 
@@ -175,22 +170,17 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           )
         }
       >
-        {/* Dual Capture Options: Scanbot Barcode Scanner & Direct Camera Photo */}
+        {/* Dual Capture Options: VisionCamera Barcode Scanner & Direct Camera Photo */}
         <View style={styles.captureActionGrid}>
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={handleLaunchScanbot}
-            disabled={isScanningWithScanbot}
+            onPress={handleLaunchScanner}
             style={styles.scanbotBtn}
           >
-            {isScanningWithScanbot ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Icon name="sparkles" size={20} color={colors.primary} />
-            )}
+            <Icon name="sparkles" size={20} color={colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.scanbotBtnTitle}>Scan VIN Barcode (Scanbot)</Text>
-              <Text style={styles.scanbotBtnSub}>Instant auto-scan for barcode stickers & printouts</Text>
+              <Text style={styles.scanbotBtnTitle}>Scan VIN Barcode (Live Camera)</Text>
+              <Text style={styles.scanbotBtnSub}>Free VisionCamera auto-scan for Code 39, Code 128 & QR</Text>
             </View>
             <Icon name="chevron-right" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -250,7 +240,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           <View style={styles.scannedConfirmationCard}>
             <View style={styles.scannedHeader}>
               <Icon name="check" size={16} color={colors.success} />
-              <Text style={styles.scannedTitle}>Scanbot Detection Verified</Text>
+              <Text style={styles.scannedTitle}>VisionCamera Detection Verified</Text>
               <Badge label={lastScannedResult.source} variant="outline" size="sm" />
             </View>
             <Text style={styles.scannedVinText}>{lastScannedResult.vin}</Text>
@@ -258,10 +248,19 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
               <Text style={styles.scannedMetaText}>
                 {lastScannedResult.manufacturerHint || getVinManufacturerHint(vin)}
               </Text>
-              <Text style={styles.scannedMetaText}>Â· 17 Chars Valid</Text>
+              <Text style={styles.scannedMetaText}>• 17 Chars Valid</Text>
             </View>
           </View>
         )}
+
+        {/* Live Camera Scanner Modal */}
+        <BarcodeScannerModal
+          visible={isScannerModalOpen}
+          title="Scan Vehicle VIN Barcode"
+          barcodeFormats={['code-39', 'code-128', 'pdf-417', 'qr']}
+          onClose={() => setIsScannerModalOpen(false)}
+          onScanSuccess={handleVinBarcodeScanned}
+        />
 
         {/* VIN String Input Field */}
         <Input

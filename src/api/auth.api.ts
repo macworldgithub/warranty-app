@@ -1,5 +1,11 @@
 import { apiClient } from './client';
-import { User, AuthResponse } from '../types';
+import {
+  User,
+  AuthResponse,
+  VerifyRegisterOtpDto,
+  ResetPasswordDto,
+  GenericAuthResponse,
+} from '../types';
 
 export interface RegisterTechnicianDto {
   name: string;
@@ -11,55 +17,133 @@ export interface RegisterTechnicianDto {
 
 export const authApi = {
   login: async (email: string, password?: string): Promise<AuthResponse> => {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/login', {
-        email,
-        password: password || 'default_password',
-      });
-      if (response.token) {
-        apiClient.setToken(response.token);
-      }
-      return response;
-    } catch (error: any) {
-      // Offline / Network error fallback technician session
-      const fallbackUser: User = {
-        id: `usr_tech_${Date.now()}`,
-        name: email.split('@')[0].replace('.', ' ') || 'Workshop Technician',
-        email,
-        role: 'TECHNICIAN',
-        defaultSiteId: 'site_cranbourne_byd',
-        authorizedSiteIds: ['site_cranbourne_byd'],
-      };
-      const token = `offline_token_${fallbackUser.id}`;
+    const response = await apiClient.post<any>('/auth/login', {
+      email,
+      password: password || 'default_password',
+    });
+
+    const resData = response?.data || response;
+    const token =
+      resData?.token ||
+      resData?.accessToken ||
+      resData?.access_token ||
+      response?.token ||
+      response?.accessToken;
+    const user = resData?.user || response?.user || resData;
+
+    if (token) {
       apiClient.setToken(token);
-      return { user: fallbackUser, token };
     }
+
+    return {
+      user: {
+        ...user,
+        role: user?.role || 'TECHNICIAN',
+      },
+      token,
+      message: resData?.message || response?.message,
+    };
   },
 
   registerTechnician: async (dto: RegisterTechnicianDto): Promise<AuthResponse> => {
-    try {
-      const response = await apiClient.post<AuthResponse>('/auth/register', {
-        ...dto,
-        role: 'TECHNICIAN',
-      });
-      if (response.token) {
-        apiClient.setToken(response.token);
-      }
-      return response;
-    } catch (error: any) {
-      // Offline / fallback registration
-      const newTech: User = {
-        id: `usr_tech_${Date.now()}`,
-        name: dto.name,
-        email: dto.email,
-        role: 'TECHNICIAN',
-        defaultSiteId: dto.defaultSiteId || 'site_cranbourne_byd',
-        authorizedSiteIds: [dto.defaultSiteId || 'site_cranbourne_byd'],
-      };
-      const response: AuthResponse = { user: newTech, token: `token_${newTech.id}` };
-      apiClient.setToken(response.token || null);
-      return response;
+    const response = await apiClient.post<any>('/auth/register', {
+      ...dto,
+      role: 'TECHNICIAN',
+    });
+
+    const resData = response?.data || response;
+    const token =
+      resData?.token ||
+      resData?.accessToken ||
+      resData?.access_token ||
+      response?.token ||
+      response?.accessToken;
+    const user = resData?.user || response?.user || resData;
+
+    if (token) {
+      apiClient.setToken(token);
     }
+
+    return {
+      user: {
+        ...user,
+        role: 'TECHNICIAN',
+      },
+      token,
+      message: resData?.message || response?.message,
+    };
+  },
+
+  sendRegistrationOtp: async (
+    email: string,
+    name?: string
+  ): Promise<GenericAuthResponse> => {
+    const response = await apiClient.post<any>('/auth/register/send-otp', {
+      email,
+      name,
+    });
+    const resData = response?.data || response;
+    return {
+      success: true,
+      message: resData?.message || 'Verification code sent to your email',
+      devOtp: resData?.devOtp || resData?.otp,
+    };
+  },
+
+  verifyRegistrationOtp: async (
+    dto: VerifyRegisterOtpDto
+  ): Promise<AuthResponse> => {
+    const response = await apiClient.post<any>('/auth/register/verify-otp', {
+      ...dto,
+      role: dto.role || 'TECHNICIAN',
+    });
+
+    const resData = response?.data || response;
+    const token =
+      resData?.token ||
+      resData?.accessToken ||
+      resData?.access_token ||
+      response?.token ||
+      response?.accessToken;
+    const user = resData?.user || response?.user || resData;
+
+    if (token) {
+      apiClient.setToken(token);
+    }
+
+    return {
+      user: {
+        ...user,
+        role: 'TECHNICIAN',
+      },
+      token,
+      message: resData?.message || response?.message,
+    };
+  },
+
+  sendForgotPasswordOtp: async (
+    email: string
+  ): Promise<GenericAuthResponse> => {
+    const response = await apiClient.post<any>('/auth/forgot-password', {
+      email,
+    });
+    const resData = response?.data || response;
+    return {
+      success: true,
+      message: resData?.message || 'Password reset OTP sent to your email',
+      devOtp: resData?.devOtp || resData?.otp,
+    };
+  },
+
+  resetPassword: async (
+    dto: ResetPasswordDto
+  ): Promise<GenericAuthResponse> => {
+    const response = await apiClient.post<any>('/auth/reset-password', dto);
+    const resData = response?.data || response;
+    return {
+      success: true,
+      message: resData?.message || 'Password updated successfully.',
+    };
   },
 
   getMe: async (): Promise<User> => {
@@ -70,4 +154,5 @@ export const authApi = {
     return apiClient.get<User[]>('/auth/users');
   },
 };
+
 

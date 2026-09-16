@@ -550,13 +550,19 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     try {
       let createdCase: WarrantyCase;
-      if (state.caseId) {
-        createdCase = await casesApi.updateCase(state.caseId, dto);
+      const isExistingServerCase =
+        state.caseId &&
+        !state.caseId.startsWith('CASE-') &&
+        !state.caseId.startsWith('local_') &&
+        !state.caseId.startsWith('draft_');
+
+      if (isExistingServerCase) {
+        createdCase = await casesApi.updateCase(state.caseId!, dto);
       } else {
         createdCase = await casesApi.createCase(dto);
       }
 
-      // Submit from workshop
+      // Submit from workshop to trigger CRM status transition
       const submitted = await casesApi.submitFromWorkshop(createdCase.id, {
         checklistSummary: {
           totalMandatory: state.mandatoryCount,
@@ -565,11 +571,18 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         },
       });
 
-      console.log('[CaseWizardContext] Case submitted to MongoDB Atlas:', submitted.id);
+      console.log('[CaseWizardContext] Case submitted to backend CRM successfully:', submitted.id);
       return submitted;
     } catch (err: any) {
-      console.warn('[CaseWizardContext] Backend submission error, queuing offline:', err?.message || err);
-      // If offline, save to pending queue
+      if (err?.statusCode === 401 || err?.statusCode === 403) {
+        throw new Error('Authentication expired. Please sign in again to submit.');
+      }
+      if (err?.statusCode === 400 || err?.statusCode === 422) {
+        throw new Error(err.message || 'Case submission failed validation. Please check your data.');
+      }
+
+      console.warn('[CaseWizardContext] Network connection error, queuing offline:', err?.message || err);
+      // If truly offline / unreachable, save to pending queue
       const mockSubmitted: WarrantyCase = {
         id: state.caseId || `CASE-${(state.roNumber || 'RO').replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString().slice(-4)}`,
         ...dto,

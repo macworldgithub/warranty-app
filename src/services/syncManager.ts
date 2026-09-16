@@ -1,6 +1,11 @@
 import { casesApi } from '../api';
 import { offlineStorage } from './offlineStorage';
-import { WarrantyCase } from '../types';
+import {
+  WarrantyCase,
+  CreateWarrantyCaseDto,
+  PowertrainType,
+  RepairStage,
+} from '../types';
 
 export interface SyncStatus {
   isSyncing: boolean;
@@ -43,7 +48,50 @@ class SyncManager {
 
     for (const item of pending) {
       try {
-        await casesApi.submitFromWorkshop(item.id);
+        let serverCaseId = item.id;
+        if (
+          item.id.startsWith('CASE-') ||
+          item.id.startsWith('local_') ||
+          item.id.startsWith('draft_')
+        ) {
+          const createDto: CreateWarrantyCaseDto = {
+            siteId: item.siteId || 'site_cranbourne_byd',
+            siteName: item.siteName || 'Cranbourne BYD',
+            brandId: item.brandId || 'brand_byd',
+            brandName: item.brandName || 'BYD',
+            brandPackId: item.brandPackId,
+            brandPackVersion: item.brandPackVersion,
+            roNumber: item.roNumber || 'RO-DRAFT',
+            claimNumber: item.claimNumber,
+            vin: item.vin || '',
+            odometer: Number(item.odometer) || 0,
+            make: item.make || item.brandName || 'BYD',
+            model: item.model || 'ATTO 3',
+            year: Number(item.year) || 2024,
+            powertrain: (item.powertrain as PowertrainType) || 'EV',
+            concernTitle:
+              item.concernTitle || 'Warranty inspection and fault diagnosis',
+            faultCategory: item.faultCategory || 'Oil leaks or seepage',
+            partReplaced: Boolean(item.partReplaced),
+            oldPartSerial: item.oldPartSerial,
+            newPartSerial: item.newPartSerial,
+            noiseFault: Boolean(item.noiseFault),
+            diagnosticsAvailable: Boolean(item.diagnosticsAvailable),
+            repairStage: (item.repairStage as RepairStage) || 'Repair complete',
+            technicianId: item.technicianId,
+            technicianName: item.technicianName,
+            evidenceItems: item.evidenceItems || [],
+            voiceNotes: item.voiceNotes || [],
+          };
+          const created = await casesApi.createCase(createDto);
+          serverCaseId = created.id;
+        }
+
+        await casesApi.submitFromWorkshop(serverCaseId, {
+          checklistSummary: {
+            isReadyForSubmission: true,
+          },
+        });
         offlineStorage.removePendingUpload(item.id);
         synced++;
       } catch (err: any) {
@@ -58,3 +106,4 @@ class SyncManager {
 }
 
 export const syncManager = new SyncManager();
+

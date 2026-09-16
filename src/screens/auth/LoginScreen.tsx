@@ -15,6 +15,8 @@ import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetwork } from '../../context/NetworkContext';
+import { OtpVerificationModal } from '../../components/auth/OtpVerificationModal';
+import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -26,19 +28,36 @@ type ActionIcon = 'eye' | 'eye-off';
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const insets = useSafeAreaInsets();
-  const { login, registerTechnician, isLoading } = useAuth();
+  const {
+    login,
+    sendRegistrationOtp,
+    verifyRegistrationOtp,
+    isLoading,
+  } = useAuth();
   const { serverUrl, setServerUrl, isOnline, checkConnectivity } = useNetwork();
+  
   const [activeTab, setActiveTab] = useState<AuthTab>('SIGN_IN');
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  
   const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
+  
   const [showDevConfig, setShowDevConfig] = useState(false);
   const [tempUrl, setTempUrl] = useState(serverUrl);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // OTP Verification Modal for Registration
+  const [showRegisterOtpModal, setShowRegisterOtpModal] = useState(false);
+  const [registerDevOtp, setRegisterDevOtp] = useState<string | undefined>();
+  const [otpVerifyError, setOtpVerifyError] = useState<string | null>(null);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
+  // Forgot Password Modal
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   const handleSignIn = async () => {
     setAuthError(null);
@@ -59,7 +78,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleSignUp = async () => {
+  const handleSignUpStart = async () => {
     setAuthError(null);
     if (!signUpName.trim()) {
       setAuthError('Enter your full name.');
@@ -78,15 +97,52 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    setOtpVerifyError(null);
     try {
-      await registerTechnician({
+      const res = await sendRegistrationOtp(
+        signUpEmail.trim().toLowerCase(),
+        signUpName.trim()
+      );
+      if (res.devOtp) {
+        setRegisterDevOtp(res.devOtp);
+      }
+      setShowRegisterOtpModal(true);
+    } catch (err: any) {
+      setAuthError(err.message || 'Unable to send registration verification code.');
+    }
+  };
+
+  const handleVerifyRegisterOtp = async (otp: string) => {
+    setOtpVerifyError(null);
+    setIsVerifyingOtp(true);
+    try {
+      await verifyRegistrationOtp({
         name: signUpName.trim(),
         email: signUpEmail.trim().toLowerCase(),
         password: signUpPassword,
+        otp: otp.trim(),
       });
+      setShowRegisterOtpModal(false);
       onLoginSuccess();
     } catch (err: any) {
-      setAuthError(err.message || 'Unable to create your account.');
+      setOtpVerifyError(err.message || 'Invalid or expired OTP code.');
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  const handleResendRegisterOtp = async () => {
+    setOtpVerifyError(null);
+    try {
+      const res = await sendRegistrationOtp(
+        signUpEmail.trim().toLowerCase(),
+        signUpName.trim()
+      );
+      if (res.devOtp) {
+        setRegisterDevOtp(res.devOtp);
+      }
+    } catch (err: any) {
+      setOtpVerifyError(err.message || 'Failed to resend verification code.');
     }
   };
 
@@ -180,6 +236,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <>
             <Field label="Work email" icon="mail" value={signInEmail} onChangeText={setSignInEmail} placeholder="name@booran.com.au" keyboardType="email-address" />
             <Field label="Password" icon="lock" value={signInPassword} onChangeText={setSignInPassword} placeholder="Enter your password" secureTextEntry={!showPassword} rightIcon={showPassword ? 'eye-off' : 'eye'} onRightIconPress={() => setShowPassword(!showPassword)} />
+            
+            <TouchableOpacity
+              onPress={() => setShowForgotPasswordModal(true)}
+              style={styles.forgotPasswordButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            </TouchableOpacity>
+
             <Button title="Sign in" variant="primary" size="lg" loading={isLoading} onPress={handleSignIn} fullWidth style={styles.actionButton} />
           </>
         ) : (
@@ -188,12 +253,37 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <Field label="Work email" icon="mail" value={signUpEmail} onChangeText={setSignUpEmail} placeholder="name@booran.com.au" keyboardType="email-address" />
             <Field label="Password" icon="lock" value={signUpPassword} onChangeText={setSignUpPassword} placeholder="At least 6 characters" secureTextEntry={!showPassword} />
             <Field label="Confirm password" icon="lock" value={signUpConfirmPassword} onChangeText={setSignUpConfirmPassword} placeholder="Re-enter your password" secureTextEntry={!showPassword} />
-            <Button title="Create account" variant="primary" size="lg" loading={isLoading} onPress={handleSignUp} fullWidth style={styles.actionButton} />
+            <Button title="Verify & Create Account" variant="primary" size="lg" loading={isLoading} onPress={handleSignUpStart} fullWidth style={styles.actionButton} />
           </>
         )}
       </View>
 
       <Text style={styles.footer}>For authorised workshop technicians</Text>
+
+      {/* Registration OTP Modal */}
+      <OtpVerificationModal
+        visible={showRegisterOtpModal}
+        email={signUpEmail}
+        title="Verify Registration"
+        subtitle="We sent a 6-digit verification code to"
+        devOtp={registerDevOtp}
+        isLoading={isVerifyingOtp}
+        errorMessage={otpVerifyError}
+        onVerify={handleVerifyRegisterOtp}
+        onResend={handleResendRegisterOtp}
+        onClose={() => setShowRegisterOtpModal(false)}
+      />
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        visible={showForgotPasswordModal}
+        initialEmail={signInEmail}
+        onClose={() => setShowForgotPasswordModal(false)}
+        onSuccess={() => {
+          setShowForgotPasswordModal(false);
+          setActiveTab('SIGN_IN');
+        }}
+      />
     </ScrollView>
   );
 };
@@ -278,6 +368,18 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, color: colors.textPrimary, fontSize: typography.sizes.md, paddingVertical: spacing.sm },
   eyeButton: { padding: spacing.xs },
+  forgotPasswordButton: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.md,
+    marginTop: -spacing.xs,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    color: colors.primary,
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+  },
   actionButton: { marginTop: spacing.sm },
   footer: { color: colors.textMuted, fontSize: typography.sizes.xs, textAlign: 'center', marginTop: 'auto', paddingTop: spacing.xxl },
 });
+

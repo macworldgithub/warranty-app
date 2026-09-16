@@ -40,6 +40,8 @@ import {
   Wifi,
   WifiOff,
   X,
+  Zap,
+  ZapOff,
   type LucideProps,
 } from 'lucide-react-native';
 
@@ -81,7 +83,9 @@ export type IconName =
   | 'eye-off'
   | 'sliders'
   | 'map-pin'
-  | 'log-in';
+  | 'log-in'
+  | 'zap'
+  | 'zap-off';
 
 interface IconProps {
   name: IconName;
@@ -129,6 +133,8 @@ const icons: Record<IconName, React.ComponentType<LucideProps>> = {
   sliders: SlidersHorizontal,
   'map-pin': MapPin,
   'log-in': LogIn,
+  zap: Zap,
+  'zap-off': ZapOff,
 };
 
 export const Icon: React.FC<IconProps> = ({

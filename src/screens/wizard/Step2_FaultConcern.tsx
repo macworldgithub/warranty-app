@@ -14,9 +14,10 @@ import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Card } from '../../components/common/Card';
+import { BarcodeScannerModal } from '../../components/evidence/BarcodeScannerModal';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { VoiceToTechButton } from '../../components/voice/VoiceToTechButton';
-import { scanbotService } from '../../services/scanbot.service';
+import { barcodeScannerService } from '../../services/barcodeScanner.service';
 import { RepairStage } from '../../types';
 
 interface Step2Props {
@@ -63,40 +64,29 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
     mandatoryCount,
   } = useCaseWizard();
 
-  const [isScanningPart, setIsScanningPart] = useState<'old' | 'new' | null>(null);
+  const [scannerModalState, setScannerModalState] = useState<{
+    open: boolean;
+    type: 'old' | 'new';
+  }>({ open: false, type: 'old' });
 
-  const handleScanPart = async (type: 'old' | 'new') => {
-    setIsScanningPart(type);
-    try {
-      const prompt =
-        type === 'new'
-          ? 'Align NEW replacement part barcode / QR within bracket'
-          : 'Align OLD defective part barcode / QR within bracket';
+  const handleScanPart = (type: 'old' | 'new') => {
+    setScannerModalState({ open: true, type });
+  };
 
-      const result = await scanbotService.scanPartBarcode(prompt);
-      setIsScanningPart(null);
+  const handlePartSerialScanned = (scannedSerial: string) => {
+    const type = scannerModalState.type;
+    const cleanSerial = scannedSerial.trim().toUpperCase();
 
-      if (result.success && result.serial) {
-        if (type === 'new') {
-          if (oldPartSerial && result.serial === oldPartSerial.trim().toUpperCase()) {
-            Alert.alert(
-              'Quality Gate Warning',
-              'The scanned new part serial is identical to the old defective part serial. Please verify you scanned the new replacement component.'
-            );
-          }
-          setNewPartSerial(result.serial);
-        } else {
-          setOldPartSerial(result.serial);
-        }
-      } else if (result.error && !result.error.includes('cancelled')) {
-        Alert.alert('Scan Result', result.error);
+    if (type === 'new') {
+      if (oldPartSerial && cleanSerial === oldPartSerial.trim().toUpperCase()) {
+        Alert.alert(
+          'Quality Gate Warning',
+          'The scanned new part serial is identical to the old defective part serial. Please verify you scanned the new replacement component.'
+        );
       }
-    } catch (err: any) {
-      setIsScanningPart(null);
-      Alert.alert(
-        'Scanner Notice',
-        'Could not open part scanner. You can enter the serial number manually.'
-      );
+      setNewPartSerial(cleanSerial);
+    } else {
+      setOldPartSerial(cleanSerial);
     }
   };
 
@@ -242,10 +232,9 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
                   containerStyle={{ flex: 1, marginBottom: 0 }}
                 />
                 <Button
-                  title={isScanningPart === 'old' ? 'Scanning...' : 'Scan'}
+                  title="Scan"
                   variant="secondary"
                   size="md"
-                  disabled={isScanningPart !== null}
                   leftIcon={<Icon name="barcode" size={16} color={colors.primaryLight} />}
                   onPress={() => handleScanPart('old')}
                   style={{ alignSelf: 'flex-end', height: 48 }}
@@ -261,10 +250,9 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
                   containerStyle={{ flex: 1, marginBottom: 0 }}
                 />
                 <Button
-                  title={isScanningPart === 'new' ? 'Scanning...' : 'Scan'}
+                  title="Scan"
                   variant="secondary"
                   size="md"
-                  disabled={isScanningPart !== null}
                   leftIcon={<Icon name="barcode" size={16} color={colors.primaryLight} />}
                   onPress={() => handleScanPart('new')}
                   style={{ alignSelf: 'flex-end', height: 48 }}
@@ -272,6 +260,20 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
               </View>
             </View>
           )}
+
+          <BarcodeScannerModal
+            visible={scannerModalState.open}
+            title={
+              scannerModalState.type === 'new'
+                ? 'Scan NEW Replacement Part Serial'
+                : 'Scan OLD Defective Part Serial'
+            }
+            isNewPart={scannerModalState.type === 'new'}
+            oldSerial={oldPartSerial}
+            barcodeFormats={['code-39', 'code-128', 'qr', 'data-matrix', 'pdf-417']}
+            onClose={() => setScannerModalState(prev => ({ ...prev, open: false }))}
+            onScanSuccess={handlePartSerialScanned}
+          />
         </View>
 
         {/* Noise Fault Question */}

@@ -191,13 +191,11 @@ function MainNavigator() {
   );
 }
 
-import { scanbotService } from './src/services/scanbot.service';
+import { barcodeScannerService } from './src/services/barcodeScanner.service';
 
 export default function App() {
   React.useEffect(() => {
-    scanbotService.initialize().then(initialized => {
-      console.log('[App] Scanbot SDK initialization status:', initialized);
-    });
+    console.log('[App] Initialized free VisionCamera Barcode Scanner');
   }, []);
 
   return (
