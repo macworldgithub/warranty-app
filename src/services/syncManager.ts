@@ -85,6 +85,47 @@ class SyncManager {
           };
           const created = await casesApi.createCase(createDto);
           serverCaseId = created.id;
+
+          if (item.evidenceItems && item.evidenceItems.length > 0) {
+            for (const ev of item.evidenceItems) {
+              try {
+                if (ev.fileUri && (ev.fileUri.startsWith('file://') || ev.fileUri.startsWith('content://') || ev.fileUri.startsWith('/'))) {
+                  const formData = new FormData();
+                  const ext = ev.mediaType === 'video' ? 'mp4' : 'jpg';
+                  const mime = ev.mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
+                  const cleanRo = (item.roNumber || 'RO').replace(/[^a-zA-Z0-9]/g, '');
+                  const descriptor = ev.ruleKey
+                    .split('_')
+                    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                    .join('');
+                  const oemFileName = `${cleanRo}${descriptor}.${ext}`;
+
+                  formData.append('file', {
+                    uri: ev.fileUri,
+                    type: mime,
+                    name: oemFileName,
+                  } as any);
+                  formData.append('ruleKey', ev.ruleKey);
+                  formData.append('evidenceName', ev.ruleName || ev.ruleKey);
+                  if (ev.ocrExtractedText) formData.append('ocrExtractedText', ev.ocrExtractedText);
+
+                  await casesApi.uploadEvidenceFile(serverCaseId, formData);
+                } else if (ev.storageUrl || ev.fileUri) {
+                  await casesApi.addEvidence(serverCaseId, {
+                    ruleKey: ev.ruleKey,
+                    name: ev.ruleName || ev.ruleKey,
+                    mediaType: (ev.mediaType as any) || 'image',
+                    storageUrl: ev.storageUrl || ev.fileUri || '',
+                    ocrExtractedText: ev.ocrExtractedText,
+                    ocrConfidence: ev.ocrConfidence,
+                    durationSeconds: ev.durationSeconds,
+                  });
+                }
+              } catch (e) {
+                console.warn('[SyncManager] Failed to upload evidence item for case:', e);
+              }
+            }
+          }
         }
 
         await casesApi.submitFromWorkshop(serverCaseId, {
