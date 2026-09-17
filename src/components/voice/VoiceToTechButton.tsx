@@ -75,7 +75,7 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
     if (!transcript.trim()) return;
 
     const newNote: VoiceNote = {
-      id: `vn_$`,
+      id: `vn_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       durationSeconds: duration || 8,
       transcript: transcript.trim(),
       recordedAt: new Date().toISOString(),

@@ -41,6 +41,7 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
   const [activeSuggestion, setActiveSuggestion] = useState(PROMPT_SUGGESTIONS[0]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [manualText, setManualText] = useState('');
 
   const handleStartEdit = (note: VoiceNote) => {
     setEditingNoteId(note.id);
@@ -60,12 +61,24 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
     setEditingNoteId(null);
   };
 
+  const handleAddManualNote = () => {
+    if (!manualText.trim()) return;
+    addVoiceNote({
+      id: `vn_manual_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+      durationSeconds: 0,
+      transcript: manualText.trim(),
+      recordedAt: new Date().toISOString(),
+      isEdited: false,
+    });
+    setManualText('');
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Voice Notes</Text>
+          <Text style={styles.sectionTitle}>Technician Notes & Dictation</Text>
           <Badge
             label={`${voiceNotes.length} Note${voiceNotes.length !== 1 ? 's' : ''}`}
             variant={voiceNotes.length > 0 ? 'success' : 'neutral'}
@@ -73,12 +86,12 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Record spoken technician notes or type observations.
+          Hold button below to dictate spoken notes or type manual observations.
         </Text>
       </View>
 
-      {/* Suggested Prompts */}
-      <Card title="Quick Voice Prompts">
+      {/* Dictation Card */}
+      <Card title="Voice to Tech Dictation">
         <Text style={styles.subtext}>Tap a suggestion to guide your dictation:</Text>
         <View style={styles.suggestionsContainer}>
           {PROMPT_SUGGESTIONS.map((sug, idx) => {
@@ -115,6 +128,39 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
           promptSuggestion={activeSuggestion}
           onTranscriptReady={note => addVoiceNote(note)}
         />
+
+        {/* Manual Type Alternative */}
+        <View style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text style={styles.subtext}>Or type technician notes manually:</Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
+            <TextInput
+              placeholder="e.g. Defective seal caused coolant seepage onto harness..."
+              placeholderTextColor={colors.textMuted}
+              value={manualText}
+              onChangeText={setManualText}
+              multiline
+              style={{
+                flex: 1,
+                backgroundColor: colors.surfaceElevated,
+                borderRadius: spacing.borderRadius.md,
+                padding: spacing.md,
+                color: colors.textPrimary,
+                fontSize: typography.sizes.sm,
+                borderWidth: 1,
+                borderColor: colors.borderHighlight,
+                minHeight: 60,
+              }}
+            />
+            <Button
+              title="Add Note"
+              variant="primary"
+              size="sm"
+              disabled={!manualText.trim()}
+              onPress={handleAddManualNote}
+              style={{ alignSelf: 'flex-end', height: 48 }}
+            />
+          </View>
+        </View>
       </Card>
 
       {/* Recorded Voice Notes List */}

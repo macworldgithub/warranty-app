@@ -23,6 +23,11 @@ import { useCaseWizard } from '../../context/CaseWizardContext';
 import { casesApi } from '../../api/cases.api';
 import { offlineStorage } from '../../services/offlineStorage';
 import { WarrantyCase, CaseStatus } from '../../types';
+import { NotificationModal } from '../../components/notifications/NotificationModal';
+import {
+  notificationsService,
+  AppNotificationPayload,
+} from '../../services/notifications.service';
 
 interface CaseListScreenProps {
   onStartNewCase: () => void;
@@ -46,6 +51,16 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  useEffect(() => {
+    setUnreadNotifCount(notificationsService.getUnreadCount());
+    const unsubscribe = notificationsService.onNotification(() => {
+      setUnreadNotifCount(notificationsService.getUnreadCount());
+    });
+    return () => unsubscribe();
+  }, []);
 
   const fetchCases = useCallback(async () => {
     try {
@@ -133,6 +148,19 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
     }
   };
 
+  const handleNotificationSelect = (notif: AppNotificationPayload) => {
+    const targetCase = notif.caseItem || cases.find((c) => c.id === notif.caseId);
+    if (targetCase) {
+      if (notif.type === 'FLAGGED' || targetCase.status === 'Flagged') {
+        onResolveFlag(targetCase);
+      } else {
+        onOpenCase(targetCase);
+      }
+    } else {
+      setActiveTab('all');
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* App Header */}
@@ -145,15 +173,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => {
-                setActiveTab('flagged');
+                setShowNotifModal(true);
               }}
               style={styles.bellBtn}
-              accessibilityLabel="Flagged alerts"
+              accessibilityLabel="Warranty Alerts"
             >
-              <Bell size={18} color={flaggedCount > 0 ? colors.flagged : colors.textSecondary} />
-              {flaggedCount > 0 && (
+              <Bell size={18} color={(unreadNotifCount > 0 || flaggedCount > 0) ? colors.flagged : colors.textSecondary} />
+              {(unreadNotifCount > 0 || flaggedCount > 0) && (
                 <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>{flaggedCount}</Text>
+                  <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -173,7 +201,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       {flaggedCount > 0 && (
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => setActiveTab('flagged')}
+          onPress={() => setShowNotifModal(true)}
           style={styles.flagBanner}
         >
           <Icon name="flag" size={18} color={colors.flagged} />
@@ -341,6 +369,13 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
           fullWidth
         />
       </View>
+
+      {/* Notification Bell History Modal */}
+      <NotificationModal
+        visible={showNotifModal}
+        onClose={() => setShowNotifModal(false)}
+        onSelectNotification={handleNotificationSelect}
+      />
     </View>
   );
 };

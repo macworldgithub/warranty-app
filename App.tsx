@@ -34,6 +34,7 @@ import { ProgressBar } from './src/components/common/ProgressBar';
 import { NotificationBanner } from './src/components/common/NotificationBanner';
 import {
   notificationsService,
+  AppNotificationPayload,
   FlagNotificationPayload,
 } from './src/services/notifications.service';
 import { WarrantyCase } from './src/types';
@@ -59,7 +60,7 @@ function MainNavigator() {
     isAuthenticated ? 'LIST' : 'LOGIN'
   );
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
-  const [activeNotification, setActiveNotification] = useState<FlagNotificationPayload | null>(null);
+  const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
   const [submittedReceipt, setSubmittedReceipt] = useState<WarrantyCase | null>(null);
 
   // Initialize notifications on authentication
@@ -70,7 +71,7 @@ function MainNavigator() {
       const unsubscribe = notificationsService.onNotification((payload) => {
         setActiveNotification(payload);
       });
-      notificationsService.startFlagPolling(techId);
+      notificationsService.startNotificationPolling(techId);
 
       return () => {
         unsubscribe();
@@ -79,15 +80,27 @@ function MainNavigator() {
     }
   }, [isAuthenticated, user]);
 
-  // Deep-Link Navigation when Technician Taps Notification Banner (Scope Section 6)
-  const handleNotificationPress = (notif: FlagNotificationPayload) => {
+  // Deep-Link Navigation when Technician Taps Notification Banner
+  const handleNotificationPress = (notif: AppNotificationPayload) => {
     setActiveNotification(null);
+
+    const type = notif.type || (notif.reasonCode ? 'FLAGGED' : 'INFO');
+
+    if (type === 'APPROVED' || type === 'AWAITING_REVIEW') {
+      if (notif.caseItem) {
+        setSelectedCase(notif.caseItem);
+        setCurrentScreen('DETAIL');
+      } else {
+        setCurrentScreen('LIST');
+      }
+      return;
+    }
 
     if (notif.caseItem) {
       setSelectedCase(notif.caseItem);
       loadExistingCase(notif.caseItem, true);
 
-      const rule = notif.evidenceRuleKey.toLowerCase();
+      const rule = (notif.evidenceRuleKey || '').toLowerCase();
       if (rule.includes('vin') || rule.includes('odometer') || rule.includes('front')) {
         setStep(1);
         setCurrentScreen('WIZARD');

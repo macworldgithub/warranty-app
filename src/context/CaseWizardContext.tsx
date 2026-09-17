@@ -397,10 +397,18 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const addVoiceNote = (note: VoiceNote) => {
-    setState(prev => ({
-      ...prev,
-      voiceNotes: [...prev.voiceNotes, note],
-    }));
+    setState(prev => {
+      const existingIndex = prev.voiceNotes.findIndex(n => n.id === note.id);
+      if (existingIndex >= 0) {
+        const updated = [...prev.voiceNotes];
+        updated[existingIndex] = note;
+        return { ...prev, voiceNotes: updated };
+      }
+      return {
+        ...prev,
+        voiceNotes: [note, ...prev.voiceNotes],
+      };
+    });
   };
 
   const removeVoiceNote = (noteId: string) => {

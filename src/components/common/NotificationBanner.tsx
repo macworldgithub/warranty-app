@@ -7,13 +7,21 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import { AlertTriangle, X, ChevronRight, Camera } from 'lucide-react-native';
-import { colors } from '../../theme/colors';
-import { FlagNotificationPayload } from '../../services/notifications.service';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Bell,
+  X,
+  ChevronRight,
+  Camera,
+  FileText,
+} from 'lucide-react-native';
+import { AppNotificationPayload } from '../../services/notifications.service';
 
 interface NotificationBannerProps {
-  notification: FlagNotificationPayload | null;
-  onPress: (notification: FlagNotificationPayload) => void;
+  notification: AppNotificationPayload | null;
+  onPress: (notification: AppNotificationPayload) => void;
   onDismiss: () => void;
 }
 
@@ -43,9 +51,59 @@ export function NotificationBanner({
 
   if (!notification) return null;
 
-  const formatReason = (code: string) => {
-    return code.replace(/_/g, ' ');
+  const type = notification.type || (notification.reasonCode ? 'FLAGGED' : 'INFO');
+
+  const getConfig = () => {
+    switch (type) {
+      case 'APPROVED':
+        return {
+          barColor: '#10B981',
+          borderColor: '#A7F3D0',
+          badgeBg: '#ECFDF5',
+          badgeBorder: '#6EE7B7',
+          badgeTextColor: '#047857',
+          badgeText: 'WARRANTY APPROVED',
+          Icon: CheckCircle2,
+          iconColor: '#10B981',
+          ActionIcon: ChevronRight,
+          actionColor: '#059669',
+          actionText: 'Tap to View Claim Details',
+        };
+      case 'AWAITING_REVIEW':
+        return {
+          barColor: '#0284C7',
+          borderColor: '#BAE6FD',
+          badgeBg: '#F0F9FF',
+          badgeBorder: '#7DD3FC',
+          badgeTextColor: '#0369A1',
+          badgeText: 'AWAITING REVIEW',
+          Icon: Clock,
+          iconColor: '#0284C7',
+          ActionIcon: FileText,
+          actionColor: '#0284C7',
+          actionText: 'Tap to View Case File',
+        };
+      case 'FLAGGED':
+      default:
+        return {
+          barColor: '#E11F26',
+          borderColor: '#FECACA',
+          badgeBg: '#FEF2F2',
+          badgeBorder: '#FCA5A5',
+          badgeTextColor: '#DC2626',
+          badgeText: 'ACTION REQUIRED',
+          Icon: AlertTriangle,
+          iconColor: '#DC2626',
+          ActionIcon: Camera,
+          actionColor: '#E11F26',
+          actionText: 'Tap to Recapture Evidence',
+        };
+    }
   };
+
+  const config = getConfig();
+  const IconComponent = config.Icon;
+  const ActionIconComponent = config.ActionIcon;
 
   return (
     <Animated.View
@@ -58,39 +116,48 @@ export function NotificationBanner({
     >
       <TouchableOpacity
         activeOpacity={0.92}
-        style={styles.card}
+        style={[styles.card, { borderColor: config.borderColor }]}
         onPress={() => onPress(notification)}
       >
         {/* Left Status Bar */}
-        <View style={styles.leftBar} />
+        <View style={[styles.leftBar, { backgroundColor: config.barColor }]} />
 
-        {/* Icon & Details */}
+        {/* Content Details */}
         <View style={styles.content}>
           <View style={styles.headerRow}>
-            <View style={styles.badge}>
-              <AlertTriangle size={12} color="#DC2626" strokeWidth={2.5} />
-              <Text style={styles.badgeText}>ACTION REQUIRED</Text>
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: config.badgeBg, borderColor: config.badgeBorder },
+              ]}
+            >
+              <IconComponent size={12} color={config.iconColor} strokeWidth={2.5} />
+              <Text style={[styles.badgeText, { color: config.badgeTextColor }]}>
+                {config.badgeText}
+              </Text>
             </View>
             <Text style={styles.roText}>RO #{notification.roNumber || 'CR-...'}</Text>
           </View>
 
           <Text style={styles.title} numberOfLines={1}>
-            Evidence Rejected: {formatReason(notification.reasonCode)}
+            {notification.title}
           </Text>
 
-          {notification.instruction ? (
-            <Text style={styles.instruction} numberOfLines={2}>
-              "{notification.instruction}"
+          {notification.instruction || notification.body ? (
+            <Text style={styles.bodyText} numberOfLines={2}>
+              {notification.instruction ? `"${notification.instruction}"` : notification.body}
             </Text>
           ) : null}
 
           {/* Action Prompt */}
           <View style={styles.actionRow}>
-            <View style={styles.recaptureTag}>
-              <Camera size={11} color="#E11F26" strokeWidth={2.5} />
-              <Text style={styles.recaptureText}>Tap to Recapture Evidence</Text>
+            <View style={styles.actionTag}>
+              <ActionIconComponent size={11} color={config.actionColor} strokeWidth={2.5} />
+              <Text style={[styles.actionText, { color: config.actionColor }]}>
+                {config.actionText}
+              </Text>
             </View>
-            <ChevronRight size={14} color="#E11F26" />
+            <ChevronRight size={14} color={config.actionColor} />
           </View>
         </View>
 
@@ -124,7 +191,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#FECACA',
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
@@ -132,7 +198,6 @@ const styles = StyleSheet.create({
   leftBar: {
     width: 6,
     alignSelf: 'stretch',
-    backgroundColor: '#E11F26',
   },
   content: {
     flex: 1,
@@ -149,17 +214,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#FEF2F2',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
   },
   badgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#DC2626',
     letterSpacing: 0.5,
   },
   roText: {
@@ -174,11 +236,11 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginBottom: 2,
   },
-  instruction: {
+  bodyText: {
     fontSize: 12,
     color: '#475569',
-    fontStyle: 'italic',
     marginBottom: 6,
+    lineHeight: 16,
   },
   actionRow: {
     flexDirection: 'row',
@@ -186,18 +248,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 2,
   },
-  recaptureTag: {
+  actionTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  recaptureText: {
+  actionText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#E11F26',
   },
   dismissBtn: {
     padding: 12,
     alignSelf: 'flex-start',
   },
 });
+
