@@ -15,6 +15,7 @@ import { Icon } from '../common/Icon';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { voiceApi } from '../../api/voice.api';
+import { voiceRecordingService } from '../../services/voiceRecordingService';
 import { VoiceNote } from '../../types';
 
 interface VoiceToTechButtonProps {
@@ -35,48 +36,36 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
   const [modalVisible, setModalVisible] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [duration, setDuration] = useState(0);
-  const recIntervalRef = useRef<any>(null);
 
-  const startRecording = () => {
+  const startRecording = async () => {
     setIsRecording(true);
     setDuration(0);
-    recIntervalRef.current = setInterval(() => {
-      setDuration(prev => prev + 1);
-    }, 1000);
+    try {
+      await voiceRecordingService.startRecording(sec => {
+        setDuration(sec);
+      });
+    } catch (err) {
+      setIsRecording(false);
+      console.warn('Microphone start error:', err);
+    }
   };
 
   const stopRecordingAndTranscribe = async () => {
-    if (recIntervalRef.current) {
-      clearInterval(recIntervalRef.current);
-      recIntervalRef.current = null;
-    }
+    if (!isRecording) return;
     setIsRecording(false);
     setIsTranscribing(true);
     setModalVisible(true);
 
     try {
-      // Call Deepgram via backend Voice to Tech API
-      const sampleAudioUrl = 'https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav';
-      const res = await voiceApi.transcribeAudio(sampleAudioUrl);
-
-      // If backend returned a valid transcript, use it; otherwise provide context-aware text
-      let text = res.transcript;
-      if (!text || text.length < 5) {
-        text = pinnedRuleKey?.includes('oil')
-          ? 'Oil seepage detected on lower casing. Cleaned surface, traced to defective gasket seal.'
-          : pinnedRuleKey?.includes('hv') || pinnedRuleKey?.includes('battery')
-          ? 'HV manual service disconnect removed and locked out. Measured voltage at 0.4V safe threshold.'
-          : pinnedRuleKey?.includes('dtc') || pinnedRuleKey?.includes('diagnostic')
-          ? 'Scanned DTC memory with OEM tool. Fault code active in BCM module.'
-          : 'Customer stated noise occurs during low-speed deceleration. Road-tested vehicle and verified knocking frequency.';
+      const result = await voiceRecordingService.stopAndTranscribe();
+      if (result.transcript && result.transcript.trim()) {
+        setTranscript(result.transcript.trim());
+      } else {
+        setTranscript('No speech detected. Please hold and speak clearly.');
       }
-      setTranscript(text);
-    } catch (_err) {
-      setTranscript(
-        pinnedRuleKey?.includes('oil')
-          ? 'Oil seepage detected on lower casing. Cleaned surface, traced to defective gasket seal.'
-          : 'Inspected component. Verified condition against OEM warranty criteria.'
-      );
+    } catch (err: any) {
+      console.warn('[VoiceToTechButton] Deepgram transcribe error:', err);
+      setTranscript('Unable to transcribe audio. Please check network connection.');
     } finally {
       setIsTranscribing(false);
     }
@@ -86,11 +75,12 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
     if (!transcript.trim()) return;
 
     const newNote: VoiceNote = {
-      id: `vn_${Date.now()}`,
+      id: `vn_$`,
       durationSeconds: duration || 8,
       transcript: transcript.trim(),
       recordedAt: new Date().toISOString(),
       pinnedToRuleKey: pinnedRuleKey,
+      pinnedToEvidenceKey: pinnedRuleKey,
       isEdited: false,
     };
 
@@ -98,6 +88,7 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
     setModalVisible(false);
     setTranscript('');
   };
+
 
   return (
     <View style={styles.container}>

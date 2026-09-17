@@ -139,17 +139,31 @@ class ApiClient {
       headers.Authorization = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ENV.TIMEOUT_MS);
 
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data?.message || 'Upload failed');
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || 'Upload failed');
+      }
+      return data as T;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error(`Upload timed out after ${ENV.TIMEOUT_MS / 1000}s`);
+      }
+      throw error;
     }
-    return data as T;
   }
 }
 

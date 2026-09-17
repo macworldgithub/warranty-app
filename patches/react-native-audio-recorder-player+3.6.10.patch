@@ -1,0 +1,134 @@
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/react-native-audio-recorder-player/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..b4c821b
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+@@ -0,0 +1,7 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=37
++minCompileMinorSdk=0
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/react-native-audio-recorder-player/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/react-native-audio-recorder-player/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..e920285
+Binary files /dev/null and b/node_modules/react-native-audio-recorder-player/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/react-native-audio-recorder-player/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..278998f
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Thu Sep 17 13:39:28 PKT 2026
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..8eb6f20
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"/><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"/><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/mergeDebugAssets/merger.xml b/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/mergeDebugAssets/merger.xml
+new file mode 100644
+index 0000000..99eeafa
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/incremental/mergeDebugAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\main\assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\debug\assets"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/react-native-audio-recorder-player/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/react-native-audio-recorder-player/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/react-native-audio-recorder-player/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..dfbcb96
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++com.dooboolab.audiorecorderplayer
+diff --git a/node_modules/react-native-audio-recorder-player/android/build/kotlin/compileDebugKotlin/cacheable/dirty-sources.txt b/node_modules/react-native-audio-recorder-player/android/build/kotlin/compileDebugKotlin/cacheable/dirty-sources.txt
+new file mode 100644
+index 0000000..435b10e
+--- /dev/null
++++ b/node_modules/react-native-audio-recorder-player/android/build/kotlin/compileDebugKotlin/cacheable/dirty-sources.txt
+@@ -0,0 +1,2 @@
++C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\main\java\com\dooboolab.audiorecorderplayer\RNAudioRecorderPlayerModule.kt
++C:\Users\Hammad-mwt\warrantyApp\node_modules\react-native-audio-recorder-player\android\src\main\java\com\dooboolab.audiorecorderplayer\RNAudioRecorderPlayerPackage.kt
+\ No newline at end of file
+diff --git a/node_modules/react-native-audio-recorder-player/android/src/main/java/com/dooboolab.audiorecorderplayer/RNAudioRecorderPlayerModule.kt b/node_modules/react-native-audio-recorder-player/android/src/main/java/com/dooboolab.audiorecorderplayer/RNAudioRecorderPlayerModule.kt
+index 3624b9f..72196e0 100644
+--- a/node_modules/react-native-audio-recorder-player/android/src/main/java/com/dooboolab.audiorecorderplayer/RNAudioRecorderPlayerModule.kt
++++ b/node_modules/react-native-audio-recorder-player/android/src/main/java/com/dooboolab.audiorecorderplayer/RNAudioRecorderPlayerModule.kt
+@@ -1,4 +1,4 @@
+-package com.dooboolab.audiorecorderplayer
++﻿package com.dooboolab.audiorecorderplayer
+ 
+ import android.Manifest
+ import android.content.pm.PackageManager
+@@ -44,13 +44,13 @@ class RNAudioRecorderPlayerModule(private val reactContext: ReactApplicationCont
+                 if (Build.VERSION.SDK_INT < 29 &&
+                         (ActivityCompat.checkSelfPermission(reactContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ||
+                         ActivityCompat.checkSelfPermission(reactContext, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED))  {
+-                    ActivityCompat.requestPermissions((currentActivity)!!, arrayOf(
++                    ActivityCompat.requestPermissions((reactContext.currentActivity)!!, arrayOf(
+                             Manifest.permission.RECORD_AUDIO,
+                             Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)
+                     promise.reject("No permission granted.", "Try again after adding permission.")
+                     return
+                 } else if (ActivityCompat.checkSelfPermission(reactContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+-                    ActivityCompat.requestPermissions((currentActivity)!!, arrayOf(Manifest.permission.RECORD_AUDIO), 0)
++                    ActivityCompat.requestPermissions((reactContext.currentActivity)!!, arrayOf(Manifest.permission.RECORD_AUDIO), 0)
+                     promise.reject("No permission granted.", "Try again after adding permission.")
+                     return
+                 }
+@@ -223,7 +223,7 @@ class RNAudioRecorderPlayerModule(private val reactContext: ReactApplicationCont
+                         val key = iterator.nextKey()
+                         headers.put(key, httpHeaders.getString(key))
+                     }
+-                    mediaPlayer!!.setDataSource(currentActivity!!.applicationContext, Uri.parse(path), headers)
++                    mediaPlayer!!.setDataSource(reactContext.applicationContext, Uri.parse(path), headers)
+                 } else {
+                     mediaPlayer!!.setDataSource(path)
+                 }
+@@ -244,7 +244,7 @@ class RNAudioRecorderPlayerModule(private val reactContext: ReactApplicationCont
+                             obj.putBoolean("isFinished", false);
+                             sendEvent(reactContext, "rn-playback", obj)
+                         } catch (e: IllegalStateException) {
+-                            // IllegalStateException 처리
++                            // IllegalStateException ì²˜ë¦¬
+                             Log.e(tag, "Mediaplayer error: ${e.message}")
+                         }
+                     }
+@@ -403,3 +403,4 @@ class RNAudioRecorderPlayerModule(private val reactContext: ReactApplicationCont
+         )
+     }
+ }
++

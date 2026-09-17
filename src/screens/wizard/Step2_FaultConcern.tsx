@@ -136,7 +136,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
         />
 
         <VoiceToTechButton
-          promptSuggestion="Dictate technician diagnosis / concern..."
+          promptSuggestion="Customer Concern & Diagnosis"
           onTranscriptReady={note => {
             setConcernTitle(note.transcript);
           }}

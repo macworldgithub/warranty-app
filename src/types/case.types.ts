@@ -60,11 +60,14 @@ export interface VoiceNote {
   id: string;
   audioUri?: string;
   serverAudioUrl?: string;
+  originalAudioUrl?: string;
   durationSeconds: number;
   transcript: string;
   recordedAt: string;
   technicianId?: string;
+  recordedBy?: string;
   pinnedToRuleKey?: string;
+  pinnedToEvidenceKey?: string;
   isEdited?: boolean;
 }
 

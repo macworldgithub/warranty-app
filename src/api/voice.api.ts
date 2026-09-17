@@ -51,19 +51,10 @@ export const voiceApi = {
   },
 
   transcribeUpload: async (formData: FormData): Promise<TranscribeResponse> => {
-    try {
-      return await apiClient.uploadFormData<TranscribeResponse>(
-        '/voice-to-tech/transcribe/upload',
-        formData
-      );
-    } catch (err) {
-      return {
-        transcript:
-          'Inspected high-voltage battery connector. Lockout tag applied and isolation verified below 50V.',
-        confidence: 0.96,
-        source: 'fallback',
-      };
-    }
+    return apiClient.uploadFormData<TranscribeResponse>(
+      '/voice-to-tech/transcribe/upload',
+      formData
+    );
   },
 };
 
