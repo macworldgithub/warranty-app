@@ -130,9 +130,31 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
 
   /* -- Derived: brands that are authorized for the selected site -- */
   const availableBrands = useMemo(() => {
-    if (!siteId || siteAuthorizedIds === null) return allBrands;
-    return allBrands.filter((b) => siteAuthorizedIds.includes(b.id));
-  }, [allBrands, siteAuthorizedIds, siteId]);
+    if (!siteId) return allBrands;
+    const currentSite = sites.find((s) => s.id === siteId);
+    const authIds = siteAuthorizedIds ?? currentSite?.authorizedBrands ?? (currentSite as any)?.authorizedBrandIds;
+    if (authIds && authIds.length > 0) {
+      const filtered = allBrands.filter((b) => authIds.includes(b.id));
+      if (filtered.length > 0) return filtered;
+    }
+    // Fallback: match by brand name in site name
+    if (currentSite) {
+      const siteLower = (currentSite.name || '').toLowerCase();
+      const matched = allBrands.filter((b) => siteLower.includes((b.name || '').toLowerCase()));
+      if (matched.length > 0) return matched;
+    }
+    return allBrands;
+  }, [allBrands, siteAuthorizedIds, siteId, sites]);
+
+  // Automatically select the brand if only 1 exists (e.g. BYD for Cranbourne) or if previous brand invalid
+  useEffect(() => {
+    if (availableBrands.length > 0) {
+      const isValid = availableBrands.some((b) => b.id === brandId);
+      if (!isValid) {
+        setBrand(availableBrands[0]);
+      }
+    }
+  }, [availableBrands, brandId]);
 
   const isValidRo = roNumber.trim().length >= 3;
 

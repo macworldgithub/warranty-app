@@ -13,6 +13,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
+import { Bell } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -140,13 +141,31 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         subtitle={`Technician: ${user?.name || 'Workshop'}`}
         showBrandLogo
         rightAction={
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onLogout}
-            style={styles.logoutBtn}
-          >
-            <Icon name="close" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setActiveTab('flagged');
+              }}
+              style={styles.bellBtn}
+              accessibilityLabel="Flagged alerts"
+            >
+              <Bell size={18} color={flaggedCount > 0 ? colors.flagged : colors.textSecondary} />
+              {flaggedCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{flaggedCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onLogout}
+              style={styles.logoutBtn}
+            >
+              <Icon name="close" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -333,6 +352,29 @@ const styles = StyleSheet.create({
   },
   logoutBtn: {
     padding: spacing.xs,
+  },
+  bellBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: colors.backgroundSecondary,
+    position: 'relative',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minWidth: 15,
+    height: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
   flagBanner: {
     flexDirection: 'row',

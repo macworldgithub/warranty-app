@@ -56,7 +56,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   // Code Scanner hook using native VisionCamera MLKit engine
   const codeScanner = useCodeScanner({
     codeTypes: barcodeFormats,
-    onCodeScanned: (codes) => {
+    onCodeScanned: (codes: any[]) => {
       if (codes && codes.length > 0 && !scannedValue) {
         const firstCode = codes[0];
         const raw = firstCode.value;
