@@ -144,33 +144,23 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
     <ScrollView contentContainerStyle={styles.container}>
       {/* Step Header */}
       <View style={styles.headerArea}>
-        <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 1 Â· Vehicle Identity (Fast Path)</Text>
-          <Badge
-            label={isGatePassed ? 'Gate Complete' : 'Mandatory Gate'}
-            variant={isGatePassed ? 'success' : 'danger'}
-            size="sm"
-          />
-        </View>
-        <Text style={styles.sectionDesc}>
-          Enter VIN and odometer reading to proceed. Photos are optional but recommended for OEM audit trail.
-        </Text>
+        <Text style={styles.sectionTitle}>Vehicle Identification</Text>
       </View>
 
       {/* 1. VIN Capture & Auto-Decode */}
       <Card
-        title="1. VIN Capture & Auto-Decode"
+        title="Vehicle Identification Number (VIN)"
         rightAction={
           isVinValid ? (
-            <Badge label="Valid 17-Char VIN" variant="success" size="sm" />
+            <Badge label="Valid VIN" variant="success" size="sm" />
           ) : hasVinString ? (
-            <Badge label="Needs 17 Chars" variant="warning" size="sm" />
+            <Badge label="17 Characters" variant="warning" size="sm" />
           ) : (
             <Badge label="Required" variant="danger" size="sm" />
           )
         }
       >
-        {/* Dual Capture Options: VisionCamera Barcode Scanner & Direct Camera Photo */}
+        {/* Dual Capture Options: Barcode Scanner & Direct Camera Photo */}
         <View style={styles.captureActionGrid}>
           <TouchableOpacity
             activeOpacity={0.8}
@@ -179,15 +169,15 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           >
             <Icon name="sparkles" size={20} color={colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.scanbotBtnTitle}>Scan VIN Barcode (Live Camera)</Text>
-              <Text style={styles.scanbotBtnSub}>Free VisionCamera auto-scan for Code 39, Code 128 & QR</Text>
+              <Text style={styles.scanbotBtnTitle}>Scan VIN Barcode</Text>
+              <Text style={styles.scanbotBtnSub}>Point camera at VIN barcode or QR</Text>
             </View>
             <Icon name="chevron-right" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
 
           <View style={styles.secondaryActionsRow}>
             <Button
-              title={hasVinPhoto ? 'Retake VIN Photo' : 'Photo VIN Plate'}
+              title={hasVinPhoto ? 'Retake Photo' : 'Photo VIN (Optional)'}
               variant={hasVinPhoto ? 'outline' : 'secondary'}
               size="sm"
               loading={isCapturingPhoto === 'vin_photo'}
@@ -199,7 +189,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             />
 
             <Button
-              title="Decode Spec"
+              title="Decode"
               variant="primary"
               size="sm"
               loading={isVinDecoding}
@@ -221,7 +211,6 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             />
             <View style={{ flex: 1, justifyContent: 'center' }}>
               <Text style={styles.thumbnailTitle}>VIN Photo Captured</Text>
-              <Text style={styles.thumbnailSub}>Audit reference photo on file</Text>
             </View>
             <TouchableOpacity
               activeOpacity={0.7}
@@ -240,16 +229,9 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           <View style={styles.scannedConfirmationCard}>
             <View style={styles.scannedHeader}>
               <Icon name="check" size={16} color={colors.success} />
-              <Text style={styles.scannedTitle}>VisionCamera Detection Verified</Text>
-              <Badge label={lastScannedResult.source} variant="outline" size="sm" />
+              <Text style={styles.scannedTitle}>Barcode Scanned</Text>
             </View>
             <Text style={styles.scannedVinText}>{lastScannedResult.vin}</Text>
-            <View style={styles.scannedMetaRow}>
-              <Text style={styles.scannedMetaText}>
-                {lastScannedResult.manufacturerHint || getVinManufacturerHint(vin)}
-              </Text>
-              <Text style={styles.scannedMetaText}>• 17 Chars Valid</Text>
-            </View>
           </View>
         )}
 
@@ -264,7 +246,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
 
         {/* VIN String Input Field */}
         <Input
-          label="17-Character VIN String"
+          label="VIN (17 characters)"
           required
           placeholder="e.g. 1C4HJXDG4MW482702"
           value={vin}
@@ -278,9 +260,9 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
         <View style={styles.decodedCard}>
           <View style={styles.decodedRow}>
             <View>
-              <Text style={styles.decodedLabel}>DECODED VEHICLE SPEC</Text>
+              <Text style={styles.decodedLabel}>VEHICLE SPEC</Text>
               <Text style={styles.decodedSpec}>
-                {year || 2024} {make || 'BYD'} {model || 'ATTO 3 Extended'}
+                {year || 2024} {make || 'BYD'} {model || 'ATTO 3'}
               </Text>
             </View>
             <Badge label={powertrain} variant="primary" size="sm" />
@@ -311,30 +293,37 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
         </View>
       </Card>
 
-      {/* 2. Odometer Cluster Photo & Reading */}
+      {/* 2. Odometer Reading */}
       <Card
-        title="2. Odometer Cluster"
+        title="Odometer"
         rightAction={
           hasOdoReading ? (
-            <Badge label={hasOdoPhoto ? 'Reading + Photo ✓' : 'Reading Entered ✓'} variant="success" size="sm" />
+            <Badge label="Entered ✓" variant="success" size="sm" />
           ) : (
-            <Badge label="Reading Required" variant="danger" size="sm" />
+            <Badge label="Required" variant="danger" size="sm" />
           )
         }
       >
-        <Text style={styles.subtext}>
-          {powertrain === 'Hybrid'
-            ? 'PHEV/Hybrid: Ensure EV + HV combined mileage screen is active.'
-            : 'Cluster in frame with vehicle powered ON.'}
-        </Text>
+        <Input
+          label="Odometer Reading (km)"
+          required
+          placeholder="e.g. 14250"
+          value={odometer !== null ? odometer.toString() : ''}
+          onChangeText={text => {
+            const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+            setOdometer(isNaN(num) ? null : num);
+          }}
+          keyboardType="numeric"
+          leftIcon="file-text"
+        />
 
         <View style={styles.captureRow}>
           <Button
-            title={hasOdoPhoto ? 'Retake Odometer Photo' : 'Photograph Odometer'}
-            variant={hasOdoPhoto ? 'outline' : 'primary'}
-            size="md"
+            title={hasOdoPhoto ? 'Retake Photo' : 'Photo Odometer (Optional)'}
+            variant={hasOdoPhoto ? 'outline' : 'secondary'}
+            size="sm"
             loading={isCapturingPhoto === 'odometer_photo'}
-            leftIcon={<Icon name="camera" size={18} color={colors.primary} />}
+            leftIcon={<Icon name="camera" size={16} color={colors.textPrimary} />}
             onPress={() =>
               handleDirectCameraCapture('odometer_photo', 'Odometer Dash Cluster')
             }
@@ -360,49 +349,31 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
               resizeMode="cover"
             />
             <View style={{ flex: 1, justifyContent: 'center' }}>
-              <Text style={styles.thumbnailTitle}>Odometer Cluster Photo OK</Text>
-              <Text style={styles.thumbnailSub}>Mileage display in focus</Text>
+              <Text style={styles.thumbnailTitle}>Odometer Photo</Text>
             </View>
             <Badge label="Attached" variant="success" size="sm" />
           </View>
         )}
-
-        <Input
-          label="Confirmed Odometer Reading (km)"
-          required
-          placeholder="e.g. 14250"
-          value={odometer !== null ? odometer.toString() : ''}
-          onChangeText={text => {
-            const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
-            setOdometer(isNaN(num) ? null : num);
-          }}
-          keyboardType="numeric"
-          leftIcon="file-text"
-        />
       </Card>
 
       {/* 3. Front of Vehicle Photo */}
       <Card
-        title="3. Front of Vehicle Reference Shot"
+        title="Front Vehicle Photo (Optional)"
         rightAction={
           hasFrontPhoto ? (
-            <Badge label="Reference OK" variant="success" size="sm" />
+            <Badge label="Attached" variant="success" size="sm" />
           ) : (
             <Badge label="Optional" variant="neutral" size="sm" />
           )
         }
       >
-        <Text style={styles.subtext}>
-          Guided 3/4 front framing. Vehicle fills 80%+ frame with rego plate readable where present.
-        </Text>
-
         <View style={styles.captureRow}>
           <Button
-            title={hasFrontPhoto ? 'Retake Front Photo' : 'Capture Front Reference Photo'}
-            variant={hasFrontPhoto ? 'outline' : 'primary'}
-            size="md"
+            title={hasFrontPhoto ? 'Retake Photo' : 'Capture Front Photo'}
+            variant={hasFrontPhoto ? 'outline' : 'secondary'}
+            size="sm"
             loading={isCapturingPhoto === 'front_vehicle_photo'}
-            leftIcon={<Icon name="camera" size={18} color={colors.primary} />}
+            leftIcon={<Icon name="camera" size={16} color={colors.textPrimary} />}
             onPress={() =>
               handleDirectCameraCapture('front_vehicle_photo', 'Front of Vehicle Reference')
             }
@@ -428,8 +399,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
               resizeMode="cover"
             />
             <View style={{ flex: 1, justifyContent: 'center' }}>
-              <Text style={styles.thumbnailTitle}>Front Reference Photo OK</Text>
-              <Text style={styles.thumbnailSub}>Vehicle 3/4 angle captured</Text>
+              <Text style={styles.thumbnailTitle}>Front Photo</Text>
             </View>
             <Badge label="Attached" variant="success" size="sm" />
           </View>

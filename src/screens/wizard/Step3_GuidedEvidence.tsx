@@ -55,15 +55,15 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 3 Â· Tier 1 Guided Evidence</Text>
+          <Text style={styles.sectionTitle}>Evidence Photos</Text>
           <Badge
-            label={`${completedTier1.length}/${mandatoryTier1.length} Recommended`}
-            variant={isTier1Complete ? 'success' : 'warning'}
+            label={`${completedTier1.length} Captured`}
+            variant={completedTier1.length > 0 ? 'success' : 'neutral'}
             size="sm"
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Capture close-ups, orientation context, diagnostic DTC screenshots, and video. All items are recommended — you may skip any and proceed.
+          Take photos or videos of the issue. All items are optional.
         </Text>
       </View>
 
@@ -106,7 +106,7 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Tier 2 Extras"
+          title="Next: Component Photos"
           variant="primary"
           onPress={onNext}
           rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}

@@ -76,15 +76,15 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 6 Â· Review & Quality Gates</Text>
+          <Text style={styles.sectionTitle}>Review & Submit</Text>
           <Badge
-            label={missingRules.length === 0 ? 'All Evidence Captured' : `${missingRules.length} Optional Items Pending`}
-            variant={missingRules.length === 0 ? 'success' : 'warning'}
+            label={missingRules.length === 0 ? 'All Evidence Attached' : `${missingRules.length} Optional Pending`}
+            variant={missingRules.length === 0 ? 'success' : 'neutral'}
             size="sm"
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Every required artefact is verified before the case pack leaves the workshop.
+          Review case summary before submitting.
         </Text>
       </View>
 
@@ -98,7 +98,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
 
       {/* 1. Header Identity Summary */}
       <Card
-        title="Vehicle & Ticket Identity"
+        title="Vehicle & Ticket Summary"
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
@@ -115,11 +115,11 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
             <Text style={styles.metaValue}>{roNumber}</Text>
           </View>
           <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>OEM BRAND</Text>
+            <Text style={styles.metaLabel}>BRAND</Text>
             <Text style={styles.metaValue}>{brandName}</Text>
           </View>
           <View style={styles.metaItemFull}>
-            <Text style={styles.metaLabel}>VEHICLE SPEC</Text>
+            <Text style={styles.metaLabel}>VEHICLE</Text>
             <Text style={styles.metaValue}>
               {year} {make} {model} ({powertrain})
             </Text>
@@ -135,7 +135,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
             </Text>
           </View>
           <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>ROOFTOP SITE</Text>
+            <Text style={styles.metaLabel}>SITE</Text>
             <Text style={styles.metaValue} numberOfLines={1}>
               {siteName}
             </Text>
@@ -145,7 +145,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
 
       {/* 2. Concern Summary */}
       <Card
-        title="Concern & Classification"
+        title="Concern"
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
@@ -162,14 +162,10 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
         </View>
       </Card>
 
-      {/* 3. Mandatory Compliance Checklist */}
+      {/* 3. Evidence Checklist */}
       <Card
-        title={`OEM Compliance Checklist (${completedMandatoryCount}/${mandatoryCount})`}
+        title={`Evidence Items (${evidenceItems.length}/${resolvedRules.length})`}
       >
-        <Text style={styles.checklistDesc}>
-          Auto-named per Brand Pack template upon submission:
-        </Text>
-
         <View style={styles.checklist}>
           {resolvedRules.map((rule, idx) => {
             const ev = evidenceItems.find(e => e.ruleKey === rule.ruleKey);
@@ -192,20 +188,17 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
                   <Icon
                     name={isPresent ? 'check' : 'close'}
                     size={14}
-                    color={isPresent ? colors.success : colors.danger}
+                    color={isPresent ? colors.success : colors.textSecondary}
                   />
                 </View>
 
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemTitle}>{rule.name}</Text>
-                  <Text style={styles.itemFilename}>
-                    {ev?.oemFileName || rule.namingConvention.replace('[DealerRONumber]', roNumber)}
-                  </Text>
                 </View>
 
                 <Badge
-                  label={isPresent ? 'Ready' : 'Missing'}
-                  variant={isPresent ? 'success' : 'danger'}
+                  label={isPresent ? 'Ready' : 'Optional'}
+                  variant={isPresent ? 'success' : 'neutral'}
                   size="sm"
                 />
               </View>
@@ -216,7 +209,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
 
       {/* 4. Voice to Tech Summary */}
       <Card
-        title={`Voice Notes Attached (${voiceNotes.length})`}
+        title={`Voice Notes (${voiceNotes.length})`}
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
@@ -237,37 +230,17 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
             </View>
           ))
         ) : (
-          <Text style={styles.noNotesText}>No voice notes dictated.</Text>
+          <Text style={styles.noNotesText}>No voice notes recorded.</Text>
         )}
       </Card>
-
-      {/* Missing Items Alert - soft warning, does not block submission */}
-      {missingRules.length > 0 && (
-        <View style={[styles.gateAlert, { borderColor: 'rgba(245, 158, 11, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}>
-          <Icon name="alert-circle" size={20} color={colors.warning} />
-          <View style={styles.gateAlertText}>
-            <Text style={[styles.gateAlertTitle, { color: colors.warning }]}>
-              {missingRules.length} Recommended Items Not Captured:
-            </Text>
-            {missingRules.map((r, i) => (
-              <Text key={i} style={styles.missingItemName}>
-                {'\u2022'} {r.name}
-              </Text>
-            ))}
-            <Text style={[styles.missingItemName, { marginTop: 6, fontStyle: 'italic' }]}>
-              You can still submit {'\u2014'} these items are recommended but not required.
-            </Text>
-          </View>
-        </View>
-      )}
 
       {/* Action Buttons */}
       <View style={styles.actionBlock}>
         <Button
           title={
             isOnline
-              ? 'Submit Complete Case to Review Portal'
-              : 'Save & Queue for Background Upload'
+              ? 'Submit Warranty Case'
+              : 'Save & Queue for Upload'
           }
           variant="primary"
           size="huge"

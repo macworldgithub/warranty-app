@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -65,7 +65,7 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 5 Â· Voice to Tech Dictation</Text>
+          <Text style={styles.sectionTitle}>Voice Notes</Text>
           <Badge
             label={`${voiceNotes.length} Note${voiceNotes.length !== 1 ? 's' : ''}`}
             variant={voiceNotes.length > 0 ? 'success' : 'neutral'}
@@ -73,7 +73,7 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Dictate technical observations directly from the workshop floor without greasy typing.
+          Record spoken technician notes or type observations.
         </Text>
       </View>
 

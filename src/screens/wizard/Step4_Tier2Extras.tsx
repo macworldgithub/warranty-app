@@ -49,19 +49,19 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
-          <Text style={styles.sectionTitle}>Step 4 Â· Tier 2 Component Extras</Text>
+          <Text style={styles.sectionTitle}>Component Photos</Text>
           <Badge
             label={
               tier2Rules.length > 0
-                ? `${completedTier2.length}/${mandatoryTier2.length} Recommended`
-                : 'No Extras Required'
+                ? `${completedTier2.length} Captured`
+                : 'None Required'
             }
-            variant={isTier2Complete ? 'success' : 'warning'}
+            variant={completedTier2.length > 0 || tier2Rules.length === 0 ? 'success' : 'neutral'}
             size="sm"
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Component-specific OEM requirements for "{faultCategory}". All items are optional — capture what’s available.
+          Additional photos for "{faultCategory}" (optional).
         </Text>
       </View>
 
@@ -90,10 +90,10 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
           <View style={styles.noExtrasBox}>
             <Icon name="check-circle" size={36} color={colors.success} />
             <Text style={styles.noExtrasTitle}>
-              Standard Tier 1 Requirements Only
+              No Extra Photos Needed
             </Text>
             <Text style={styles.noExtrasDesc}>
-              No additional component-level annex shots required for "{faultCategory}". You may proceed to Voice Notes.
+              No additional component photos required for "{faultCategory}". You may proceed.
             </Text>
           </View>
         </Card>

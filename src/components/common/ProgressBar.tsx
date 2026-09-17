@@ -15,11 +15,11 @@ interface ProgressBarProps {
 }
 
 const defaultStepTitles = [
-  'Ticket Start',
-  'Vehicle ID',
+  'Start Ticket',
+  'Vehicle Info',
   'Fault & Concern',
-  'Tier 1 Evidence',
-  'Tier 2 Extras',
+  'Evidence Photos',
+  'Component Photos',
   'Voice Notes',
   'Review & Submit',
 ];
@@ -28,9 +28,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   currentStep,
   totalSteps = 7,
   stepTitles = defaultStepTitles,
-  mandatoryRemaining = 0,
-  completedCount = 0,
-  totalMandatory = 0,
 }) => {
   const progressPercent = Math.min(100, Math.max(0, ((currentStep + 1) / totalSteps) * 100));
 
@@ -39,20 +36,12 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       <View style={styles.infoRow}>
         <View>
           <Text style={styles.stepLabel}>
-            Step {currentStep + 1} of {totalSteps}:
+            Step {currentStep + 1} of {totalSteps}
           </Text>
           <Text style={styles.stepTitle}>
             {stepTitles[currentStep] || 'Guided Step'}
           </Text>
         </View>
-
-        {totalMandatory > 0 && (
-          <Badge
-            label={`${completedCount}/${totalMandatory} Gates`}
-            variant={mandatoryRemaining === 0 ? 'success' : 'primary'}
-            size="sm"
-          />
-        )}
       </View>
 
       <View style={styles.track}>

@@ -120,18 +120,15 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.introHeader}>
-        <Text style={styles.sectionTitle}>Step 2 Â· Concern & Fault Classification</Text>
-        <Text style={styles.sectionDesc}>
-          Answers configure dynamic Brand Pack evidence gates (serials, video, DTCs, Tier 2 extras).
-        </Text>
+        <Text style={styles.sectionTitle}>Concern & Fault</Text>
       </View>
 
       {/* Concern Description */}
-      <Card title="1. Customer / Workshop Concern">
+      <Card title="Customer Concern">
         <Input
-          label="Concern Title"
+          label="Concern / Fault Description"
           required
-          placeholder="e.g. High-voltage battery cooling loop moisture detected on cluster"
+          placeholder="e.g. AC not blowing cold air or battery error"
           value={concernTitle}
           onChangeText={setConcernTitle}
           leftIcon="file-text"
@@ -139,7 +136,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
         />
 
         <VoiceToTechButton
-          promptSuggestion="Dictate technician diagnosis / customer concern..."
+          promptSuggestion="Dictate technician diagnosis / concern..."
           onTranscriptReady={note => {
             setConcernTitle(note.transcript);
           }}
@@ -147,10 +144,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
       </Card>
 
       {/* Fault Category Tree */}
-      <Card title="2. OEM Fault Category">
-        <Text style={styles.subtext}>
-          Selecting a category recalculates required Tier 2 shots:
-        </Text>
+      <Card title="Fault Category">
 
         <View style={styles.categoryList}>
           {FAULT_CATEGORIES.map(cat => {
@@ -188,15 +182,12 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
       </Card>
 
       {/* Conditional Gate Questions */}
-      <Card title="3. Conditional Evidence Gates">
+      <Card title="Additional Details">
         {/* Part Replaced Question */}
         <View style={styles.questionBlock}>
           <View style={styles.questionRow}>
             <View style={styles.questionTextContainer}>
               <Text style={styles.questionTitle}>Part Being Replaced?</Text>
-              <Text style={styles.questionDesc}>
-                Enforces Old & New Part Serial capture + barcode check.
-              </Text>
             </View>
             <View style={styles.toggleRow}>
               <TouchableOpacity
@@ -281,9 +272,6 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
           <View style={styles.questionRow}>
             <View style={styles.questionTextContainer}>
               <Text style={styles.questionTitle}>Noise or Operational Fault?</Text>
-              <Text style={styles.questionDesc}>
-                Enforces MP4 fault video recording with workshop audio.
-              </Text>
             </View>
             <View style={styles.toggleRow}>
               <TouchableOpacity
@@ -313,9 +301,6 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
           <View style={styles.questionRow}>
             <View style={styles.questionTextContainer}>
               <Text style={styles.questionTitle}>Diagnostic Data Available?</Text>
-              <Text style={styles.questionDesc}>
-                Enforces VDS scanner / DTC screen screenshot capture.
-              </Text>
             </View>
             <View style={styles.toggleRow}>
               <TouchableOpacity
@@ -371,13 +356,6 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
         </View>
       </Card>
 
-      {/* Dynamic Rule Summary Pill */}
-      <View style={styles.summaryBar}>
-        <Icon name="sparkles" size={18} color={colors.primary} />
-        <Text style={styles.summaryText}>
-          Rules Evaluated: {resolvedRules.length} Total ({mandatoryCount} Mandatory Gates)
-        </Text>
-      </View>
 
       {/* Navigation */}
       <View style={styles.navRow}>
@@ -389,7 +367,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Tier 1 Evidence"
+          title="Next: Evidence Photos"
           variant="primary"
           disabled={!isValidConcern || !faultCategory}
           onPress={onNext}

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -139,15 +139,11 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.introHeader}>
-        <Text style={styles.sectionTitle}>Step 0 â€” Start Warranty Ticket</Text>
-        <Text style={styles.sectionDesc}>
-          Select dealership rooftop and OEM brand to initialize the live compliance rules engine.
-        </Text>
-      </View>
+        <Text style={styles.sectionTitle}>Start Warranty Ticket</Text>
+        </View>
 
-      {/* Site Selection */}
-      <Card title="1. Dealership Rooftop Site">
-        <Text style={styles.subtext}>Select the rooftop where this repair is being performed:</Text>
+      <Card title="Dealership Site">
+
         {loading ? (
           <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
         ) : (
@@ -170,22 +166,19 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
         )}
       </Card>
 
-      {/* Brand Selection â€” filtered by selected site */}
-      <Card title="2. OEM Vehicle Brand">
+      {/* Brand Selection - filtered by selected site */}
+      <Card title="Vehicle Brand">
         {!siteId ? (
-          <Text style={styles.subtext}>Select a rooftop above to see its authorized brands.</Text>
+          <Text style={styles.subtext}>Select a dealership site above.</Text>
         ) : brandLoading ? (
           <View style={styles.brandLoadingRow}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={[styles.subtext, { marginLeft: 8 }]}>Loading authorized brandsâ€¦</Text>
+            <Text style={[styles.subtext, { marginLeft: 8 }]}>Loading brands...</Text>
           </View>
         ) : availableBrands.length === 0 ? (
-          <Text style={styles.subtext}>No brands are linked to this site yet. Contact your admin.</Text>
+          <Text style={styles.subtext}>No brands linked to this site.</Text>
         ) : (
-          <>
-            <Text style={styles.subtext}>
-              Showing {availableBrands.length} brand{availableBrands.length !== 1 ? 's' : ''} authorized for this rooftop:
-            </Text>
+            <>
             <View style={styles.chipsGrid}>
               {availableBrands.map((b) => {
                 const isSelected = b.id === brandId;
@@ -199,9 +192,6 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
                     <Text style={[styles.brandChipText, isSelected && styles.brandChipTextSelected]}>
                       {b.name}
                     </Text>
-                    {b.id === 'brand_byd' && (
-                      <Badge label="Attachment A" variant="success" size="sm" />
-                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -210,8 +200,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
         )}
       </Card>
 
-      {/* RO & Claim */}
-      <Card title="3. Repair Order & Claim Key">
+      <Card title="Repair Order">
         <Input
           label="Repair Order (RO) Number"
           required
@@ -220,12 +209,11 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
           onChangeText={setRoNumber}
           leftIcon="barcode"
           autoCapitalize="characters"
-          sublabel="Master key for attachment naming"
           error={!isValidRo && roNumber ? 'RO number is required (min 3 chars)' : undefined}
         />
         <Input
-          label="OEM Claim Number (Optional)"
-          placeholder="Leave blank for warranty clerk if not issued yet"
+          label="Claim Number (Optional)"
+          placeholder="e.g. CLM-10294"
           value={claimNumber}
           onChangeText={setClaimNumber}
           leftIcon="file-text"
@@ -237,7 +225,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
       <View style={styles.actionRow}>
         <Button title="Cancel" variant="ghost" onPress={onCancel} style={{ flex: 1 }} />
         <Button
-          title="Next: Vehicle ID"
+          title="Next: Vehicle Info"
           variant="primary"
           disabled={!isValidRo || !siteId || !brandId}
           onPress={onNext}

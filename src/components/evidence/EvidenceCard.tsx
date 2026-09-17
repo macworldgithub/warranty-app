@@ -102,22 +102,15 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
           </View>
           <View style={styles.titleArea}>
             <Text style={styles.ruleTitle}>{rule.name}</Text>
-            <Text style={styles.oemFileName}>
-              {evidence?.oemFileName || rule.namingConvention?.replace('[DealerRONumber]', roNumber || 'RO')}
-            </Text>
           </View>
         </View>
 
         <View style={styles.headerRight}>
-          {rule.isMandatory ? (
-            <Badge
-              label={isCaptured ? 'Gate Passed' : 'Mandatory'}
-              variant={isCaptured ? 'success' : 'danger'}
-              size="sm"
-            />
-          ) : (
-            <Badge label="Optional" variant="neutral" size="sm" />
-          )}
+          <Badge
+            label={isCaptured ? 'Captured ✓' : 'Optional'}
+            variant={isCaptured ? 'success' : 'neutral'}
+            size="sm"
+          />
         </View>
       </View>
 
@@ -126,9 +119,9 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
         <View style={styles.flagAlert}>
           <Icon name="flag" size={16} color={colors.flagged} />
           <View style={styles.flagAlertTextContainer}>
-            <Text style={styles.flagAlertTitle}>Clerk Flag Notice:</Text>
+            <Text style={styles.flagAlertTitle}>Clerk Note:</Text>
             <Text style={styles.flagAlertDesc}>
-              {flagInstruction || 'Evidence needs to be re-captured to meet OEM standard.'}
+              {flagInstruction || 'Evidence needs to be re-captured.'}
             </Text>
           </View>
         </View>
@@ -141,7 +134,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
         </Text>
       )}
 
-      {/* OEM Benchmark / Sample Reference Preview (Spec §5.4 / §7) */}
+      {/* Sample Reference Preview */}
       {rule.exampleImageUrl ? (
         <View style={styles.sampleGuideContainer}>
           <TouchableOpacity
@@ -151,10 +144,10 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
           >
             <View style={styles.sampleGuideTitleRow}>
               <Icon name="eye" size={14} color={colors.accentCyan || '#06B6D4'} />
-              <Text style={styles.sampleGuideTitle}>OEM Benchmark Reference Shot</Text>
+              <Text style={styles.sampleGuideTitle}>Sample Photo Guide</Text>
             </View>
             <Text style={styles.sampleGuideToggleText}>
-              {showSampleGuide ? 'Hide Sample ▲' : 'View Sample Shot ▼'}
+              {showSampleGuide ? 'Hide Sample ▲' : 'View Sample ▼'}
             </Text>
           </TouchableOpacity>
 
