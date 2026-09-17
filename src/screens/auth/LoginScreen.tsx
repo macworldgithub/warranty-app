@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -17,6 +18,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useNetwork } from '../../context/NetworkContext';
 import { OtpVerificationModal } from '../../components/auth/OtpVerificationModal';
 import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
+
+const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -158,13 +161,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <View style={styles.logoMark}>
-          <Icon name="shield" size={24} color={colors.textPrimary} />
-        </View>
-        <View style={styles.headerText}>
-          <Text style={styles.brandName}>BOORAN MOTOR GROUP</Text>
-          <Text style={styles.productName}>Warranty Evidence</Text>
-        </View>
+        <Image
+          source={booranLogo}
+          style={styles.brandLogo}
+          resizeMode="contain"
+        />
+        <View style={{ flex: 1 }} />
         <TouchableOpacity
           accessibilityLabel="Open developer settings"
           onPress={() => setShowDevConfig(!showDevConfig)}
@@ -319,10 +321,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   contentContainer: { flexGrow: 1, padding: spacing.xl, paddingBottom: spacing.xxl },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xxl },
-  logoMark: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  headerText: { flex: 1, marginLeft: spacing.sm },
-  brandName: { color: colors.textSecondary, fontSize: 10, fontWeight: typography.weights.bold, letterSpacing: 1.1 },
-  productName: { color: colors.textPrimary, fontSize: typography.sizes.md, fontWeight: typography.weights.bold, marginTop: 2 },
+  brandLogo: { width: 170, height: 42 },
   settingsButton: { padding: spacing.sm },
   welcomeBlock: { marginBottom: spacing.md },
   title: { color: colors.textPrimary, fontSize: typography.sizes.display, fontWeight: typography.weights.heavy },

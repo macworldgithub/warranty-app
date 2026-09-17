@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -7,6 +7,8 @@ import { spacing } from '../../theme/spacing';
 import { Icon } from './Icon';
 import { Badge } from './Badge';
 import { useNetwork } from '../../context/NetworkContext';
+
+const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
 interface HeaderProps {
   title: string;
@@ -16,6 +18,7 @@ interface HeaderProps {
   onBack?: () => void;
   rightAction?: React.ReactNode;
   showOfflineIndicator?: boolean;
+  showBrandLogo?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
   onBack,
   rightAction,
   showOfflineIndicator = true,
+  showBrandLogo = false,
 }) => {
   const insets = useSafeAreaInsets();
   const { isOnline, pendingCount } = useNetwork();
@@ -41,9 +45,15 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Icon name="chevron-left" size={26} color={colors.textPrimary} />
           </TouchableOpacity>
+        ) : showBrandLogo ? (
+          <Image
+            source={booranLogo}
+            style={styles.brandLogoImg}
+            resizeMode="contain"
+          />
         ) : (
           <View style={styles.brandIcon}>
-            <Icon name="shield" size={22} color={colors.primary} />
+            <Icon name="shield" size={20} color={colors.primary} />
           </View>
         )}
 
@@ -114,6 +124,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  brandLogoImg: {
+    width: 120,
+    height: 32,
     marginRight: spacing.md,
   },
   brandIcon: {

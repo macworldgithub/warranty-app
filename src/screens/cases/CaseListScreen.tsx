@@ -138,6 +138,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       <Header
         title="Warranty Evidence"
         subtitle={`Technician: ${user?.name || 'Workshop'}`}
+        showBrandLogo
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
