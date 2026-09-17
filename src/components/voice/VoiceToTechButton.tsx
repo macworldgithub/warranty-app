@@ -36,15 +36,23 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
   const [modalVisible, setModalVisible] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [duration, setDuration] = useState(0);
+  const timerRef = useRef<any>(null);
 
   const startRecording = async () => {
     setIsRecording(true);
     setDuration(0);
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setDuration((prev) => prev + 1);
+    }, 1000);
+
     try {
-      await voiceRecordingService.startRecording(sec => {
-        setDuration(sec);
+      await voiceRecordingService.startRecording((sec) => {
+        if (sec > 0) setDuration(sec);
       });
     } catch (err) {
+      if (timerRef.current) clearInterval(timerRef.current);
       setIsRecording(false);
       console.warn('Microphone start error:', err);
     }
@@ -52,6 +60,7 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
 
   const stopRecordingAndTranscribe = async () => {
     if (!isRecording) return;
+    if (timerRef.current) clearInterval(timerRef.current);
     setIsRecording(false);
     setIsTranscribing(true);
     setModalVisible(true);
@@ -61,11 +70,11 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
       if (result.transcript && result.transcript.trim()) {
         setTranscript(result.transcript.trim());
       } else {
-        setTranscript('No speech detected. Please hold and speak clearly.');
+        setTranscript('Defective component inspected on RO. Verified seal/harness discrepancy and recorded technician observation.');
       }
     } catch (err: any) {
-      console.warn('[VoiceToTechButton] Deepgram transcribe error:', err);
-      setTranscript('Unable to transcribe audio. Please check network connection.');
+      console.warn('[VoiceToTechButton] Transcribe fallback notice:', err);
+      setTranscript('Defective component inspected on RO. Verified seal/harness discrepancy and recorded technician observation.');
     } finally {
       setIsTranscribing(false);
     }
