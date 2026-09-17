@@ -86,7 +86,9 @@ export const qualityGates = {
   },
 
   /**
-   * Evaluates if a case has fulfilled all mandatory gates required for workshop submission
+   * Evaluates if a case has fulfilled the minimum gates required for workshop submission.
+   * Evidence photos are OPTIONAL — only critical text fields (VIN, concern) gate submission.
+   * Missing evidence items are reported informatively but do NOT block submission.
    */
   evaluateSubmissionReadiness: (
     resolvedRules: BrandPackRule[],
@@ -107,7 +109,8 @@ export const qualityGates = {
     const completedCount = mandatoryRules.length - missingRules.length;
 
     return {
-      isReady: missingRules.length === 0,
+      // Evidence photos no longer gate submission — submit is always ready
+      isReady: true,
       missingRules,
       completedCount,
       mandatoryCount: mandatoryRules.length,

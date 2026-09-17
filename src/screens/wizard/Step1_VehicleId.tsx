@@ -62,8 +62,8 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
   const hasOdoReading = odometer !== null && odometer >= 0;
   const hasFrontPhoto = !!frontEvidence?.fileUri;
 
-  const isGatePassed =
-    (hasVinPhoto || isVinValid) && hasVinString && hasOdoPhoto && hasOdoReading && hasFrontPhoto;
+  // Only VIN text + odometer reading are required to proceed. Photos are optional captures.
+  const isGatePassed = hasVinString && hasOdoReading;
 
   // Handle VisionCamera Barcode Scanner trigger
   const handleLaunchScanner = () => {
@@ -153,7 +153,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Satisfies the brand identity block (VIN barcode/plate, odometer cluster, front reference shot).
+          Enter VIN and odometer reading to proceed. Photos are optional but recommended for OEM audit trail.
         </Text>
       </View>
 
@@ -315,10 +315,10 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
       <Card
         title="2. Odometer Cluster"
         rightAction={
-          hasOdoPhoto && hasOdoReading ? (
-            <Badge label="Reading Verified" variant="success" size="sm" />
+          hasOdoReading ? (
+            <Badge label={hasOdoPhoto ? 'Reading + Photo ✓' : 'Reading Entered ✓'} variant="success" size="sm" />
           ) : (
-            <Badge label="Required" variant="danger" size="sm" />
+            <Badge label="Reading Required" variant="danger" size="sm" />
           )
         }
       >
@@ -388,7 +388,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           hasFrontPhoto ? (
             <Badge label="Reference OK" variant="success" size="sm" />
           ) : (
-            <Badge label="Required" variant="danger" size="sm" />
+            <Badge label="Optional" variant="neutral" size="sm" />
           )
         }
       >

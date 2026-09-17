@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    overflow: 'hidden',
   },
   cardHighlighted: {
     borderColor: colors.primary,
@@ -72,21 +73,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   titleContainer: {
     flex: 1,
+    flexShrink: 1,
   },
   title: {
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
+    flexWrap: 'wrap',
   },
   subtitle: {
     fontSize: typography.sizes.xs,
     color: colors.textSecondary,
     marginTop: 2,
+    lineHeight: 18,
+    flexWrap: 'wrap',
   },
   rightAction: {
+    flexShrink: 0,
     marginLeft: spacing.sm,
   },
 });

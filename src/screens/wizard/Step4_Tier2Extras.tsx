@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -53,15 +53,15 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
           <Badge
             label={
               tier2Rules.length > 0
-                ? `${completedTier2.length}/${mandatoryTier2.length} Completed`
+                ? `${completedTier2.length}/${mandatoryTier2.length} Recommended`
                 : 'No Extras Required'
             }
-            variant={isTier2Complete ? 'success' : 'primary'}
+            variant={isTier2Complete ? 'success' : 'warning'}
             size="sm"
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Component-specific OEM requirements for "{faultCategory}".
+          Component-specific OEM requirements for "{faultCategory}". All items are optional — capture what’s available.
         </Text>
       </View>
 
@@ -111,7 +111,6 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
         <Button
           title="Next: Voice Notes"
           variant="primary"
-          disabled={!isTier2Complete}
           onPress={onNext}
           rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}

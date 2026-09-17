@@ -78,8 +78,8 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
         <View style={styles.titleRow}>
           <Text style={styles.sectionTitle}>Step 6 Â· Review & Quality Gates</Text>
           <Badge
-            label={isReadyForSubmission ? 'Submission Ready' : 'Gates Incomplete'}
-            variant={isReadyForSubmission ? 'success' : 'danger'}
+            label={missingRules.length === 0 ? 'All Evidence Captured' : `${missingRules.length} Optional Items Pending`}
+            variant={missingRules.length === 0 ? 'success' : 'warning'}
             size="sm"
           />
         </View>
@@ -241,19 +241,22 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
         )}
       </Card>
 
-      {/* Missing Items Alert */}
-      {!isReadyForSubmission && missingRules.length > 0 && (
-        <View style={styles.gateAlert}>
-          <Icon name="alert-circle" size={20} color={colors.danger} />
+      {/* Missing Items Alert - soft warning, does not block submission */}
+      {missingRules.length > 0 && (
+        <View style={[styles.gateAlert, { borderColor: 'rgba(245, 158, 11, 0.4)', backgroundColor: 'rgba(245, 158, 11, 0.08)' }]}>
+          <Icon name="alert-circle" size={20} color={colors.warning} />
           <View style={styles.gateAlertText}>
-            <Text style={styles.gateAlertTitle}>
-              {missingRules.length} Mandatory Gates Remaining:
+            <Text style={[styles.gateAlertTitle, { color: colors.warning }]}>
+              {missingRules.length} Recommended Items Not Captured:
             </Text>
             {missingRules.map((r, i) => (
               <Text key={i} style={styles.missingItemName}>
-                â€¢ {r.name}
+                {'\u2022'} {r.name}
               </Text>
             ))}
+            <Text style={[styles.missingItemName, { marginTop: 6, fontStyle: 'italic' }]}>
+              You can still submit {'\u2014'} these items are recommended but not required.
+            </Text>
           </View>
         </View>
       )}
@@ -269,7 +272,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
           variant="primary"
           size="huge"
           loading={submitting}
-          disabled={!isReadyForSubmission}
+          disabled={submitting}
           onPress={handleSubmit}
           leftIcon={<Icon name="check-circle" size={22} color={colors.textInverse} />}
           fullWidth

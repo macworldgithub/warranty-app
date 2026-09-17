@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -57,13 +57,13 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
         <View style={styles.titleRow}>
           <Text style={styles.sectionTitle}>Step 3 Â· Tier 1 Guided Evidence</Text>
           <Badge
-            label={`${completedTier1.length}/${mandatoryTier1.length} Completed`}
-            variant={isTier1Complete ? 'success' : 'primary'}
+            label={`${completedTier1.length}/${mandatoryTier1.length} Recommended`}
+            variant={isTier1Complete ? 'success' : 'warning'}
             size="sm"
           />
         </View>
         <Text style={styles.sectionDesc}>
-          Capture close-ups, orientation context, diagnostic DTC screenshots, and video.
+          Capture close-ups, orientation context, diagnostic DTC screenshots, and video. All items are recommended — you may skip any and proceed.
         </Text>
       </View>
 
@@ -108,7 +108,6 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
         <Button
           title="Next: Tier 2 Extras"
           variant="primary"
-          disabled={!isTier1Complete}
           onPress={onNext}
           rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}
           style={{ flex: 2 }}

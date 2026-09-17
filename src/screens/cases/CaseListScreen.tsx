@@ -228,33 +228,60 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                 isFlagged && styles.caseCardFlagged,
               ]}
             >
-              {/* Top Row: RO Number + Status Badge */}
+              {/* Top Row: RO Number + Badges + Status */}
               <View style={styles.cardHeader}>
                 <View style={styles.roGroup}>
                   <Text style={styles.roText}>{item.roNumber || 'NO RO'}</Text>
                   <Badge label={item.brandName || item.make || 'OEM'} variant="outline" size="sm" />
+                  {item.claimNumber ? (
+                    <Badge label={`OEM: ${item.claimNumber}`} variant="success" size="sm" />
+                  ) : null}
                 </View>
-                {getStatusBadge(item.status)}
+                <View style={styles.statusBadgeWrapper}>
+                  {getStatusBadge(item.status)}
+                </View>
               </View>
 
-              {/* Concern Title */}
-              <Text style={styles.concernTitle} numberOfLines={2}>
-                {item.concernTitle || item.faultCategory || 'Warranty inspection and diagnosis'}
-              </Text>
+              {/* Concern Title & Classification */}
+              <View style={styles.concernContainer}>
+                <Text style={styles.concernTitle}>
+                  {item.concernTitle || 'Warranty inspection and diagnosis'}
+                </Text>
+                {item.faultCategory ? (
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText} numberOfLines={1}>
+                      {item.faultCategory}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Clerk / Flag Note Callout if present */}
+              {isFlagged && (item.clerkNotes || item.flagHistory?.length) ? (
+                <View style={styles.noteCallout}>
+                  <Icon name="alert-circle" size={14} color={colors.flagged} />
+                  <Text style={styles.noteText}>
+                    {item.clerkNotes || item.flagHistory?.[0]?.instruction || 'Evidence requires retake or correction.'}
+                  </Text>
+                </View>
+              ) : null}
 
               {/* Vehicle Identity Strip */}
               <View style={styles.vehicleStrip}>
                 <View style={styles.vehicleDetail}>
                   <Icon name="car" size={14} color={colors.textSecondary} />
-                  <Text style={styles.vehicleText}>
+                  <Text style={styles.vehicleText} numberOfLines={1} ellipsizeMode="tail">
                     {item.year || ''} {item.make} {item.model || ''}
                   </Text>
                 </View>
 
                 {item.vin ? (
-                  <Text style={styles.vinText}>
-                    VIN: ...{item.vin.slice(-8)}
-                  </Text>
+                  <View style={styles.vinBadge}>
+                    <Text style={styles.vinLabel}>VIN</Text>
+                    <Text style={styles.vinText} numberOfLines={1} ellipsizeMode="middle">
+                      {item.vin.length > 11 ? `...${item.vin.slice(-8)}` : item.vin}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
 
@@ -287,11 +314,10 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       {/* Floating "+ New Warranty Case" Button */}
       <View style={[styles.fabContainer, { paddingBottom: insets.bottom + spacing.md }]}>
         <Button
-          title="+ New Warranty Case"
+          title="New Warranty Case"
           variant="primary"
           size="huge"
           onPress={handleCreateNew}
-          leftIcon={<Icon name="plus" size={22} color={colors.textPrimary} />}
           fullWidth
         />
       </View>
@@ -360,7 +386,7 @@ const styles = StyleSheet.create({
   caseCard: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadius.lg,
-    padding: spacing.lg,
+    padding: spacing.md + 2,
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
@@ -369,6 +395,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    overflow: 'hidden',
   },
   caseCardFlagged: {
     borderColor: colors.flagged,
@@ -377,60 +404,131 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.sm,
+    gap: spacing.xs,
   },
   roGroup: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  statusBadgeWrapper: {
+    flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   roText: {
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.heavy,
     color: colors.textPrimary,
   },
+  concernContainer: {
+    marginBottom: spacing.sm,
+  },
   concernTitle: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
     lineHeight: 20,
+    flexWrap: 'wrap',
+  },
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  categoryText: {
+    fontSize: typography.sizes.xs - 1,
+    color: colors.textSecondary,
+    fontWeight: typography.weights.medium,
+  },
+  noteCallout: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.flaggedLight,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.flagged,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: 4,
+    marginBottom: spacing.sm,
+    gap: 6,
+  },
+  noteText: {
+    flex: 1,
+    fontSize: typography.sizes.xs,
+    color: colors.flagged,
+    lineHeight: 16,
+    fontWeight: typography.weights.medium,
   },
   vehicleStrip: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: spacing.borderRadius.sm,
-    marginBottom: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: spacing.borderRadius.md,
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
   },
   vehicleDetail: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
+    minWidth: 130,
   },
   vehicleText: {
     fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.weights.medium,
+    color: colors.textPrimary,
+    fontWeight: typography.weights.semibold,
+    flexShrink: 1,
+  },
+  vinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderHighlight,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  vinLabel: {
+    fontSize: 9,
+    fontWeight: typography.weights.bold,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
   },
   vinText: {
-    fontSize: typography.sizes.xs,
-    color: colors.textMuted,
+    fontSize: typography.sizes.xs - 1,
+    color: colors.textSecondary,
     fontFamily: typography.fontFamily,
+    fontWeight: typography.weights.semibold,
+    letterSpacing: 0.5,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.xs + 2,
+    gap: spacing.xs,
   },
   footerItem: {
     flexDirection: 'row',
