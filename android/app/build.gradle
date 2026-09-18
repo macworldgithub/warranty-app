@@ -80,7 +80,7 @@ android {
 
     namespace "com.warrantyapp"
     defaultConfig {
-        applicationId "com.warrantyapp"
+        applicationId "com.booran.warrantyApp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

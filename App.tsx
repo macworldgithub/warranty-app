@@ -37,6 +37,7 @@ import {
   AppNotificationPayload,
   FlagNotificationPayload,
 } from './src/services/notifications.service';
+import { casesApi } from './src/api';
 import { WarrantyCase } from './src/types';
 
 type AppScreen = 'LOGIN' | 'LIST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE';
@@ -63,32 +64,24 @@ function MainNavigator() {
   const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
   const [submittedReceipt, setSubmittedReceipt] = useState<WarrantyCase | null>(null);
 
-  // Initialize notifications on authentication
-  useEffect(() => {
-    if (isAuthenticated) {
-      const techId = (user as any)?.id || 'usr_tech_1';
-      notificationsService.registerDevice(techId);
-      const unsubscribe = notificationsService.onNotification((payload) => {
-        setActiveNotification(payload);
-      });
-      notificationsService.startNotificationPolling(techId);
-
-      return () => {
-        unsubscribe();
-        notificationsService.stopFlagPolling();
-      };
-    }
-  }, [isAuthenticated, user]);
-
-  // Deep-Link Navigation when Technician Taps Notification Banner
-  const handleNotificationPress = (notif: AppNotificationPayload) => {
+  // Deep-Link Navigation when Technician Taps Notification Banner or System Tray Push
+  const handleNotificationPress = async (notif: AppNotificationPayload) => {
     setActiveNotification(null);
 
     const type = notif.type || (notif.reasonCode ? 'FLAGGED' : 'INFO');
 
+    let caseItem = notif.caseItem;
+    if (!caseItem && notif.caseId) {
+      try {
+        caseItem = await casesApi.getCaseById(notif.caseId);
+      } catch {
+        // Fallback if network fails
+      }
+    }
+
     if (type === 'APPROVED' || type === 'AWAITING_REVIEW') {
-      if (notif.caseItem) {
-        setSelectedCase(notif.caseItem);
+      if (caseItem) {
+        setSelectedCase(caseItem);
         setCurrentScreen('DETAIL');
       } else {
         setCurrentScreen('LIST');
@@ -96,9 +89,9 @@ function MainNavigator() {
       return;
     }
 
-    if (notif.caseItem) {
-      setSelectedCase(notif.caseItem);
-      loadExistingCase(notif.caseItem, true);
+    if (caseItem) {
+      setSelectedCase(caseItem);
+      loadExistingCase(caseItem, true);
 
       const rule = (notif.evidenceRuleKey || '').toLowerCase();
       if (rule.includes('vin') || rule.includes('odometer') || rule.includes('front')) {
@@ -120,6 +113,30 @@ function MainNavigator() {
       setCurrentScreen('LIST');
     }
   };
+
+  // Initialize notifications on authentication & listen for background / foreground push
+  useEffect(() => {
+    const techId = (user as any)?.id || 'usr_tech_1';
+    notificationsService.registerDevice(techId);
+
+    const unsubscribePush = notificationsService.onNotification((payload) => {
+      setActiveNotification(payload);
+    });
+
+    const unsubscribeOpen = notificationsService.onNotificationOpen((payload) => {
+      handleNotificationPress(payload);
+    });
+
+    if (isAuthenticated) {
+      notificationsService.startNotificationPolling(techId);
+    }
+
+    return () => {
+      unsubscribePush();
+      unsubscribeOpen();
+      notificationsService.stopFlagPolling();
+    };
+  }, [isAuthenticated, user]);
 
   // If user logs out, go to LOGIN
   if (!isAuthenticated && currentScreen !== 'LOGIN') {

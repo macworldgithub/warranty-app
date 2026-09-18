@@ -550,7 +550,7 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       noiseFault: Boolean(state.noiseFault),
       diagnosticsAvailable: Boolean(state.diagnosticsAvailable),
       repairStage: state.repairStage || 'Repair complete',
-      technicianId: user?.id || 'tech_jake_s',
+      technicianId: user?.id || 'usr_tech_1',
       technicianName: user?.name || 'Jake Smith',
       evidenceItems: state.evidenceItems || [],
       voiceNotes: state.voiceNotes || [],
