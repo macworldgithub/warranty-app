@@ -5,40 +5,19 @@
 import { AppRegistry } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
+import {
+  getMessaging,
+  setBackgroundMessageHandler,
+} from '@react-native-firebase/messaging';
 
-// Register Firebase Cloud Messaging Background Handler (Headless JS for background/quit states)
-try {
-  const firebaseMessaging = require('@react-native-firebase/messaging');
-  if (firebaseMessaging) {
-    const messagingInstance = typeof firebaseMessaging.getMessaging === 'function'
-      ? firebaseMessaging.getMessaging()
-      : (typeof firebaseMessaging.default === 'function'
-          ? firebaseMessaging.default()
-          : (typeof firebaseMessaging === 'function' ? firebaseMessaging() : null));
-
-    const setBgHandler = firebaseMessaging.setBackgroundMessageHandler ||
-      (messagingInstance && messagingInstance.setBackgroundMessageHandler);
-
-    if (typeof setBgHandler === 'function') {
-      const handler = async (remoteMessage) => {
-        console.log('[FCM Background] Message received in background Headless JS:', remoteMessage);
-      };
-
-      if (firebaseMessaging.setBackgroundMessageHandler && messagingInstance) {
-        try {
-          firebaseMessaging.setBackgroundMessageHandler(messagingInstance, handler);
-        } catch {
-          if (typeof messagingInstance.setBackgroundMessageHandler === 'function') {
-            messagingInstance.setBackgroundMessageHandler(handler);
-          }
-        }
-      } else if (typeof messagingInstance?.setBackgroundMessageHandler === 'function') {
-        messagingInstance.setBackgroundMessageHandler(handler);
-      }
-    }
-  }
-} catch (err) {
-  console.warn('[FCM Background] Failed to register background message handler:', err);
-}
+// Register Firebase Cloud Messaging Background Handler
+// This MUST be in index.js (outside any component) so it runs in the Headless JS context
+// when the app is in background or quit state.
+setBackgroundMessageHandler(getMessaging(), async (remoteMessage) => {
+  console.log('[FCM Background] Message received in background/quit state:', remoteMessage);
+  // The notification banner is handled automatically by FCM for data+notification payloads.
+  // Any additional background processing (e.g. local DB updates) can be done here.
+});
 
 AppRegistry.registerComponent(appName, () => App);
+

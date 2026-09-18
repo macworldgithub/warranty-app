@@ -166,7 +166,13 @@ class NotificationsService {
       if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
         try {
           const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            {
+              title: 'Warranty Push Notifications',
+              message: 'Allow notifications to receive alerts when warranty claims are approved, flagged, or reviewed.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Don\'t Allow',
+            }
           );
           console.log('[Notifications] Android 13+ notification permission status:', granted);
         } catch (_err) {
@@ -183,7 +189,12 @@ class NotificationsService {
 
         // Obtain real Google FCM device token
         token = await fbAdapter.getToken();
-        console.log('[FCM] Native device token retrieved:', token);
+        
+        if (token) {
+          this.printFcmBanner(token, userId);
+        } else {
+          console.warn('[FCM] Native getToken() returned null or empty.');
+        }
 
         // Subscribe to relevant FCM topics for guaranteed delivery
         await fbAdapter.subscribeToTopic?.('warranty-techs');
@@ -197,7 +208,7 @@ class NotificationsService {
           this.fcmUnsubscribeForeground();
         }
         this.fcmUnsubscribeForeground = fbAdapter.onMessage((remoteMessage: any) => {
-          console.log('[FCM] Foreground push received:', remoteMessage);
+          console.log('[FCM Foreground Push Received]:', JSON.stringify(remoteMessage, null, 2));
           this.handleIncomingFcmMessage(remoteMessage);
         });
 
@@ -207,7 +218,7 @@ class NotificationsService {
         }
         if (fbAdapter.onNotificationOpenedApp) {
           this.fcmUnsubscribeOpenedApp = fbAdapter.onNotificationOpenedApp((remoteMessage: any) => {
-            console.log('[FCM] Notification opened app from background:', remoteMessage);
+            console.log('[FCM Notification Opened App from Background]:', JSON.stringify(remoteMessage, null, 2));
             const payload = this.handleIncomingFcmMessage(remoteMessage);
             if (payload) {
               this.notifyOpenListeners(payload);
@@ -221,7 +232,8 @@ class NotificationsService {
         }
         if (fbAdapter.onTokenRefresh) {
           this.fcmUnsubscribeTokenRefresh = fbAdapter.onTokenRefresh(async (newToken: string) => {
-            console.log('[FCM] Token refreshed by Google:', newToken);
+            console.log('[FCM] Token refreshed by Google Play Services');
+            this.printFcmBanner(newToken, userId, true);
             this.deviceToken = newToken;
             try {
               await apiClient.post('/notifications/devices/register', {
@@ -239,7 +251,7 @@ class NotificationsService {
         if (fbAdapter.getInitialNotification) {
           fbAdapter.getInitialNotification().then((remoteMessage: any) => {
             if (remoteMessage) {
-              console.log('[FCM] App opened from quit state via notification:', remoteMessage);
+              console.log('[FCM App Opened from Quit State]:', JSON.stringify(remoteMessage, null, 2));
               const payload = this.handleIncomingFcmMessage(remoteMessage);
               if (payload) {
                 setTimeout(() => this.notifyOpenListeners(payload), 800);
@@ -268,6 +280,42 @@ class NotificationsService {
     } catch (err: any) {
       console.warn('[Notifications] Failed to register device token with backend:', err?.message);
       return this.deviceToken || 'dev_token_fallback';
+    }
+  }
+
+  /**
+   * Prominently prints the FCM Registration Token in the console
+   * for easy copying into the Firebase Console (Cloud Messaging -> Send test message)
+   */
+  public printFcmBanner(token: string, userId?: string, isRefresh: boolean = false) {
+    const divider = '═'.repeat(72);
+    console.log('\n' + divider);
+    console.log(`🔥 [FIREBASE CLOUD MESSAGING (FCM) DEVICE TOKEN${isRefresh ? ' - REFRESHED' : ''}] 🔥`);
+    console.log(divider);
+    console.log('📌 Device Token:');
+    console.log(token);
+    console.log('─'.repeat(72));
+    if (userId) console.log(`👤 User / Tech ID: ${userId}`);
+    console.log(`📱 Platform:       ${Platform.OS}`);
+    console.log(`⏰ Timestamp:      ${new Date().toISOString()}`);
+    console.log('─'.repeat(72));
+    console.log('💡 HOW TO TEST IN FIREBASE CONSOLE:');
+    console.log('1. Go to Firebase Console -> Messaging (Campaigns/Compose)');
+    console.log('2. Click "New Campaign" -> "Notifications" (or "Send your first message")');
+    console.log('3. Fill in title/body, then click "Send test message"');
+    console.log('4. Paste the token above into the "Add an FCM registration token" field');
+    console.log('5. Click Test to send push notification directly to this device');
+    console.log(divider + '\n');
+  }
+
+  /**
+   * Manually trigger printing the active device token to the console
+   */
+  public printCurrentToken() {
+    if (this.deviceToken) {
+      this.printFcmBanner(this.deviceToken, 'current_session');
+    } else {
+      console.warn('[FCM] No device token currently available. Make sure registerDevice() has run.');
     }
   }
 

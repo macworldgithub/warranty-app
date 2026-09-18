@@ -37,7 +37,10 @@ class MainApplication : Application(), ReactApplication {
    */
   private fun createNotificationChannels() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val channel = NotificationChannel(
+      val notificationManager = getSystemService(NotificationManager::class.java) ?: return
+
+      // Primary Channel: warranty_alerts
+      val warrantyChannel = NotificationChannel(
         "warranty_alerts",
         "Warranty Alerts",
         NotificationManager.IMPORTANCE_HIGH
@@ -45,10 +48,22 @@ class MainApplication : Application(), ReactApplication {
         description = "Notifications for warranty case status updates, approvals, flags, and reviews"
         enableVibration(true)
         setShowBadge(true)
+        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
       }
+      notificationManager.createNotificationChannel(warrantyChannel)
 
-      val notificationManager = getSystemService(NotificationManager::class.java)
-      notificationManager?.createNotificationChannel(channel)
+      // Fallback Channel: fcm_fallback_notification_channel (used by Firebase Console test notifications)
+      val fallbackChannel = NotificationChannel(
+        "fcm_fallback_notification_channel",
+        "General Notifications",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "General and test notifications from Firebase"
+        enableVibration(true)
+        setShowBadge(true)
+        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+      }
+      notificationManager.createNotificationChannel(fallbackChannel)
     }
   }
 }

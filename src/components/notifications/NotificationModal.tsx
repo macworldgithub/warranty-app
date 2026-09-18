@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Alert,
 } from 'react-native';
 import {
   Bell,
@@ -316,6 +317,55 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 );
               })
             )}
+
+            {/* Developer FCM Debug & Token Info Box */}
+            <View style={styles.fcmDebugCard}>
+              <View style={styles.fcmDebugHeader}>
+                <View style={styles.fcmDebugTitleRow}>
+                  <View style={[styles.fcmStatusDot, { backgroundColor: notificationsService.getDeviceToken() ? '#10B981' : '#F59E0B' }]} />
+                  <Text style={styles.fcmDebugTitle}>Firebase FCM Device Token</Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.fcmConsoleBtn}
+                  onPress={() => {
+                    notificationsService.printCurrentToken();
+                    Alert.alert(
+                      'FCM Token Logged',
+                      'FCM Device Token has been printed to your Metro / terminal console!'
+                    );
+                  }}
+                >
+                  <Text style={styles.fcmConsoleBtnText}>Print to Console</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.fcmTokenText} numberOfLines={2}>
+                {notificationsService.getDeviceToken() || 'Obtaining device token...'}
+              </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={styles.fcmViewBtn}
+                onPress={() => {
+                  const token = notificationsService.getDeviceToken();
+                  if (token) {
+                    notificationsService.printFcmBanner(token, 'developer_debug');
+                    Alert.alert(
+                      'FCM Registration Token',
+                      `${token}\n\n(Also printed to Metro / terminal console)`
+                    );
+                  } else {
+                    Alert.alert(
+                      'Token Unavailable',
+                      'FCM token not yet generated. Please make sure the app was rebuilt with native Firebase dependencies.'
+                    );
+                  }
+                }}
+              >
+                <Text style={styles.fcmViewBtnText}>View Full Token / Test FCM</Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -548,5 +598,68 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#E11F26',
+  },
+  fcmDebugCard: {
+    marginTop: 12,
+    marginBottom: 20,
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  fcmDebugHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  fcmDebugTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fcmStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  fcmDebugTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
+  fcmConsoleBtn: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  fcmConsoleBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#38BDF8',
+  },
+  fcmTokenText: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#94A3B8',
+    backgroundColor: '#1E293B',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  fcmViewBtn: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  fcmViewBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
