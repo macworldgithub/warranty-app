@@ -203,7 +203,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               value={tempUrl}
               onChangeText={setTempUrl}
               style={styles.configInput}
-              placeholder="http://10.0.2.2:4000"
+              placeholder="https://warranty-evidence.omnisuiteai.com"
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
