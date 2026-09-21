@@ -20,7 +20,6 @@ interface OtpVerificationModalProps {
   email: string;
   title?: string;
   subtitle?: string;
-  devOtp?: string;
   isLoading?: boolean;
   errorMessage?: string | null;
   onVerify: (otp: string) => void;
@@ -33,7 +32,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   email,
   title = 'Verify Your Email',
   subtitle,
-  devOtp,
   isLoading = false,
   errorMessage,
   onVerify,
@@ -46,11 +44,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
 
   useEffect(() => {
     if (visible) {
-      if (devOtp && devOtp.length === 6) {
-        setDigits(devOtp.split(''));
-      } else {
-        setDigits(['', '', '', '', '', '']);
-      }
+      setDigits(['', '', '', '', '', '']);
       setCountdown(60);
       setTimeout(() => {
         if (inputRefs.current[0] && typeof inputRefs.current[0].focus === 'function') {
@@ -58,7 +52,7 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
         }
       }, 300);
     }
-  }, [visible, devOtp]);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible || countdown <= 0) return;
@@ -141,14 +135,6 @@ export const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             {subtitle || `Enter the 6-digit code sent to`}
           </Text>
           <Text style={styles.emailText}>{email}</Text>
-
-          {/* Dev helper chip if provided */}
-          {devOtp && (
-            <View style={styles.devOtpChip}>
-              <Icon name="sparkles" size={14} color={colors.primary} />
-              <Text style={styles.devOtpText}>Dev OTP: <Text style={styles.devOtpBold}>{devOtp}</Text></Text>
-            </View>
-          )}
 
           {/* Error banner */}
           {errorMessage && (
@@ -271,24 +257,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 2,
     marginBottom: spacing.md,
-  },
-  devOtpChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 12,
-    marginBottom: spacing.md,
-  },
-  devOtpText: {
-    fontSize: typography.sizes.xs,
-    color: colors.primary,
-  },
-  devOtpBold: {
-    fontWeight: typography.weights.bold,
-    letterSpacing: 2,
   },
   errorBanner: {
     flexDirection: 'row',

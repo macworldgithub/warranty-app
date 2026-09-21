@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import {
   User,
+  UserRole,
   AuthResponse,
   VerifyRegisterOtpDto,
   ResetPasswordDto,
@@ -29,16 +30,20 @@ export const authApi = {
       resData?.access_token ||
       response?.token ||
       response?.accessToken;
-    const user = resData?.user || response?.user || resData;
+    const rawUser = resData?.user || response?.user || resData;
 
     if (token) {
       apiClient.setToken(token);
     }
 
+    const role: UserRole = rawUser?.role
+      ? (String(rawUser.role).toUpperCase() as UserRole)
+      : 'TECHNICIAN';
+
     return {
       user: {
-        ...user,
-        role: user?.role || 'TECHNICIAN',
+        ...rawUser,
+        role,
       },
       token,
       message: resData?.message || response?.message,
@@ -70,16 +75,20 @@ export const authApi = {
       resData?.access_token ||
       response?.token ||
       response?.accessToken;
-    const user = resData?.user || response?.user || resData;
+    const rawUser = resData?.user || response?.user || resData;
 
     if (token) {
       apiClient.setToken(token);
     }
 
+    const role: UserRole = rawUser?.role
+      ? (String(rawUser.role).toUpperCase() as UserRole)
+      : 'TECHNICIAN';
+
     return {
       user: {
-        ...user,
-        role: user?.role || 'TECHNICIAN',
+        ...rawUser,
+        role,
       },
       token,
       message: resData?.message || response?.message,
@@ -90,70 +99,71 @@ export const authApi = {
     email: string,
     name?: string
   ): Promise<GenericAuthResponse> => {
+    let response: any;
     try {
-      const response = await apiClient.post<any>('/auth/register/send-otp', {
+      response = await apiClient.post<any>('/auth/register/send-otp', {
         email,
         name,
       });
-      const resData = response?.data || response;
-      return {
-        success: true,
-        message: resData?.message || 'Verification code sent to your email',
-        devOtp: resData?.devOtp || resData?.otp,
-      };
     } catch (err: any) {
       if (err.statusCode === 404) {
-        const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        return {
-          success: true,
-          message: 'Verification code generated for development.',
-          devOtp: mockOtp,
-        };
+        response = await apiClient.post<any>('/auth/send-otp', {
+          email,
+          name,
+          type: 'REGISTRATION',
+        });
+      } else {
+        throw err;
       }
-      throw err;
     }
+    const resData = response?.data || response;
+    return {
+      success: true,
+      message: resData?.message || 'Verification code sent to your email',
+    };
   },
 
   verifyRegistrationOtp: async (
     dto: VerifyRegisterOtpDto
   ): Promise<AuthResponse> => {
+    let response: any;
     try {
-      const response = await apiClient.post<any>('/auth/register/verify-otp', {
+      response = await apiClient.post<any>('/auth/register/verify-otp', {
         ...dto,
         role: dto.role || 'TECHNICIAN',
       });
-
-      const resData = response?.data || response;
-      const token =
-        resData?.token ||
-        resData?.accessToken ||
-        resData?.access_token ||
-        response?.token ||
-        response?.accessToken;
-      const user = resData?.user || response?.user || resData;
-
-      if (token) {
-        apiClient.setToken(token);
-      }
-
-      return {
-        user: {
-          ...user,
-          role: 'TECHNICIAN',
-        },
-        token,
-        message: resData?.message || response?.message,
-      };
     } catch (err: any) {
       if (err.statusCode === 404) {
-        return authApi.registerTechnician({
-          name: dto.name,
-          email: dto.email,
-          password: dto.password,
+        response = await apiClient.post<any>('/auth/verify-otp', {
+          ...dto,
+          role: dto.role || 'TECHNICIAN',
         });
+      } else {
+        throw err;
       }
-      throw err;
     }
+
+    const resData = response?.data || response;
+    const token =
+      resData?.token ||
+      resData?.accessToken ||
+      resData?.access_token ||
+      response?.token ||
+      response?.accessToken;
+    const rawUser = resData?.user || response?.user || resData;
+
+    const role: UserRole = rawUser?.role
+      ? (String(rawUser.role).toUpperCase() as UserRole)
+      : ((dto.role?.toUpperCase() as UserRole) || 'TECHNICIAN');
+
+    return {
+      user: {
+        ...rawUser,
+        role,
+      },
+      token,
+      message: resData?.message || response?.message,
+    };
   },
 
   sendForgotPasswordOtp: async (
@@ -198,7 +208,15 @@ export const authApi = {
   },
 
   getMe: async (): Promise<User> => {
-    return apiClient.get<User>('/auth/me');
+    const res = await apiClient.get<any>('/auth/me');
+    const rawUser = res?.data || res?.user || res;
+    const role: UserRole = rawUser?.role
+      ? (String(rawUser.role).toUpperCase() as UserRole)
+      : 'TECHNICIAN';
+    return {
+      ...rawUser,
+      role,
+    };
   },
 
   getUsers: async (): Promise<User[]> => {

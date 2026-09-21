@@ -35,6 +35,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     login,
     sendRegistrationOtp,
     verifyRegistrationOtp,
+    logout,
     isLoading,
   } = useAuth();
   const { serverUrl, setServerUrl, isOnline, checkConnectivity } = useNetwork();
@@ -52,10 +53,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [showDevConfig, setShowDevConfig] = useState(false);
   const [tempUrl, setTempUrl] = useState(serverUrl);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // OTP Verification Modal for Registration
   const [showRegisterOtpModal, setShowRegisterOtpModal] = useState(false);
-  const [registerDevOtp, setRegisterDevOtp] = useState<string | undefined>();
   const [otpVerifyError, setOtpVerifyError] = useState<string | null>(null);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
@@ -64,6 +65,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const handleSignIn = async () => {
     setAuthError(null);
+    setSuccessMessage(null);
     if (!signInEmail.trim() || !signInEmail.includes('@')) {
       setAuthError('Enter a valid work email address.');
       return;
@@ -83,6 +85,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   const handleSignUpStart = async () => {
     setAuthError(null);
+    setSuccessMessage(null);
     if (!signUpName.trim()) {
       setAuthError('Enter your full name.');
       return;
@@ -102,13 +105,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     setOtpVerifyError(null);
     try {
-      const res = await sendRegistrationOtp(
+      await sendRegistrationOtp(
         signUpEmail.trim().toLowerCase(),
         signUpName.trim()
       );
-      if (res.devOtp) {
-        setRegisterDevOtp(res.devOtp);
-      }
       setShowRegisterOtpModal(true);
     } catch (err: any) {
       setAuthError(err.message || 'Unable to send registration verification code.');
@@ -125,10 +125,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         password: signUpPassword,
         otp: otp.trim(),
       });
+      // Verification successful: redirect to login tab
+      logout();
       setShowRegisterOtpModal(false);
-      onLoginSuccess();
+      setSignInEmail(signUpEmail.trim().toLowerCase());
+      setSignInPassword('');
+      setSignUpPassword('');
+      setSignUpConfirmPassword('');
+      setActiveTab('SIGN_IN');
+      setSuccessMessage('Account verified successfully! Please sign in with your password to continue.');
     } catch (err: any) {
-      setOtpVerifyError(err.message || 'Invalid or expired OTP code.');
+      setOtpVerifyError(err.message || 'Invalid or expired OTP code. Please try again.');
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -137,13 +144,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const handleResendRegisterOtp = async () => {
     setOtpVerifyError(null);
     try {
-      const res = await sendRegistrationOtp(
+      await sendRegistrationOtp(
         signUpEmail.trim().toLowerCase(),
         signUpName.trim()
       );
-      if (res.devOtp) {
-        setRegisterDevOtp(res.devOtp);
-      }
     } catch (err: any) {
       setOtpVerifyError(err.message || 'Failed to resend verification code.');
     }
@@ -152,6 +156,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const switchTab = (tab: AuthTab) => {
     setActiveTab(tab);
     setAuthError(null);
+    setSuccessMessage(null);
   };
 
   return (
@@ -233,6 +238,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </View>
       )}
 
+      {successMessage && (
+        <View style={styles.successBanner}>
+          <Icon name="check-circle" size={17} color={colors.success} />
+          <Text style={styles.successText}>{successMessage}</Text>
+        </View>
+      )}
+
       <View style={styles.form}>
         {activeTab === 'SIGN_IN' ? (
           <>
@@ -268,7 +280,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         email={signUpEmail}
         title="Verify Registration"
         subtitle="We sent a 6-digit verification code to"
-        devOtp={registerDevOtp}
         isLoading={isVerifyingOtp}
         errorMessage={otpVerifyError}
         onVerify={handleVerifyRegisterOtp}
@@ -340,6 +351,8 @@ const styles = StyleSheet.create({
   modeTextActive: { color: colors.primary },
   errorBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.dangerLight, borderRadius: spacing.borderRadius.sm, padding: spacing.sm, marginBottom: spacing.md },
   errorText: { flex: 1, color: colors.danger, fontSize: typography.sizes.xs },
+  successBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, borderRadius: spacing.borderRadius.sm, padding: spacing.sm, marginBottom: spacing.md },
+  successText: { flex: 1, color: '#065F46', fontSize: typography.sizes.xs, fontWeight: typography.weights.semibold },
   form: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadius.lg,

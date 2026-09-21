@@ -39,7 +39,6 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [devOtp, setDevOtp] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -50,7 +49,6 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       setOtp('');
       setNewPassword('');
       setConfirmPassword('');
-      setDevOtp(undefined);
       setErrorMessage(null);
     }
   }, [visible, initialEmail]);
@@ -64,10 +62,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
 
     setIsLoading(true);
     try {
-      const res = await sendForgotPasswordOtp(email.trim().toLowerCase());
-      if (res.devOtp) {
-        setDevOtp(res.devOtp);
-      }
+      await sendForgotPasswordOtp(email.trim().toLowerCase());
       setStep('ENTER_OTP_NEW_PASSWORD');
     } catch (err: any) {
       setErrorMessage(err.message || 'Unable to send password reset code.');
@@ -178,13 +173,6 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               <Text style={styles.subtitle}>
                 Enter the 6-digit code sent to <Text style={styles.emailHighlight}>{email}</Text>
               </Text>
-
-              {devOtp && (
-                <View style={styles.devOtpChip}>
-                  <Icon name="sparkles" size={14} color={colors.primary} />
-                  <Text style={styles.devOtpText}>Dev OTP: <Text style={styles.devOtpBold}>{devOtp}</Text></Text>
-                </View>
-              )}
 
               {errorMessage && (
                 <View style={styles.errorBanner}>
@@ -338,24 +326,6 @@ const styles = StyleSheet.create({
   emailHighlight: {
     color: colors.textPrimary,
     fontWeight: typography.weights.bold,
-  },
-  devOtpChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 12,
-    marginBottom: spacing.md,
-  },
-  devOtpText: {
-    fontSize: typography.sizes.xs,
-    color: colors.primary,
-  },
-  devOtpBold: {
-    fontWeight: typography.weights.bold,
-    letterSpacing: 2,
   },
   errorBanner: {
     flexDirection: 'row',

@@ -33,6 +33,7 @@ interface CaseListScreenProps {
   onStartNewCase: () => void;
   onOpenCase: (caseItem: WarrantyCase) => void;
   onResolveFlag: (caseItem: WarrantyCase) => void;
+  onOpenProfile: () => void;
   onLogout: () => void;
 }
 
@@ -40,6 +41,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onStartNewCase,
   onOpenCase,
   onResolveFlag,
+  onOpenProfile,
   onLogout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -54,6 +56,8 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
 
+  const isAdmin = user?.role === 'ADMIN';
+
   useEffect(() => {
     setUnreadNotifCount(notificationsService.getUnreadCount());
     const unsubscribe = notificationsService.onNotification(() => {
@@ -64,11 +68,12 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   const fetchCases = useCallback(async () => {
     try {
-      const data = await casesApi.getCases({
-        technicianId: user?.id,
-        technicianName: user?.name,
-        limit: 100,
-      });
+      const filters: any = { limit: 100 };
+      if (!isAdmin && user?.id) {
+        filters.technicianId = user.id;
+        filters.technicianName = user.name;
+      }
+      const data = await casesApi.getCases(filters);
       const pending = offlineStorage.getPendingUploads();
       const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
       const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
@@ -85,7 +90,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id, user?.name]);
+  }, [isAdmin, user?.id, user?.name]);
 
   useEffect(() => {
     fetchCases();
@@ -103,13 +108,23 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   // Filter cases
   const filteredCases = cases.filter(item => {
+    // If user is a technician, restrict strictly to their own cases
+    if (!isAdmin && user) {
+      const isMyCase =
+        (user.id && item.technicianId === user.id) ||
+        (user.name && item.technicianName?.toLowerCase() === user.name.toLowerCase()) ||
+        (!item.technicianId && !item.technicianName); // offline drafts
+      if (!isMyCase) return false;
+    }
+
     const matchesSearch =
       !searchQuery ||
       item.roNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.vin?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.concernTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.make?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.model?.toLowerCase().includes(searchQuery.toLowerCase());
+      item.model?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.technicianName?.toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
@@ -121,12 +136,12 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
     return true;
   });
 
-  const flaggedCount = cases.filter(c => c.status === 'Flagged').length;
-  const awaitingCount = cases.filter(c => c.status === 'Awaiting Review').length;
-  const submittedCount = cases.filter(c => c.status === 'Submitted').length;
+  const flaggedCount = filteredCases.filter(c => c.status === 'Flagged').length;
+  const awaitingCount = filteredCases.filter(c => c.status === 'Awaiting Review').length;
+  const submittedCount = filteredCases.filter(c => c.status === 'Submitted').length;
 
   const tabs: TabItem[] = [
-    { key: 'all', label: 'All Cases', count: cases.length },
+    { key: 'all', label: 'All Cases', count: filteredCases.length },
     { key: 'flagged', label: 'Flagged', count: flaggedCount },
     { key: 'awaiting', label: 'Awaiting Review', count: awaitingCount },
     { key: 'submitted', label: 'Submitted', count: submittedCount },
@@ -161,15 +176,24 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
     }
   };
 
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
     <View style={styles.container}>
       {/* App Header */}
       <Header
         title="Warranty Evidence"
-        subtitle={`Technician: ${user?.name || 'Workshop'}`}
+        subtitle={isAdmin ? `Admin: ${user?.name || 'Administrator'}` : `Technician: ${user?.name || 'Workshop'}`}
         showBrandLogo
         rightAction={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => {
@@ -186,12 +210,18 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               )}
             </TouchableOpacity>
 
+            {/* Profile Avatar Button */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={onLogout}
-              style={styles.logoutBtn}
+              onPress={onOpenProfile}
+              style={styles.profileAvatarBtn}
+              accessibilityLabel="Account Profile"
             >
-              <Icon name="close" size={18} color={colors.textSecondary} />
+              <View style={[styles.headerAvatar, isAdmin && styles.headerAvatarAdmin]}>
+                <Text style={styles.headerAvatarText}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
         }
@@ -283,6 +313,9 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                   <Badge label={item.brandName || item.make || 'OEM'} variant="outline" size="sm" />
                   {item.claimNumber ? (
                     <Badge label={`OEM: ${item.claimNumber}`} variant="success" size="sm" />
+                  ) : null}
+                  {isAdmin && item.technicianName ? (
+                    <Badge label={`Tech: ${item.technicianName}`} variant="neutral" size="sm" />
                   ) : null}
                 </View>
                 <View style={styles.statusBadgeWrapper}>
@@ -385,14 +418,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  profileAvatarBtn: {
+    padding: 2,
+  },
+  headerAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatarAdmin: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#D97706',
+  },
+  headerAvatarText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
   logoutBtn: {
     padding: spacing.xs,
   },
   bellBtn: {
-    padding: 6,
-    borderRadius: 8,
+    padding: 7,
+    borderRadius: 17,
     backgroundColor: colors.backgroundSecondary,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   bellBadge: {
     position: 'absolute',

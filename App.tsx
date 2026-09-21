@@ -29,6 +29,7 @@ import { Step3_GuidedEvidence } from './src/screens/wizard/Step3_GuidedEvidence'
 import { Step4_Tier2Extras } from './src/screens/wizard/Step4_Tier2Extras';
 import { Step5_VoiceNotes } from './src/screens/wizard/Step5_VoiceNotes';
 import { Step6_ReviewSubmit } from './src/screens/wizard/Step6_ReviewSubmit';
+import { ProfileScreen } from './src/screens/profile/ProfileScreen';
 import { Header } from './src/components/common/Header';
 import { ProgressBar } from './src/components/common/ProgressBar';
 import { NotificationBanner } from './src/components/common/NotificationBanner';
@@ -40,7 +41,7 @@ import {
 import { casesApi } from './src/api';
 import { WarrantyCase } from './src/types';
 
-type AppScreen = 'LOGIN' | 'LIST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE';
+type AppScreen = 'LOGIN' | 'LIST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
 
 function MainNavigator() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -171,6 +172,9 @@ function MainNavigator() {
             loadExistingCase(caseItem, true);
             setCurrentScreen('FLAG_RESOLVE');
           }}
+          onOpenProfile={() => {
+            setCurrentScreen('PROFILE');
+          }}
           onLogout={() => {
             logout();
             setCurrentScreen('LOGIN');
@@ -180,7 +184,22 @@ function MainNavigator() {
     );
   }
 
-  // 3. Case Detail Screen
+  // 3. Profile & Settings Screen
+  if (currentScreen === 'PROFILE') {
+    return (
+      <View style={{ flex: 1 }}>
+        <ProfileScreen
+          onBack={() => setCurrentScreen('LIST')}
+          onLogout={() => {
+            logout();
+            setCurrentScreen('LOGIN');
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 4. Case Detail Screen
   if (currentScreen === 'DETAIL' && selectedCase) {
     return (
       <View style={{ flex: 1 }}>
@@ -204,7 +223,7 @@ function MainNavigator() {
     );
   }
 
-  // 4. Flag Resolution Screen
+  // 5. Flag Resolution Screen
   if (currentScreen === 'FLAG_RESOLVE' && selectedCase) {
     return (
       <View style={{ flex: 1 }}>

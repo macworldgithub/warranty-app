@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (currentToken) {
           const me = await authApi.getMe();
           if (me) {
-            setUser({ ...me, role: 'TECHNICIAN' });
+            setUser(me);
             if (me.defaultSiteId) {
               setActiveSiteId(me.defaultSiteId);
             }
@@ -80,19 +80,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authApi.login(email, password);
-      const techUser: User = {
-        ...res.user,
-        role: 'TECHNICIAN',
-      };
-      setUser(techUser);
+      const currentUser: User = res.user;
+      setUser(currentUser);
       if (res.token) {
         setToken(res.token);
         apiClient.setToken(res.token);
       }
-      if (techUser.defaultSiteId) {
-        setActiveSiteId(techUser.defaultSiteId);
+      if (currentUser.defaultSiteId) {
+        setActiveSiteId(currentUser.defaultSiteId);
       }
-      return techUser;
+      return currentUser;
     } finally {
       setIsLoading(false);
     }
@@ -108,19 +105,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authApi.registerTechnician(data);
-      const techUser: User = {
-        ...res.user,
-        role: 'TECHNICIAN',
-      };
-      setUser(techUser);
+      const currentUser: User = res.user;
+      setUser(currentUser);
       if (res.token) {
         setToken(res.token);
         apiClient.setToken(res.token);
       }
-      if (techUser.defaultSiteId) {
-        setActiveSiteId(techUser.defaultSiteId);
+      if (currentUser.defaultSiteId) {
+        setActiveSiteId(currentUser.defaultSiteId);
       }
-      return techUser;
+      return currentUser;
     } finally {
       setIsLoading(false);
     }
@@ -139,19 +133,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authApi.verifyRegistrationOtp(dto);
-      const techUser: User = {
-        ...res.user,
-        role: 'TECHNICIAN',
-      };
-      setUser(techUser);
+      const currentUser: User = res.user;
+      setUser(currentUser);
       if (res.token) {
         setToken(res.token);
         apiClient.setToken(res.token);
       }
-      if (techUser.defaultSiteId) {
-        setActiveSiteId(techUser.defaultSiteId);
+      if (currentUser.defaultSiteId) {
+        setActiveSiteId(currentUser.defaultSiteId);
       }
-      return techUser;
+      return currentUser;
     } finally {
       setIsLoading(false);
     }
@@ -172,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshMe = async () => {
     try {
       const me = await authApi.getMe();
-      if (me) setUser({ ...me, role: 'TECHNICIAN' });
+      if (me) setUser(me);
     } catch (e) {}
   };
 

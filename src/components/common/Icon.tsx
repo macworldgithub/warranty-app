@@ -19,6 +19,7 @@ import {
   Info,
   Lock,
   LogIn,
+  LogOut,
   Mail,
   MapPin,
   Mic,
@@ -29,16 +30,21 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Shield,
   SlidersHorizontal,
   Sparkles,
   Trash2,
   Upload,
   User,
+  UserCheck,
   UserPlus,
   Video,
   Wifi,
   WifiOff,
+  Wrench,
+  Building,
+  Key,
   X,
   Zap,
   ZapOff,
@@ -77,13 +83,19 @@ export type IconName =
   | 'clock'
   | 'user'
   | 'user-plus'
+  | 'user-check'
   | 'mail'
   | 'lock'
+  | 'key'
   | 'eye'
   | 'eye-off'
   | 'sliders'
+  | 'settings'
   | 'map-pin'
   | 'log-in'
+  | 'log-out'
+  | 'wrench'
+  | 'building'
   | 'zap'
   | 'zap-off';
 
@@ -126,13 +138,19 @@ const icons: Record<IconName, React.ComponentType<LucideProps>> = {
   clock: Clock,
   user: User,
   'user-plus': UserPlus,
+  'user-check': UserCheck,
   mail: Mail,
   lock: Lock,
+  key: Key,
   eye: Eye,
   'eye-off': EyeOff,
   sliders: SlidersHorizontal,
+  settings: Settings,
   'map-pin': MapPin,
   'log-in': LogIn,
+  'log-out': LogOut,
+  wrench: Wrench,
+  building: Building,
   zap: Zap,
   'zap-off': ZapOff,
 };
