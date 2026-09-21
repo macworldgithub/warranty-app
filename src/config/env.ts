@@ -1,12 +1,11 @@
 import { Platform } from 'react-native';
 
 // Default API Base URL:
-// - Android: http://localhost:4000 (via adb reverse tcp:4000 tcp:4000) or http://10.0.2.2:4000
-// - iOS / Desktop: http://localhost:4000
+// - Production Backend: https://warranty-evidence.omnisuiteai.com
 export const DEFAULT_API_HOST = Platform.select({
-  android: 'http://localhost:4000',
-  ios: 'http://localhost:4000',
-  default: 'http://localhost:4000',
+  android: 'https://warranty-evidence.omnisuiteai.com',
+  ios: 'https://warranty-evidence.omnisuiteai.com',
+  default: 'https://warranty-evidence.omnisuiteai.com',
 });
 
 export const API_BASE_PATH = '/api/v1';
