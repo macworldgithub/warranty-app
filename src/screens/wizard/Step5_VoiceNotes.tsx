@@ -258,7 +258,7 @@ export const Step5_VoiceNotes: React.FC<Step5Props> = ({ onNext, onPrev }) => {
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Review & Submit"
+          title="Review & Submit"
           variant="primary"
           onPress={onNext}
           rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}

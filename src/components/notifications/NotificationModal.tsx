@@ -317,55 +317,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                 );
               })
             )}
-
-            {/* Developer FCM Debug & Token Info Box */}
-            <View style={styles.fcmDebugCard}>
-              <View style={styles.fcmDebugHeader}>
-                <View style={styles.fcmDebugTitleRow}>
-                  <View style={[styles.fcmStatusDot, { backgroundColor: notificationsService.getDeviceToken() ? '#10B981' : '#F59E0B' }]} />
-                  <Text style={styles.fcmDebugTitle}>Firebase FCM Device Token</Text>
-                </View>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={styles.fcmConsoleBtn}
-                  onPress={() => {
-                    notificationsService.printCurrentToken();
-                    Alert.alert(
-                      'FCM Token Logged',
-                      'FCM Device Token has been printed to your Metro / terminal console!'
-                    );
-                  }}
-                >
-                  <Text style={styles.fcmConsoleBtnText}>Print to Console</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.fcmTokenText} numberOfLines={2}>
-                {notificationsService.getDeviceToken() || 'Obtaining device token...'}
-              </Text>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
-                style={styles.fcmViewBtn}
-                onPress={() => {
-                  const token = notificationsService.getDeviceToken();
-                  if (token) {
-                    notificationsService.printFcmBanner(token, 'developer_debug');
-                    Alert.alert(
-                      'FCM Registration Token',
-                      `${token}\n\n(Also printed to Metro / terminal console)`
-                    );
-                  } else {
-                    Alert.alert(
-                      'Token Unavailable',
-                      'FCM token not yet generated. Please make sure the app was rebuilt with native Firebase dependencies.'
-                    );
-                  }
-                }}
-              >
-                <Text style={styles.fcmViewBtnText}>View Full Token / Test FCM</Text>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
         </View>
       </View>

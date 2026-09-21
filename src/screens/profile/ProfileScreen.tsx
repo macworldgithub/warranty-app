@@ -155,13 +155,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
             </Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Server Host</Text>
-            <Text style={styles.infoValueSmall} numberOfLines={1}>
-              {serverUrl}
-            </Text>
-          </View>
-
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.infoLabel}>Pending Queue</Text>
             <Text style={styles.infoValue}>

@@ -109,7 +109,7 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Voice Notes"
+          title="Voice Notes"
           variant="primary"
           onPress={onNext}
           rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}

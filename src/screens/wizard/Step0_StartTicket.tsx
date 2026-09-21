@@ -162,7 +162,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.introHeader}>
         <Text style={styles.sectionTitle}>Start Warranty Ticket</Text>
-        </View>
+      </View>
 
       <Card title="Dealership Site">
 
@@ -200,7 +200,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
         ) : availableBrands.length === 0 ? (
           <Text style={styles.subtext}>No brands linked to this site.</Text>
         ) : (
-            <>
+          <>
             <View style={styles.chipsGrid}>
               {availableBrands.map((b) => {
                 const isSelected = b.id === brandId;
@@ -247,7 +247,7 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
       <View style={styles.actionRow}>
         <Button title="Cancel" variant="ghost" onPress={onCancel} style={{ flex: 1 }} />
         <Button
-          title="Next: Vehicle Info"
+          title="Vehicle Info"
           variant="primary"
           disabled={!isValidRo || !siteId || !brandId}
           onPress={onNext}

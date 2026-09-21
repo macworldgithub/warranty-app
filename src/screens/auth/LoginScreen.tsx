@@ -39,17 +39,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     isLoading,
   } = useAuth();
   const { serverUrl, setServerUrl, isOnline, checkConnectivity } = useNetwork();
-  
+
   const [activeTab, setActiveTab] = useState<AuthTab>('SIGN_IN');
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
+
   const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
-  
+
   const [showDevConfig, setShowDevConfig] = useState(false);
   const [tempUrl, setTempUrl] = useState(serverUrl);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -171,14 +171,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           style={styles.brandLogo}
           resizeMode="contain"
         />
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity
-          accessibilityLabel="Open developer settings"
-          onPress={() => setShowDevConfig(!showDevConfig)}
-          style={styles.settingsButton}
-        >
-          <Icon name="sliders" size={17} color={colors.textMuted} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.welcomeBlock}>
@@ -250,7 +242,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <>
             <Field label="Work email" icon="mail" value={signInEmail} onChangeText={setSignInEmail} placeholder="name@booran.com.au" keyboardType="email-address" />
             <Field label="Password" icon="lock" value={signInPassword} onChangeText={setSignInPassword} placeholder="Enter your password" secureTextEntry={!showPassword} rightIcon={showPassword ? 'eye-off' : 'eye'} onRightIconPress={() => setShowPassword(!showPassword)} />
-            
+
             <TouchableOpacity
               onPress={() => setShowForgotPasswordModal(true)}
               style={styles.forgotPasswordButton}

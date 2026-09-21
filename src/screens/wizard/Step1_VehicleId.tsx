@@ -416,7 +416,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Fault & Concern"
+          title="Fault & Concern"
           variant="primary"
           disabled={!isGatePassed}
           onPress={onNext}

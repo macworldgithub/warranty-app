@@ -106,7 +106,7 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Component Photos"
+          title="Component Photos"
           variant="primary"
           onPress={onNext}
           rightIcon={<Icon name="chevron-right" size={18} color={colors.textInverse} />}

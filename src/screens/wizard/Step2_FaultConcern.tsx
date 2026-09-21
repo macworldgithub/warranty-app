@@ -367,7 +367,7 @@ export const Step2_FaultConcern: React.FC<Step2Props> = ({ onNext, onPrev }) => 
           style={{ flex: 1 }}
         />
         <Button
-          title="Next: Evidence Photos"
+          title="Evidence Photos"
           variant="primary"
           disabled={!isValidConcern || !faultCategory}
           onPress={onNext}
