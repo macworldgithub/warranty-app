@@ -8,18 +8,23 @@ export const colors = {
   surfaceGlass: 'rgba(255, 255, 255, 0.95)', // Frosted white header
 
   // Brand & Accents (Booran Corporate Red)
-  primary: '#E11F26', // Official Booran Red
-  primaryDark: '#C81A20', // Hover/pressed red
+  primary: '#D71920', // Official Booran Website Red
+  primaryDark: '#B91218', // Hover/pressed red
   primaryLight: '#EF4444', // Red 500
-  primaryGlow: 'rgba(225, 31, 38, 0.08)', // Soft red glow / tint
+  primaryGlow: 'rgba(215, 25, 32, 0.08)', // Soft red glow / tint
+
+  headerBg: '#D71920', // Bold Booran header
+  headerText: '#FFFFFF',
 
   secondary: '#334155', // Slate 700
   accentCyan: '#0284C7', // Sky 600
+  accentEmerald: '#059669', // Emerald accent from web inspect
+  accentAmber: '#D97706', // Amber accent
 
   // Status & Quality Gates
   success: '#059669', // Emerald 600 Pass Green
   successDark: '#047857',
-  successLight: '#F0FDF4', // Emerald 50 soft pill background
+  successLight: '#ECFDF5', // Emerald 50 soft pill background
 
   warning: '#D97706', // Amber 600 Alert
   warningLight: '#FFFBEB', // Amber 50 soft pill background
@@ -28,7 +33,7 @@ export const colors = {
   dangerDark: '#B91C1C',
   dangerLight: '#FEF2F2', // Red 50 soft pill background
 
-  flagged: '#E11F26', // Booran Red for Clerk Flag
+  flagged: '#D71920', // Booran Red for Clerk Flag
   flaggedLight: '#FEF2F2', // Red 50 soft pill background
 
   // Typography
@@ -41,7 +46,7 @@ export const colors = {
   // Borders & Dividers
   border: '#E2E8F0', // Slate 200 clean border
   borderHighlight: '#CBD5E1', // Slate 300 input border
-  borderActive: '#E11F26', // Booran Red active focus border
+  borderActive: '#D71920', // Booran Red active focus border
   divider: '#E2E8F0', // Slate 200
 
   // Overlay

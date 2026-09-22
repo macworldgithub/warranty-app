@@ -30,6 +30,7 @@ import { Step4_Tier2Extras } from './src/screens/wizard/Step4_Tier2Extras';
 import { Step5_VoiceNotes } from './src/screens/wizard/Step5_VoiceNotes';
 import { Step6_ReviewSubmit } from './src/screens/wizard/Step6_ReviewSubmit';
 import { ProfileScreen } from './src/screens/profile/ProfileScreen';
+import { VehicleListScreen } from './src/screens/vehicles/VehicleListScreen';
 import { Header } from './src/components/common/Header';
 import { ProgressBar } from './src/components/common/ProgressBar';
 import { NotificationBanner } from './src/components/common/NotificationBanner';
@@ -41,7 +42,7 @@ import {
 import { casesApi } from './src/api';
 import { WarrantyCase } from './src/types';
 
-type AppScreen = 'LOGIN' | 'LIST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
+type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
 
 function MainNavigator() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -62,6 +63,7 @@ function MainNavigator() {
     isAuthenticated ? 'LIST' : 'LOGIN'
   );
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
+  const [caseListTab, setCaseListTab] = useState<string>('all');
   const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
   const [submittedReceipt, setSubmittedReceipt] = useState<WarrantyCase | null>(null);
 
@@ -159,6 +161,7 @@ function MainNavigator() {
           onDismiss={() => setActiveNotification(null)}
         />
         <CaseListScreen
+          initialTab={caseListTab}
           onStartNewCase={() => {
             startNewCase();
             setCurrentScreen('WIZARD');
@@ -175,9 +178,42 @@ function MainNavigator() {
           onOpenProfile={() => {
             setCurrentScreen('PROFILE');
           }}
+          onOpenVehicles={() => {
+            setCurrentScreen('VEHICLES');
+          }}
           onLogout={() => {
             logout();
             setCurrentScreen('LOGIN');
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 2b. Vehicles Screen (Rooftop Fleet)
+  if (currentScreen === 'VEHICLES') {
+    return (
+      <View style={{ flex: 1 }}>
+        <NotificationBanner
+          notification={activeNotification}
+          onPress={handleNotificationPress}
+          onDismiss={() => setActiveNotification(null)}
+        />
+        <VehicleListScreen
+          onOpenTickets={(tab) => {
+            setCaseListTab(tab || 'all');
+            setCurrentScreen('LIST');
+          }}
+          onStartNewCase={(initialData) => {
+            startNewCase(initialData);
+            setCurrentScreen('WIZARD');
+          }}
+          onOpenCase={(caseItem) => {
+            setSelectedCase(caseItem);
+            setCurrentScreen('DETAIL');
+          }}
+          onOpenProfile={() => {
+            setCurrentScreen('PROFILE');
           }}
         />
       </View>
@@ -400,7 +436,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <NetworkProvider>
         <AuthProvider>
           <CaseWizardProvider>

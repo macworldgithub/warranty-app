@@ -7,13 +7,14 @@ import {
   TouchableOpacity,
   RefreshControl,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
-import { Bell } from 'lucide-react-native';
+import { Bell, FileText, CheckCircle2, Clock, Car } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -30,18 +31,54 @@ import {
 } from '../../services/notifications.service';
 
 interface CaseListScreenProps {
+  initialTab?: string;
   onStartNewCase: () => void;
   onOpenCase: (caseItem: WarrantyCase) => void;
   onResolveFlag: (caseItem: WarrantyCase) => void;
   onOpenProfile: () => void;
+  onOpenVehicles: () => void;
   onLogout: () => void;
 }
 
+const getElapsedTimeInfo = (caseItem: WarrantyCase) => {
+  const timestamp = caseItem.submittedAt || caseItem.updatedAt || caseItem.createdAt;
+  if (!timestamp) return { text: 'Just now', diffHours: 0, isUrgent: false, isModerate: false };
+
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return { text: 'Recently', diffHours: 0, isUrgent: false, isModerate: false };
+
+  const now = new Date();
+  const diffMs = Math.max(0, now.getTime() - date.getTime());
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  let text = '';
+  if (diffMinutes < 1) {
+    text = 'Just now';
+  } else if (diffMinutes < 60) {
+    text = `${diffMinutes}m elapsed`;
+  } else if (diffHours < 24) {
+    const mins = diffMinutes % 60;
+    text = mins > 0 ? `${diffHours}h ${mins}m elapsed` : `${diffHours}h elapsed`;
+  } else {
+    const remainingHours = diffHours % 24;
+    text = remainingHours > 0 ? `${diffDays}d ${remainingHours}h elapsed` : `${diffDays}d elapsed`;
+  }
+
+  const isUrgent = diffHours >= 6;
+  const isModerate = diffHours >= 2 && diffHours < 6;
+
+  return { text, diffHours, diffMinutes, isUrgent, isModerate };
+};
+
 export const CaseListScreen: React.FC<CaseListScreenProps> = ({
+  initialTab,
   onStartNewCase,
   onOpenCase,
   onResolveFlag,
   onOpenProfile,
+  onOpenVehicles,
   onLogout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -51,10 +88,16 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const [cases, setCases] = useState<WarrantyCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>(initialTab || 'all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const isAdmin = user?.role === 'ADMIN';
 
@@ -136,12 +179,25 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
     return true;
   });
 
-  const flaggedCount = filteredCases.filter(c => c.status === 'Flagged').length;
-  const awaitingCount = filteredCases.filter(c => c.status === 'Awaiting Review').length;
-  const submittedCount = filteredCases.filter(c => c.status === 'Submitted').length;
+  // Base my-cases list for accurate badge counts
+  const myCases = cases.filter(item => {
+    if (!isAdmin && user) {
+      const isMyCase =
+        (user.id && item.technicianId === user.id) ||
+        (user.name && item.technicianName?.toLowerCase() === user.name.toLowerCase()) ||
+        (!item.technicianId && !item.technicianName);
+      if (!isMyCase) return false;
+    }
+    return true;
+  });
+
+  const flaggedCount = myCases.filter(c => c.status === 'Flagged').length;
+  const awaitingCount = myCases.filter(c => c.status === 'Awaiting Review').length;
+  const submittedCount = myCases.filter(c => c.status === 'Submitted').length;
+  const inProgressCount = myCases.filter(c => c.status === 'Draft' || c.status === 'Uploading').length;
 
   const tabs: TabItem[] = [
-    { key: 'all', label: 'All Cases', count: filteredCases.length },
+    { key: 'all', label: 'All Cases', count: myCases.length },
     { key: 'flagged', label: 'Flagged', count: flaggedCount },
     { key: 'awaiting', label: 'Awaiting Review', count: awaitingCount },
     { key: 'submitted', label: 'Submitted', count: submittedCount },
@@ -150,7 +206,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const getStatusBadge = (status: CaseStatus) => {
     switch (status) {
       case 'Submitted':
-        return <Badge label="Submitted" variant="success" size="sm" />;
+        return <Badge label="Complete" variant="success" size="sm" />;
       case 'Flagged':
         return <Badge label="Flagged" variant="flagged" size="sm" icon={<Icon name="flag" size={12} color={colors.flagged} />} />;
       case 'Awaiting Review':
@@ -187,87 +243,29 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* App Header */}
+      {/* Clean App Header: Logo left, spacious Notification Bell right */}
       <Header
-        title="Warranty Evidence"
-        subtitle={isAdmin ? `Admin: ${user?.name || 'Administrator'}` : `Technician: ${user?.name || 'Workshop'}`}
         showBrandLogo
         rightAction={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                setShowNotifModal(true);
-              }}
-              style={styles.bellBtn}
-              accessibilityLabel="Warranty Alerts"
-            >
-              <Bell size={18} color={(unreadNotifCount > 0 || flaggedCount > 0) ? colors.flagged : colors.textSecondary} />
-              {(unreadNotifCount > 0 || flaggedCount > 0) && (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Profile Avatar Button */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenProfile}
-              style={styles.profileAvatarBtn}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={[styles.headerAvatar, isAdmin && styles.headerAvatarAdmin]}>
-                <Text style={styles.headerAvatarText}>
-                  {getUserInitials(user?.name)}
-                </Text>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              setShowNotifModal(true);
+            }}
+            style={styles.bellBtn}
+            accessibilityLabel="Warranty Alerts"
+          >
+            <Bell size={20} color="#FFFFFF" />
+            {(unreadNotifCount > 0 || flaggedCount > 0) && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
               </View>
-            </TouchableOpacity>
-          </View>
+            )}
+          </TouchableOpacity>
         }
       />
 
-      {/* Flagged Attention Banner if any */}
-      {flaggedCount > 0 && (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => setShowNotifModal(true)}
-          style={styles.flagBanner}
-        >
-          <Icon name="flag" size={18} color={colors.flagged} />
-          <View style={styles.flagBannerText}>
-            <Text style={styles.flagBannerTitle}>
-              {flaggedCount} Case{flaggedCount > 1 ? 's' : ''} Flagged by Warranty Clerk
-            </Text>
-            <Text style={styles.flagBannerDesc}>
-              Tap to view missing shots and re-submit.
-            </Text>
-          </View>
-          <Icon name="chevron-right" size={20} color={colors.flagged} />
-        </TouchableOpacity>
-      )}
-
-      {/* Search Bar */}
-      <View style={styles.searchBar}>
-        <Icon name="search" size={18} color={colors.textMuted} />
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search by RO #, VIN, Make, or Concern..."
-          placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
-        />
-        {searchQuery ? (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close" size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {/* Tabs Filter */}
-      <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-
-      {/* Case List */}
+      {/* Case List with integrated Hero & Horizontal KPI Boxes Header */}
       <FlatList
         data={filteredCases}
         keyExtractor={item => item.id || item.roNumber}
@@ -279,24 +277,197 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
           />
         }
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View style={styles.listHeaderArea}>
+            {/* When on Awaiting Tab: Direct Clean Awaiting Header (Remove Booran Intelligence hero and KPI bars) */}
+            {activeTab === 'awaiting' ? (
+              <View style={styles.awaitingHeaderSection}>
+                <View style={styles.awaitingHeaderTop}>
+                  <View style={styles.awaitingHeaderBadge}>
+                    <Clock size={15} color={colors.warning} />
+                    <Text style={styles.awaitingHeaderBadgeText}>AWAITING CLERK QUEUE</Text>
+                  </View>
+                  <View style={styles.awaitingCountPill}>
+                    <Text style={styles.awaitingCountPillText}>
+                      {awaitingCount} {awaitingCount === 1 ? 'Case Pending' : 'Cases Pending'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.awaitingHeaderTitle}>Cases Awaiting Review</Text>
+                <Text style={styles.awaitingHeaderSub}>
+                  Submitted warranty cases pending verification by the dealership warranty clerk. Track elapsed time and review status below.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Hero Section */}
+                <View style={styles.heroSection}>
+                  <View style={styles.heroEyebrowRow}>
+                    <Text style={styles.heroEyebrow}>BOORAN MOTOR GROUP · EVIDENCE INTELLIGENCE</Text>
+                  </View>
+                  <Text style={styles.heroHeadline}>Vehicle Warranty & Evidence</Text>
+                  <Text style={styles.heroSubhead}>
+                    Guided photo capture, diagnostic verification, and automated OEM claims.
+                  </Text>
+                </View>
+
+                {/* 2 Boxes per Line Grid */}
+                <View style={styles.kpiGrid}>
+                  <View style={styles.kpiRow}>
+                    {/* 1. Total Cases */}
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setActiveTab('all')}
+                      style={[styles.kpiCard, activeTab === 'all' && styles.kpiCardActive]}
+                    >
+                      <View style={[styles.kpiIconBox, { backgroundColor: colors.backgroundSecondary }]}>
+                        <FileText size={18} color={colors.textPrimary} />
+                      </View>
+                      <View style={styles.kpiTextBox}>
+                        <Text style={styles.kpiValue}>{cases.length}</Text>
+                        <Text style={styles.kpiLabel}>Total Cases</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* 2. In Progress / Drafts */}
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setActiveTab('drafts')}
+                      style={[styles.kpiCard, activeTab === 'drafts' && styles.kpiCardActive]}
+                    >
+                      <View style={[styles.kpiIconBox, { backgroundColor: '#FEF3C7' }]}>
+                        <Clock size={18} color={colors.warning} />
+                      </View>
+                      <View style={styles.kpiTextBox}>
+                        <Text style={[styles.kpiValue, { color: colors.warning }]}>
+                          {inProgressCount}
+                        </Text>
+                        <Text style={styles.kpiLabel}>In Progress</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.kpiRow}>
+                    {/* 3. Submitted / Complete */}
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setActiveTab('submitted')}
+                      style={[styles.kpiCard, activeTab === 'submitted' && styles.kpiCardActive]}
+                    >
+                      <View style={[styles.kpiIconBox, { backgroundColor: '#ECFDF5' }]}>
+                        <CheckCircle2 size={18} color={colors.success} />
+                      </View>
+                      <View style={styles.kpiTextBox}>
+                        <Text style={[styles.kpiValue, { color: colors.success }]}>
+                          {submittedCount}
+                        </Text>
+                        <Text style={styles.kpiLabel}>Complete</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* 4. Flagged by Clerk */}
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setActiveTab('flagged')}
+                      style={[styles.kpiCard, activeTab === 'flagged' && styles.kpiCardActive]}
+                    >
+                      <View style={[styles.kpiIconBox, { backgroundColor: '#FEE2E2' }]}>
+                        <Icon name="flag" size={18} color={colors.flagged} />
+                      </View>
+                      <View style={styles.kpiTextBox}>
+                        <Text style={[styles.kpiValue, { color: colors.flagged }]}>
+                          {flaggedCount}
+                        </Text>
+                        <Text style={styles.kpiLabel}>Flagged</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* Flagged Attention Banner if any */}
+            {flaggedCount > 0 && activeTab !== 'awaiting' && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowNotifModal(true)}
+                style={styles.flagBanner}
+              >
+                <Icon name="flag" size={18} color={colors.flagged} />
+                <View style={styles.flagBannerText}>
+                  <Text style={styles.flagBannerTitle}>
+                    {flaggedCount} Case{flaggedCount > 1 ? 's' : ''} Flagged by Warranty Clerk
+                  </Text>
+                  <Text style={styles.flagBannerDesc}>
+                    Tap to view missing shots and re-submit.
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={colors.flagged} />
+              </TouchableOpacity>
+            )}
+
+            {/* Search Bar */}
+            <View style={styles.searchBar}>
+              <Icon name="search" size={18} color={colors.textMuted} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search by RO #, VIN, Make, or Concern..."
+                placeholderTextColor={colors.textMuted}
+                style={styles.searchInput}
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Icon name="close" size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* Tabs Filter */}
+            <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeaderTitle}>
+                {activeTab === 'awaiting' ? 'Cases Awaiting Review' : 'All Tickets'}
+              </Text>
+              <Text style={styles.sectionHeaderCount}>
+                {filteredCases.length} {filteredCases.length === 1 ? 'ticket' : 'tickets'}
+              </Text>
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Icon name="file-text" size={48} color={colors.surfaceElevated} />
-            <Text style={styles.emptyTitle}>No Warranty Cases Found</Text>
-            <Text style={styles.emptySubtitle}>
-              Tap below to start a new technician evidence capture ticket.
-            </Text>
-            <Button
-              title="Start New Case"
-              variant="primary"
-              onPress={handleCreateNew}
-              leftIcon={<Icon name="plus" size={18} color={colors.textPrimary} />}
-              style={{ marginTop: spacing.lg }}
-            />
+            {activeTab === 'awaiting' ? (
+              <>
+                <Clock size={48} color={colors.surfaceElevated} />
+                <Text style={styles.emptyTitle}>No Cases Awaiting Review</Text>
+                <Text style={styles.emptySubtitle}>
+                  There are currently no submitted warranty tickets waiting for clerk review.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Icon name="file-text" size={48} color={colors.surfaceElevated} />
+                <Text style={styles.emptyTitle}>No Warranty Cases Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  Tap below to start a new technician evidence capture ticket.
+                </Text>
+                <Button
+                  title="Start New Case"
+                  variant="primary"
+                  onPress={handleCreateNew}
+                  leftIcon={<Icon name="plus" size={18} color={colors.textPrimary} />}
+                  style={{ marginTop: spacing.lg }}
+                />
+              </>
+            )}
           </View>
         }
         renderItem={({ item }) => {
           const isFlagged = item.status === 'Flagged';
+          const isAwaiting = item.status === 'Awaiting Review';
+          const elapsedInfo = getElapsedTimeInfo(item);
           return (
             <TouchableOpacity
               activeOpacity={0.85}
@@ -304,6 +475,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               style={[
                 styles.caseCard,
                 isFlagged && styles.caseCardFlagged,
+                isAwaiting && styles.caseCardAwaiting,
               ]}
             >
               {/* Top Row: RO Number + Badges + Status */}
@@ -322,6 +494,51 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                   {getStatusBadge(item.status)}
                 </View>
               </View>
+
+              {/* Time Elapsed Banner for Awaiting Review cases */}
+              {isAwaiting && (
+                <View
+                  style={[
+                    styles.elapsedBanner,
+                    elapsedInfo.isUrgent
+                      ? styles.elapsedBannerUrgent
+                      : elapsedInfo.isModerate
+                      ? styles.elapsedBannerModerate
+                      : styles.elapsedBannerNormal,
+                  ]}
+                >
+                  <Clock
+                    size={13}
+                    color={
+                      elapsedInfo.isUrgent
+                        ? colors.flagged
+                        : elapsedInfo.isModerate
+                        ? '#B45309'
+                        : colors.primary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.elapsedBannerTime,
+                      {
+                        color: elapsedInfo.isUrgent
+                          ? colors.flagged
+                          : elapsedInfo.isModerate
+                          ? '#B45309'
+                          : colors.primary,
+                      },
+                    ]}
+                  >
+                    ⏱️ {elapsedInfo.text}
+                  </Text>
+                  <View style={styles.elapsedBannerDot} />
+                  <Text style={styles.elapsedBannerLabel}>
+                    {elapsedInfo.isUrgent
+                      ? 'Priority Review · Over SLA'
+                      : 'Pending Warranty Clerk'}
+                  </Text>
+                </View>
+              )}
 
               {/* Concern Title & Classification */}
               <View style={styles.concernContainer}>
@@ -368,17 +585,31 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
               {/* Bottom Metadata & Gate Progress */}
               <View style={styles.cardFooter}>
-                <View style={styles.footerItem}>
-                  <Icon name="clock" size={13} color={colors.textMuted} />
-                  <Text style={styles.footerText}>
-                    {new Date(item.createdAt || Date.now()).toLocaleDateString('en-AU', {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
+                {isAwaiting ? (
+                  <View style={styles.footerElapsedItem}>
+                    <Clock size={12} color={elapsedInfo.isUrgent ? colors.flagged : '#B45309'} />
+                    <Text
+                      style={[
+                        styles.footerElapsedText,
+                        { color: elapsedInfo.isUrgent ? colors.flagged : '#B45309' },
+                      ]}
+                    >
+                      Awaiting review ({elapsedInfo.text})
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.footerItem}>
+                    <Icon name="clock" size={13} color={colors.textMuted} />
+                    <Text style={styles.footerText}>
+                      {new Date(item.createdAt || Date.now()).toLocaleDateString('en-AU', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.evidenceCounter}>
                   <Icon name="camera" size={13} color={colors.primaryLight} />
@@ -392,15 +623,77 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         }}
       />
 
-      {/* Floating "+ New Warranty Case" Button */}
-      <View style={[styles.fabContainer, { paddingBottom: insets.bottom + spacing.md }]}>
-        <Button
-          title="New Warranty Case"
-          variant="primary"
-          size="huge"
+      {/* Website-Style 5-Item Symmetrical Bottom Bar */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
+        {/* 1. Tickets */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setActiveTab('all')}
+          style={styles.bottomBarTab}
+        >
+          <FileText size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
+          <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
+            Tickets
+          </Text>
+        </TouchableOpacity>
+
+        {/* 2. Vehicles */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={onOpenVehicles}
+          style={styles.bottomBarTab}
+        >
+          <Car size={20} color={colors.textSecondary} />
+          <Text style={styles.bottomBarLabel}>Vehicles</Text>
+        </TouchableOpacity>
+
+        {/* 3. Red Primary Action Button (Center) */}
+        <TouchableOpacity
+          activeOpacity={0.85}
           onPress={handleCreateNew}
-          fullWidth
-        />
+          style={styles.bottomBarActionBtn}
+        >
+          <Icon name="plus" size={15} color="#FFFFFF" />
+          <Text style={styles.bottomBarActionText} numberOfLines={1}>
+            New Warranty Case
+          </Text>
+        </TouchableOpacity>
+
+        {/* 4. Awaiting Cases (Left Side of Profile) */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setActiveTab('awaiting')}
+          style={styles.bottomBarTab}
+        >
+          <View style={styles.tabIconWrapper}>
+            <Clock size={20} color={activeTab === 'awaiting' ? colors.primary : colors.textSecondary} />
+            {awaitingCount > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.bottomBarLabel, activeTab === 'awaiting' && { color: colors.primary }]}>
+            Awaiting
+          </Text>
+        </TouchableOpacity>
+
+        {/* 5. Logged-in User Profile (Right Side of Warranty Case & Awaiting) */}
+        <TouchableOpacity
+          activeOpacity={0.75}
+          onPress={onOpenProfile}
+          style={styles.bottomBarUserTab}
+          accessibilityLabel="Account Profile"
+        >
+          <View style={[styles.bottomBarAvatar, isAdmin && styles.bottomBarAvatarAdmin]}>
+            <Text style={[styles.bottomBarAvatarText, isAdmin && styles.bottomBarAvatarTextAdmin]}>
+              {getUserInitials(user?.name)}
+            </Text>
+          </View>
+          <Text style={styles.bottomBarLabel} numberOfLines={1}>
+            {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Notification Bell History Modal */}
@@ -425,9 +718,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -438,44 +731,149 @@ const styles = StyleSheet.create({
   headerAvatarText: {
     fontSize: 12,
     fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  logoutBtn: {
-    padding: spacing.xs,
+    color: colors.primary,
   },
   bellBtn: {
-    padding: 7,
-    borderRadius: 17,
-    backgroundColor: colors.backgroundSecondary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     position: 'relative',
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bellBadge: {
     position: 'absolute',
     top: -3,
     right: -3,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FFFFFF',
     borderRadius: 10,
-    minWidth: 15,
-    height: 15,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 3,
   },
   bellBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  listHeaderArea: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  heroSection: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: spacing.md + 2,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  heroEyebrowRow: {
+    marginBottom: 6,
+  },
+  heroEyebrow: {
+    fontSize: 10,
     fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  heroHeadline: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.4,
+    lineHeight: 26,
+  },
+  heroSubhead: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  kpiGrid: {
+    marginBottom: spacing.md,
+    gap: 10,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    minHeight: 64,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  kpiCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#FFFBFB',
+  },
+  kpiIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kpiTextBox: {
+    justifyContent: 'center',
+    flex: 1,
+  },
+  kpiValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    lineHeight: 22,
+    includeFontPadding: false,
+  },
+  kpiLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 2,
   },
   flagBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.flaggedLight,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(225, 31, 38, 0.25)',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 25, 32, 0.25)',
+    borderRadius: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
     gap: spacing.sm,
   },
   flagBannerText: {
@@ -495,14 +893,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    marginHorizontal: spacing.lg,
-    marginVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: spacing.borderRadius.md,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.borderHighlight,
-    height: 42,
+    borderColor: colors.border,
+    height: 44,
     gap: spacing.sm,
+    marginBottom: spacing.sm,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -513,34 +910,163 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.textPrimary,
     fontSize: typography.sizes.sm,
+    paddingVertical: 0,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    marginBottom: 4,
+    paddingHorizontal: 2,
+  },
+  sectionHeaderTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+  },
+  sectionHeaderCount: {
+    fontSize: typography.sizes.xs,
+    color: colors.textMuted,
+    fontWeight: typography.weights.medium,
   },
   listContent: {
-    padding: spacing.lg,
-    paddingBottom: 120,
+    paddingHorizontal: spacing.md,
+    paddingBottom: 155,
   },
   caseCard: {
     backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadius.lg,
-    padding: spacing.md + 2,
-    marginBottom: spacing.md,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.sm + 2,
     borderWidth: 1,
     borderColor: colors.border,
     shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
-    overflow: 'hidden',
   },
   caseCardFlagged: {
     borderColor: colors.flagged,
-    backgroundColor: colors.surfaceHighlight,
+    backgroundColor: '#FEF8F8',
+  },
+  caseCardAwaiting: {
+    borderColor: 'rgba(217, 119, 6, 0.35)',
+    backgroundColor: '#FFFFFF',
+  },
+  awaitingHeaderSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  awaitingHeaderTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  awaitingHeaderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  awaitingHeaderBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.warning,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  awaitingCountPill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+  },
+  awaitingCountPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  awaitingHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  awaitingHeaderSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  elapsedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginBottom: spacing.xs + 3,
+    gap: 6,
+  },
+  elapsedBannerNormal: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+  },
+  elapsedBannerModerate: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+  },
+  elapsedBannerUrgent: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: 'rgba(215, 25, 32, 0.3)',
+  },
+  elapsedBannerTime: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: -0.1,
+  },
+  elapsedBannerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.textMuted,
+  },
+  elapsedBannerLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  footerElapsedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  footerElapsedText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
+    alignItems: 'center',
+    marginBottom: spacing.xs + 2,
     gap: spacing.xs,
   },
   roGroup: {
@@ -552,35 +1078,34 @@ const styles = StyleSheet.create({
   },
   statusBadgeWrapper: {
     flexShrink: 0,
-    alignSelf: 'flex-start',
   },
   roText: {
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.heavy,
     color: colors.textPrimary,
+    letterSpacing: -0.2,
   },
   concernContainer: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
   },
   concernTitle: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
     color: colors.textPrimary,
     lineHeight: 20,
-    flexWrap: 'wrap',
   },
   categoryBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 1.5,
     borderRadius: 4,
     marginTop: 4,
   },
   categoryText: {
-    fontSize: typography.sizes.xs - 1,
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: typography.weights.medium,
   },
@@ -591,9 +1116,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: colors.flagged,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: 6,
     borderRadius: 4,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
     gap: 6,
   },
   noteText: {
@@ -605,24 +1130,21 @@ const styles = StyleSheet.create({
   },
   vehicleStrip: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: spacing.borderRadius.md,
-    marginBottom: spacing.sm,
-    gap: spacing.xs,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginBottom: spacing.xs + 2,
   },
   vehicleDetail: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flex: 1,
-    minWidth: 130,
   },
   vehicleText: {
     fontSize: typography.sizes.xs,
@@ -637,10 +1159,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderHighlight,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
     borderRadius: 4,
-    flexShrink: 0,
   },
   vinLabel: {
     fontSize: 9,
@@ -649,9 +1170,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   vinText: {
-    fontSize: typography.sizes.xs - 1,
+    fontSize: 10,
     color: colors.textSecondary,
-    fontFamily: typography.fontFamily,
     fontWeight: typography.weights.semibold,
     letterSpacing: 0.5,
   },
@@ -659,11 +1179,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: spacing.xs + 2,
-    gap: spacing.xs,
+    paddingTop: 8,
+    marginTop: 2,
   },
   footerItem: {
     flexDirection: 'row',
@@ -671,7 +1190,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   footerText: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     color: colors.textMuted,
   },
   evidenceCounter: {
@@ -680,7 +1199,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   evidenceCountText: {
-    fontSize: typography.sizes.xs,
+    fontSize: 11,
     color: colors.primary,
     fontWeight: typography.weights.medium,
   },
@@ -701,15 +1220,119 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
   },
-  fabContainer: {
+  bottomBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    minHeight: 84,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 6,
+    paddingTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 12,
+  },
+  bottomBarTab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 42,
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  bottomBarUserTab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 42,
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  bottomBarAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(215, 25, 32, 0.08)',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBarAvatarAdmin: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#D97706',
+  },
+  bottomBarAvatarText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: colors.primary,
+    includeFontPadding: false,
+  },
+  bottomBarAvatarTextAdmin: {
+    color: '#D97706',
+  },
+  tabIconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    minWidth: 15,
+    height: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  tabBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  bottomBarLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: -0.1,
+  },
+  bottomBarActionBtn: {
+    flex: 1,
+    maxWidth: 138,
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    borderRadius: 23,
+    gap: 5,
+    marginHorizontal: 3,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  bottomBarActionText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    textAlign: 'center',
   },
 });

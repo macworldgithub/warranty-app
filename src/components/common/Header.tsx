@@ -11,7 +11,7 @@ import { useNetwork } from '../../context/NetworkContext';
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
 interface HeaderProps {
-  title: string;
+  title?: string;
   subtitle?: string;
   roNumber?: string;
   brandName?: string;
@@ -34,45 +34,56 @@ export const Header: React.FC<HeaderProps> = ({
   const insets = useSafeAreaInsets();
   const { isOnline, pendingCount } = useNetwork();
 
+  const hasTitleContent = Boolean(title || subtitle);
+
   return (
-    <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+    <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
       <View style={styles.topRow}>
         {onBack ? (
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={onBack}
             style={styles.backButton}
+            accessibilityLabel="Go back"
           >
-            <Icon name="chevron-left" size={26} color={colors.textPrimary} />
+            <Icon name="chevron-left" size={24} color={colors.headerText} />
           </TouchableOpacity>
         ) : showBrandLogo ? (
-          <Image
-            source={booranLogo}
-            style={styles.brandLogoImg}
-            resizeMode="contain"
-          />
+          <View style={styles.logoContainer}>
+            <Image
+              source={booranLogo}
+              style={styles.brandLogoImg}
+              resizeMode="contain"
+            />
+          </View>
         ) : (
           <View style={styles.brandIcon}>
-            <Icon name="shield" size={20} color={colors.primary} />
+            <Icon name="shield" size={20} color={colors.headerText} />
           </View>
         )}
 
-        <View style={styles.titleArea}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          {subtitle && (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          )}
-        </View>
+        {hasTitleContent ? (
+          <View style={styles.titleArea}>
+            {title ? (
+              <Text style={styles.title} numberOfLines={1}>
+                {title}
+              </Text>
+            ) : null}
+            {subtitle ? (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.spacer} />
+        )}
 
         <View style={styles.rightArea}>
           {roNumber && (
             <Badge
               label={roNumber}
-              variant="primary"
+              variant="outline"
               size="sm"
               style={styles.roBadge}
             />
@@ -104,63 +115,81 @@ export const Header: React.FC<HeaderProps> = ({
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: colors.surfaceGlass,
+    backgroundColor: colors.headerBg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    borderBottomColor: 'rgba(0, 0, 0, 0.12)',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 48,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: spacing.borderRadius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.md,
+    marginRight: spacing.sm,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   brandLogoImg: {
-    width: 120,
-    height: 32,
-    marginRight: spacing.md,
+    width: 124,
+    height: 34,
+  },
+  spacer: {
+    flex: 1,
   },
   brandIcon: {
     width: 36,
     height: 36,
     borderRadius: spacing.borderRadius.md,
-    backgroundColor: colors.surfaceHighlight,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(225, 31, 38, 0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.md,
+    marginRight: spacing.sm,
   },
   titleArea: {
     flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
   },
   title: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.md,
     fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
+    color: colors.headerText,
+    letterSpacing: -0.2,
   },
   subtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    marginTop: 2,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 1,
+    fontWeight: '500',
   },
   rightArea: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   roBadge: {
     marginRight: spacing.xs,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
 });
