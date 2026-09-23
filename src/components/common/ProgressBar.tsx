@@ -1,17 +1,25 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
-import { Badge } from './Badge';
+import { Icon } from './Icon';
 
 interface ProgressBarProps {
   currentStep: number;
   totalSteps?: number;
   stepTitles?: string[];
+  stepShortLabels?: string[];
   mandatoryRemaining?: number;
   completedCount?: number;
   totalMandatory?: number;
+  onStepPress?: (stepIndex: number) => void;
 }
 
 const defaultStepTitles = [
@@ -24,104 +32,219 @@ const defaultStepTitles = [
   'Review & Submit',
 ];
 
+const defaultShortLabels = [
+  'Ticket',
+  'Vehicle',
+  'Concern',
+  'Evidence',
+  'Extras',
+  'Voice',
+  'Review',
+];
+
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   currentStep,
   totalSteps = 7,
   stepTitles = defaultStepTitles,
+  stepShortLabels = defaultShortLabels,
+  mandatoryRemaining,
+  completedCount,
+  totalMandatory,
+  onStepPress,
 }) => {
-  const progressPercent = Math.min(100, Math.max(0, ((currentStep + 1) / totalSteps) * 100));
+  const scrollViewRef = useRef<any>(null);
+
+  // Auto-scroll stepper to keep current step visible
+  useEffect(() => {
+    if (scrollViewRef.current) {
+      const targetX = Math.max(0, currentStep * 74 - 40);
+      scrollViewRef.current.scrollTo({ x: targetX, animated: true });
+    }
+  }, [currentStep]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.infoRow}>
-        <View>
-          <Text style={styles.stepLabel}>
-            Step {currentStep + 1} of {totalSteps}
-          </Text>
-          <Text style={styles.stepTitle}>
-            {stepTitles[currentStep] || 'Guided Step'}
-          </Text>
-        </View>
+      {/* Header Row matching screenshot */}
+      <View style={styles.headerRow}>
+        <Text style={styles.headerTitle}>Guided Wizard Steps</Text>
+        <Text style={styles.headerCounter}>
+          Step {currentStep + 1} of {totalSteps}
+        </Text>
       </View>
 
-      <View style={styles.track}>
-        <View style={[styles.fill, { width: `${progressPercent}%` }]} />
-      </View>
-
-      <View style={styles.stepDotsRow}>
+      {/* Horizontal Stepper Row */}
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.stepperScrollContent}
+      >
         {Array.from({ length: totalSteps }).map((_, idx) => {
+          const isActive = idx === currentStep;
           const isDone = idx < currentStep;
-          const isCurrent = idx === currentStep;
+          const label = stepShortLabels[idx] || `Step ${idx + 1}`;
+
+          if (isActive) {
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={styles.activeStepCard}
+                onPress={() => onStepPress?.(idx)}
+                activeOpacity={0.85}
+              >
+                <View style={styles.activeCircleBadge}>
+                  <Text style={styles.activeCircleText}>{idx + 1}</Text>
+                </View>
+                <Text style={styles.activeStepLabel} numberOfLines={1}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+
           return (
-            <View
+            <TouchableOpacity
               key={idx}
-              style={[
-                styles.dot,
-                isDone && styles.dotDone,
-                isCurrent && styles.dotCurrent,
-              ]}
-            />
+              style={styles.inactiveStepItem}
+              onPress={() => onStepPress?.(idx)}
+              activeOpacity={0.7}
+            >
+              <View
+                style={[
+                  styles.inactiveCircleBadge,
+                  isDone && styles.doneCircleBadge,
+                ]}
+              >
+                {isDone ? (
+                  <Icon name="check" size={13} color="#059669" />
+                ) : (
+                  <Text style={styles.inactiveCircleText}>{idx + 1}</Text>
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.inactiveStepLabel,
+                  isDone && styles.doneStepLabel,
+                ]}
+                numberOfLines={1}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    backgroundColor: '#FFFFFF',
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.sm + 4,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  infoRow: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xs + 2,
   },
-  stepLabel: {
-    fontSize: typography.sizes.xs,
-    color: colors.primary,
+  headerTitle: {
+    fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
-    textTransform: 'uppercase',
-  },
-  stepTitle: {
-    fontSize: typography.sizes.md,
     color: colors.textPrimary,
+  },
+  headerCounter: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    fontWeight: typography.weights.medium,
+  },
+  stepperScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    gap: 8,
+  },
+  // Active Card (Red background with white circle badge and white text)
+  activeStepCard: {
+    backgroundColor: '#E11F26', // Booran Brand Red
+    borderRadius: spacing.borderRadius.md,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#E11F26',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  activeCircleBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
+  },
+  activeCircleText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: typography.weights.bold,
   },
-  track: {
-    height: 4,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: spacing.borderRadius.full,
-    overflow: 'hidden',
-    marginBottom: spacing.xs,
+  activeStepLabel: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
   },
-  fill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: spacing.borderRadius.full,
+  // Inactive Steps (Subtle circular border with gray text)
+  inactiveStepItem: {
+    minWidth: 62,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  stepDotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
+  inactiveCircleBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.2,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.borderHighlight,
+  inactiveCircleText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: typography.weights.medium,
   },
-  dotDone: {
-    backgroundColor: colors.success,
+  inactiveStepLabel: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: typography.weights.medium,
   },
-  dotCurrent: {
-    backgroundColor: colors.primary,
-    width: 14,
-    borderRadius: 3,
+  // Completed Steps
+  doneCircleBadge: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#ECFDF5',
+  },
+  doneStepLabel: {
+    color: '#059669',
+    fontWeight: typography.weights.semibold,
   },
 });

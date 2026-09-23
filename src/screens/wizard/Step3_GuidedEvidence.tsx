@@ -12,6 +12,7 @@ import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { EvidenceCard } from '../../components/evidence/EvidenceCard';
+import { GuidedZoneStepper } from '../../components/evidence/GuidedZoneStepper';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 
 interface Step3Props {
@@ -76,6 +77,14 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
           </Text>
         </View>
       )}
+
+      {/* Guided 10-Zone Capture Stepper */}
+      <GuidedZoneStepper
+        evidenceItems={evidenceItems}
+        onSaveEvidence={saveEvidenceItem}
+        onRemoveEvidence={removeEvidenceItem}
+        roNumber={roNumber}
+      />
 
       {/* Dynamic Evidence Cards */}
       {tier1Rules.map(rule => {

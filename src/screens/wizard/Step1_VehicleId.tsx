@@ -177,7 +177,7 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
 
           <View style={styles.secondaryActionsRow}>
             <Button
-              title={hasVinPhoto ? 'Retake Photo' : 'Photo VIN (Optional)'}
+              title={hasVinPhoto ? 'Retake Photo' : 'Photo VIN '}
               variant={hasVinPhoto ? 'outline' : 'secondary'}
               size="sm"
               loading={isCapturingPhoto === 'vin_photo'}

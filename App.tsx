@@ -353,6 +353,7 @@ function MainNavigator() {
         totalMandatory={mandatoryCount}
         completedCount={completedMandatoryCount}
         mandatoryRemaining={mandatoryCount - completedMandatoryCount}
+        onStepPress={setStep}
       />
 
       {/* Step Content */}
