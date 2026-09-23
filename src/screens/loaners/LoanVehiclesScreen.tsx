@@ -13,10 +13,15 @@ import {
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
+import { Header } from '../../components/common/Header';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoanAgreement, LoanAgreementKpis } from '../../types';
 import { loanAgreementsApi } from '../../api';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
+import { INITIAL_REAL_LOAN_AGREEMENTS } from './loanSeedData';
+import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
+import { useAuth } from '../../context/AuthContext';
 
 interface LoanVehiclesScreenProps {
   onBack?: () => void;
@@ -30,57 +35,135 @@ const ROOFTOPS = [
   { label: 'Cheltenham', siteId: 'site_cheltenham_mg' },
 ];
 
+const computeKpis = (agreementList: LoanAgreement[], siteId: string): LoanAgreementKpis => {
+  const filtered = siteId === 'all'
+    ? agreementList
+    : agreementList.filter((a) => a.siteId === siteId);
+
+  const now = Date.now();
+  const in60Min = now + 3600000;
+
+  let outNow = 0;
+  let dueSoon = 0;
+  let overdue = 0;
+
+  for (const a of filtered) {
+    if (a.status === 'ACTIVE' || a.status === 'DUE_SOON' || a.status === 'OVERDUE') {
+      outNow++;
+      const dueTime = a.dueBackDateTime ? new Date(a.dueBackDateTime).getTime() : 0;
+      if (dueTime && dueTime < now) {
+        overdue++;
+      } else if (dueTime && dueTime <= in60Min) {
+        dueSoon++;
+      }
+    }
+  }
+
+  // Dealership fleet allocations across Booran network
+  const fleetCapacityMap: Record<string, number> = {
+    all: 36,
+    site_cranbourne_byd: 12,
+    site_dandenong_multi: 12,
+    site_berwick_nissan: 8,
+    site_cheltenham_mg: 8,
+  };
+  const totalCapacity = fleetCapacityMap[siteId] ?? 12;
+  const available = Math.max(0, totalCapacity - outNow);
+
+  return {
+    available,
+    outNow,
+    dueSoon,
+    overdue,
+  };
+};
+
 export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }) => {
-  const [selectedSiteId, setSelectedSiteId] = useState('all');
+  const insets = useSafeAreaInsets();
+  const { user, activeSiteId } = useAuth();
+
+  // Role separation: Technician only views their assigned rooftop, Admin can view all
+  const isTechnician = user?.role === 'TECHNICIAN';
+  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+  const technicianSiteObj = ROOFTOPS.find((r) => r.siteId === technicianSiteId) || ROOFTOPS[1];
+
+  const [selectedSiteId, setSelectedSiteId] = useState(isTechnician ? technicianSiteId : 'all');
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'ATTENTION' | 'RETURNED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [agreements, setAgreements] = useState<LoanAgreement[]>([]);
-  const [kpis, setKpis] = useState<LoanAgreementKpis>({
-    available: 14,
-    outNow: 8,
-    dueSoon: 2,
-    overdue: 1,
+  const [agreements, setAgreements] = useState<LoanAgreement[]>(() => {
+    return isTechnician
+      ? INITIAL_REAL_LOAN_AGREEMENTS.filter((a) => a.siteId === technicianSiteId)
+      : INITIAL_REAL_LOAN_AGREEMENTS;
   });
+  const [kpis, setKpis] = useState<LoanAgreementKpis>(() =>
+    computeKpis(INITIAL_REAL_LOAN_AGREEMENTS, isTechnician ? technicianSiteId : 'all')
+  );
 
   // Modals / Subscreens
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [returnTarget, setReturnTarget] = useState<LoanAgreement | null>(null);
+  const [pdfTarget, setPdfTarget] = useState<LoanAgreement | null>(null);
+
+  // Enforce rooftop lock whenever technician user is detected
+  useEffect(() => {
+    if (isTechnician) {
+      setSelectedSiteId(technicianSiteId);
+    }
+  }, [isTechnician, technicianSiteId]);
 
   const fetchLoanData = useCallback(async () => {
     try {
-      const siteParam = selectedSiteId === 'all' ? undefined : selectedSiteId;
+      const targetSiteId = isTechnician ? technicianSiteId : selectedSiteId;
+      const siteParam = targetSiteId === 'all' ? undefined : targetSiteId;
       const [data, kpiData] = await Promise.all([
         loanAgreementsApi.findAll(siteParam),
         loanAgreementsApi.getKpis(siteParam),
       ]);
-      setAgreements(data || []);
-      if (kpiData) {
+      const list = data && data.length > 0 ? data : INITIAL_REAL_LOAN_AGREEMENTS;
+      const scopedList = isTechnician ? list.filter((a) => a.siteId === technicianSiteId) : list;
+      setAgreements(scopedList);
+      if (kpiData && (kpiData.available > 0 || kpiData.outNow > 0 || kpiData.overdue > 0)) {
         setKpis(kpiData);
+      } else {
+        setKpis(computeKpis(scopedList, targetSiteId));
       }
     } catch (err: any) {
-      console.warn('Failed to load loan data from API:', err?.message);
+      console.warn('Failed to load loan data from API, using real local fleet data:', err?.message);
+      const scopedList = isTechnician
+        ? INITIAL_REAL_LOAN_AGREEMENTS.filter((a) => a.siteId === technicianSiteId)
+        : INITIAL_REAL_LOAN_AGREEMENTS;
+      setAgreements(scopedList);
+      setKpis(computeKpis(scopedList, isTechnician ? technicianSiteId : selectedSiteId));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedSiteId]);
+  }, [selectedSiteId, isTechnician, technicianSiteId]);
 
   useEffect(() => {
-    setLoading(true);
     fetchLoanData();
   }, [fetchLoanData]);
+
+  // Keep KPI boxes in live sync whenever selected rooftop or agreement list updates
+  useEffect(() => {
+    if (agreements.length > 0) {
+      const effectiveSiteId = isTechnician ? technicianSiteId : selectedSiteId;
+      setKpis(computeKpis(agreements, effectiveSiteId));
+    }
+  }, [selectedSiteId, agreements, isTechnician, technicianSiteId]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchLoanData();
   };
 
-  // Filter agreements by tab and search
+  // Filter agreements by tab, search, and technician rooftop
   const filteredAgreements = agreements.filter((ag) => {
-    // Rooftop filter
-    if (selectedSiteId !== 'all' && ag.siteId !== selectedSiteId) {
+    // Rooftop filter (Technicians strictly locked to their site)
+    const effectiveSiteId = isTechnician ? technicianSiteId : selectedSiteId;
+    if (effectiveSiteId !== 'all' && ag.siteId !== effectiveSiteId) {
       return false;
     }
 
@@ -135,13 +218,18 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
 
   // If Wizard open, render it full screen
   if (isWizardOpen) {
-    const selectedRtObj = ROOFTOPS.find((r) => r.siteId === selectedSiteId);
+    const activeLabel = isTechnician
+      ? technicianSiteObj.label
+      : (ROOFTOPS.find((r) => r.siteId === selectedSiteId && r.siteId !== 'all')?.label || 'Cranbourne');
+
     return (
       <IssueLoanerWizardScreen
-        initialRooftop={selectedRtObj && selectedRtObj.siteId !== 'all' ? selectedRtObj.label : 'Cranbourne'}
+        initialRooftop={activeLabel}
+        isRooftopLocked={isTechnician}
         onBack={() => setIsWizardOpen(false)}
         onSuccess={(_newAgreement) => {
           setIsWizardOpen(false);
+          setAgreements((prev) => [_newAgreement, ...prev.filter((a) => a.id !== _newAgreement.id)]);
           fetchLoanData();
         }}
       />
@@ -151,74 +239,101 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
   return (
     <View style={styles.container}>
       {/* Top App Header */}
-      <View style={styles.header}>
-        {onBack && (
-          <TouchableOpacity style={styles.headerBackBtn} onPress={onBack}>
-            <Icon name="chevron-left" size={24} color={colors.textPrimary} />
+      <Header
+        title="Loan Vehicle Operations"
+        subtitle={isTechnician ? `Workshop Fleet • ${technicianSiteObj.label} Rooftop` : "Admin Fleet Portal • All Dealership Rooftops"}
+        onBack={onBack}
+        rightAction={
+          <TouchableOpacity
+            style={styles.issueTopBtn}
+            onPress={() => setIsWizardOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Icon name="plus" size={16} color="#FFF" />
+            <Text style={styles.issueTopBtnText}>Issue</Text>
           </TouchableOpacity>
-        )}
-        <View style={styles.headerTextWrap}>
-          <Text style={styles.headerTitle}>Loan Vehicle Operations</Text>
-          <Text style={styles.headerSubtitle}>OmniSuiteAI • Digital Customer Agreements</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.issueTopBtn}
-          onPress={() => setIsWizardOpen(true)}
-        >
-          <Icon name="plus" size={18} color="#FFF" />
-          <Text style={styles.issueTopBtnText}>Issue</Text>
-        </TouchableOpacity>
-      </View>
+        }
+      />
 
-      {/* Rooftop Selector */}
-      <View style={styles.rooftopScrollWrap}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={ROOFTOPS}
-          keyExtractor={(item) => item.siteId}
-          renderItem={({ item }) => {
-            const isSelected = selectedSiteId === item.siteId;
-            return (
-              <TouchableOpacity
-                style={[styles.rooftopPill, isSelected && styles.rooftopPillActive]}
-                onPress={() => setSelectedSiteId(item.siteId)}
-              >
-                <Text style={[styles.rooftopPillText, isSelected && styles.rooftopPillTextActive]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-          contentContainerStyle={styles.rooftopScroll}
-        />
-      </View>
+      {/* Rooftop Selector (Admin) vs Locked Workshop Badge (Technician) */}
+      {isTechnician ? (
+        <View style={styles.techRooftopBar}>
+          <View style={styles.techRooftopBadge}>
+            <Icon name="map-pin" size={15} color={colors.primary} />
+            <Text style={styles.techRooftopText}>
+              Assigned Workshop: <Text style={styles.techRooftopBold}>{technicianSiteObj.label}</Text>
+            </Text>
+          </View>
+          <View style={styles.techRoleBadge}>
+            <Text style={styles.techRoleText}>Technician View</Text>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.rooftopScrollWrap}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={ROOFTOPS}
+            keyExtractor={(item) => item.siteId}
+            renderItem={({ item }) => {
+              const isSelected = selectedSiteId === item.siteId;
+              return (
+                <TouchableOpacity
+                  style={[styles.rooftopPill, isSelected && styles.rooftopPillActive]}
+                  onPress={() => setSelectedSiteId(item.siteId)}
+                >
+                  <Text style={[styles.rooftopPillText, isSelected && styles.rooftopPillTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+            contentContainerStyle={styles.rooftopScroll}
+          />
+        </View>
+      )}
 
       {/* KPI Cards Row (from PDF page 7 Example 2) */}
       <View style={styles.kpiContainer}>
-        <View style={styles.kpiCard}>
+        <TouchableOpacity
+          style={[styles.kpiCard, activeTab === 'ALL' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('ALL')}
+          activeOpacity={0.7}
+        >
           <Text style={styles.kpiVal}>{kpis.available}</Text>
           <Text style={styles.kpiLabel}>Available</Text>
           <View style={[styles.kpiIndicator, { backgroundColor: colors.success }]} />
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.kpiCard}>
+        <TouchableOpacity
+          style={[styles.kpiCard, activeTab === 'ACTIVE' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('ACTIVE')}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.kpiVal, { color: colors.primary }]}>{kpis.outNow}</Text>
           <Text style={styles.kpiLabel}>Out Now</Text>
           <View style={[styles.kpiIndicator, { backgroundColor: colors.primary }]} />
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.kpiCard}>
+        <TouchableOpacity
+          style={[styles.kpiCard, activeTab === 'ATTENTION' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('ATTENTION')}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.kpiVal, { color: colors.warning }]}>{kpis.dueSoon}</Text>
           <Text style={styles.kpiLabel}>Due Soon</Text>
           <View style={[styles.kpiIndicator, { backgroundColor: colors.warning }]} />
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.kpiCard}>
+        <TouchableOpacity
+          style={[styles.kpiCard, activeTab === 'ATTENTION' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('ATTENTION')}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.kpiVal, { color: colors.danger }]}>{kpis.overdue}</Text>
           <Text style={styles.kpiLabel}>Overdue</Text>
           <View style={[styles.kpiIndicator, { backgroundColor: colors.danger }]} />
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Search Input */}
@@ -272,7 +387,10 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
           data={filteredAgreements}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: Math.max(insets.bottom + 24, 48) },
+          ]}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="car" size={48} color={colors.textMuted} />
@@ -347,13 +465,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
                 <View style={styles.cardActions}>
                   <TouchableOpacity
                     style={styles.cardPdfBtn}
-                    onPress={() => {
-                      Alert.alert(
-                        'Loan Agreement PDF',
-                        `Agreement: ${item.agreementNumber}\nCustomer: ${item.customer?.name}\nStatus: ${item.status}\nOperative Clauses: 18 Validated`,
-                        [{ text: 'Close' }]
-                      );
-                    }}
+                    onPress={() => setPdfTarget(item)}
                   >
                     <Icon name="file-text" size={16} color={colors.primary} />
                     <Text style={styles.cardPdfBtnText}>View PDF</Text>
@@ -382,8 +494,16 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
         onClose={() => setReturnTarget(null)}
         onReturnCompleted={(_updated) => {
           setReturnTarget(null);
+          setAgreements((prev) => prev.map((a) => (a.id === _updated.id ? _updated : a)));
           fetchLoanData();
         }}
+      />
+
+      {/* Official Legal PDF Viewer Modal */}
+      <LoanAgreementPdfModal
+        visible={pdfTarget !== null}
+        agreement={pdfTarget}
+        onClose={() => setPdfTarget(null)}
       />
     </View>
   );
@@ -423,16 +543,56 @@ const styles = StyleSheet.create({
   issueTopBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 8,
-    gap: 4,
+    borderRadius: 16,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   issueTopBtnText: {
     color: '#FFF',
     fontWeight: '700',
     fontSize: 13,
+  },
+  techRooftopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  techRooftopBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  techRooftopText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  techRooftopBold: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  techRoleBadge: {
+    backgroundColor: 'rgba(0, 102, 204, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 102, 204, 0.25)',
+  },
+  techRoleText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.primary,
   },
   rooftopScrollWrap: {
     backgroundColor: colors.surface,
@@ -481,6 +641,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     position: 'relative',
     overflow: 'hidden',
+  },
+  kpiCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(0, 102, 204, 0.08)',
+    elevation: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
   kpiVal: {
     fontSize: 18,

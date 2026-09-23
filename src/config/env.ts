@@ -3,11 +3,17 @@ import { Platform } from 'react-native';
 // Production API Base URL:
 // https://warranty-evidence.omnisuiteai.com
 // (Can be overridden via setApiBaseUrl or developer options in LoginScreen)
-export const DEFAULT_API_HOST = Platform.select({
-  android: 'https://warranty-evidence.omnisuiteai.com',
-  ios: 'https://warranty-evidence.omnisuiteai.com',
-  default: 'https://warranty-evidence.omnisuiteai.com',
-});
+export const DEFAULT_API_HOST = __DEV__
+  ? Platform.select({
+      android: 'http://localhost:4000',
+      ios: 'http://localhost:4000',
+      default: 'http://localhost:4000',
+    })
+  : Platform.select({
+      android: 'https://warranty-evidence.omnisuiteai.com',
+      ios: 'https://warranty-evidence.omnisuiteai.com',
+      default: 'https://warranty-evidence.omnisuiteai.com',
+    });
 
 export const API_BASE_PATH = '/api/v1';
 

@@ -458,7 +458,10 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle="light-content" />
+      <StatusBar
+        barStyle="light-content"
+        {...({ backgroundColor: '#D71920', translucent: true } as any)}
+      />
       <NetworkProvider>
         <AuthProvider>
           <CaseWizardProvider>
