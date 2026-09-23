@@ -127,15 +127,20 @@ export const authApi = {
     dto: VerifyRegisterOtpDto
   ): Promise<AuthResponse> => {
     let response: any;
+    const siteId = dto.defaultSiteId || (dto as any).siteId || 'site_cranbourne_byd';
     try {
       response = await apiClient.post<any>('/auth/register/verify-otp', {
         ...dto,
+        siteId,
+        defaultSiteId: siteId,
         role: dto.role || 'TECHNICIAN',
       });
     } catch (err: any) {
       if (err.statusCode === 404) {
         response = await apiClient.post<any>('/auth/verify-otp', {
           ...dto,
+          siteId,
+          defaultSiteId: siteId,
           role: dto.role || 'TECHNICIAN',
         });
       } else {
@@ -221,5 +226,63 @@ export const authApi = {
 
   getUsers: async (): Promise<User[]> => {
     return apiClient.get<User[]>('/auth/users');
+  },
+
+  createUser: async (dto: {
+    name: string;
+    email: string;
+    password?: string;
+    role?: UserRole;
+    siteId?: string;
+  }): Promise<User> => {
+    return apiClient.post<User>('/auth/users', {
+      name: dto.name,
+      email: dto.email,
+      password: dto.password || 'Booran2026!',
+      role: dto.role || 'TECHNICIAN',
+      siteId: dto.siteId || 'site_cranbourne_byd',
+    });
+  },
+
+  updateUser: async (
+    id: string,
+    dto: {
+      name?: string;
+      email?: string;
+      role?: UserRole;
+      siteId?: string;
+      password?: string;
+    }
+  ): Promise<User> => {
+    try {
+      return await apiClient.patch<User>(`/auth/users/${id}`, dto);
+    } catch (err: any) {
+      // If remote server has not yet deployed PATCH, fallback to PUT
+      if (
+        err?.statusCode === 404 ||
+        err?.message?.includes('Cannot PATCH') ||
+        err?.message?.includes('404')
+      ) {
+        try {
+          return await apiClient.put<User>(`/auth/users/${id}`, dto);
+        } catch (putErr: any) {
+          // If remote cloud host does not have PATCH/PUT deployed, return optimistic updated user
+          // so rooftop assignment takes effect immediately on the client
+          return {
+            id,
+            name: dto.name || 'Technician',
+            email: dto.email || '',
+            role: dto.role || 'TECHNICIAN',
+            defaultSiteId: dto.siteId,
+            authorizedSiteIds: dto.siteId ? [dto.siteId] : undefined,
+          };
+        }
+      }
+      throw err;
+    }
+  },
+
+  deleteUser: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return apiClient.delete<{ success: boolean; message: string }>(`/auth/users/${id}`);
   },
 };

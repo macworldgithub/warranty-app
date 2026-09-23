@@ -27,6 +27,8 @@ import {
   User,
   X,
   Sparkles,
+  AlertCircle,
+  Lock,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -59,6 +61,12 @@ const FALLBACK_SITES: Site[] = [
   { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Commercials', code: 'BERWICK_COMMERCIALS' },
 ];
 
+const ALL_ROOFTOPS_SITE: Site = {
+  id: 'ALL',
+  name: 'All Dealerships & Rooftops',
+  code: 'ALL_FLEET',
+};
+
 export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onOpenTickets,
   onStartNewCase,
@@ -69,10 +77,14 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   const { user, activeSiteId, setActiveSiteId } = useAuth();
   const { startNewCase } = useCaseWizard();
 
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
+  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+
   const [sites, setSites] = useState<Site[]>(FALLBACK_SITES);
   const [selectedSiteId, setSelectedSiteId] = useState<string>(
-    activeSiteId || user?.defaultSiteId || 'site_cranbourne_byd'
+    isAdmin ? (activeSiteId || user?.defaultSiteId || 'site_cranbourne_byd') : technicianSiteId
   );
+  const effectiveSiteId = isAdmin ? selectedSiteId : technicianSiteId;
   const [showSitePicker, setShowSitePicker] = useState<boolean>(false);
 
   const [cases, setCases] = useState<WarrantyCase[]>([]);
@@ -80,6 +92,12 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'all' | 'claims' | 'warranty' | 'clean'>('all');
+
+  // Admin View Cases Modals
+  const [selectedVehicleForCases, setSelectedVehicleForCases] = useState<RooftopVehicle | null>(null);
+  const [vehicleCasesList, setVehicleCasesList] = useState<WarrantyCase[]>([]);
+  const [showNoCasesNotice, setShowNoCasesNotice] = useState<boolean>(false);
+  const [noticeVehicleName, setNoticeVehicleName] = useState<string>('');
 
   // Load sites from API
   useEffect(() => {
@@ -126,24 +144,37 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     fetchCases();
   };
 
+  // Keep technician strictly locked to their assigned rooftop even if user context updates
+  useEffect(() => {
+    if (!isAdmin && technicianSiteId && selectedSiteId !== technicianSiteId) {
+      setSelectedSiteId(technicianSiteId);
+    }
+  }, [isAdmin, technicianSiteId, selectedSiteId]);
+
   const currentSite = useMemo(() => {
-    return sites.find(s => s.id === selectedSiteId) || sites[0] || {
-      id: selectedSiteId,
+    if (effectiveSiteId === 'ALL') {
+      return ALL_ROOFTOPS_SITE;
+    }
+    return sites.find(s => s.id === effectiveSiteId) || sites[0] || {
+      id: effectiveSiteId,
       name: 'Booran BYD Cranbourne',
       code: 'CRANBOURNE_BYD',
     };
-  }, [sites, selectedSiteId]);
+  }, [sites, effectiveSiteId]);
 
   const handleSelectSite = (site: Site) => {
+    if (!isAdmin) return; // Strictly forbid technician from changing rooftop
     setSelectedSiteId(site.id);
-    setActiveSiteId(site.id);
+    if (site.id !== 'ALL') {
+      setActiveSiteId(site.id);
+    }
     setShowSitePicker(false);
   };
 
-  // Vehicles for selected rooftop
+  // Vehicles for selected rooftop (technicians strictly restricted to their assigned rooftop)
   const vehiclesForRooftop = useMemo(() => {
-    return rooftopVehiclesService.getVehiclesForRooftop(selectedSiteId, cases);
-  }, [selectedSiteId, cases]);
+    return rooftopVehiclesService.getVehiclesForRooftop(effectiveSiteId, cases);
+  }, [effectiveSiteId, cases]);
 
   // Filter vehicles
   const filteredVehicles = useMemo(() => {
@@ -197,6 +228,35 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     onStartNewCase();
   };
 
+  const handleViewCasesForVehicle = (veh: RooftopVehicle) => {
+    // Find all cases matching this vehicle by VIN or RO
+    const matchingCases = cases.filter(c => {
+      const vinMatch = c.vin && veh.vin && c.vin.trim().toUpperCase() === veh.vin.trim().toUpperCase();
+      const roMatch = c.roNumber && veh.roNumber && c.roNumber.trim().toUpperCase() === veh.roNumber.trim().toUpperCase();
+      return vinMatch || roMatch;
+    });
+
+    if (matchingCases.length === 1) {
+      onOpenCase(matchingCases[0]);
+      return;
+    }
+
+    if (matchingCases.length > 1) {
+      setSelectedVehicleForCases(veh);
+      setVehicleCasesList(matchingCases);
+      return;
+    }
+
+    if (veh.latestCase) {
+      onOpenCase(veh.latestCase);
+      return;
+    }
+
+    // No cases found on record
+    setNoticeVehicleName(`${veh.year} ${veh.make} ${veh.model}`);
+    setShowNoCasesNotice(true);
+  };
+
   const getUserInitials = (name?: string) => {
     if (!name) return 'U';
     const parts = name.trim().split(/\s+/);
@@ -205,7 +265,6 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     }
     return name.slice(0, 2).toUpperCase();
   };
-  const isAdmin = user?.role === 'ADMIN';
   const awaitingCount = cases.filter(c => c.status === 'Awaiting Review').length;
 
   return (
@@ -226,10 +285,14 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.listHeaderArea}>
-            {/* Rooftop Selector Strip */}
+            {/* Rooftop Selector Strip (Switchable for Admin, Locked for Technician) */}
             <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setShowSitePicker(true)}
+              activeOpacity={isAdmin ? 0.85 : 1}
+              onPress={() => {
+                if (isAdmin) {
+                  setShowSitePicker(true);
+                }
+              }}
               style={styles.rooftopCard}
             >
               <View style={styles.rooftopLeft}>
@@ -238,29 +301,48 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                 </View>
                 <View style={styles.rooftopDetails}>
                   <View style={styles.rooftopTagRow}>
-                    <Text style={styles.rooftopEyebrow}>CURRENT ROOFTOP</Text>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>Active Workshop</Text>
+                    <Text style={styles.rooftopEyebrow}>
+                      {isAdmin
+                        ? effectiveSiteId === 'ALL'
+                          ? 'NETWORK FLEET'
+                          : 'CURRENT ROOFTOP'
+                        : 'YOUR ASSIGNED ROOFTOP'}
+                    </Text>
                   </View>
                   <Text style={styles.rooftopTitle} numberOfLines={1}>
                     {currentSite.name}
                   </Text>
                 </View>
               </View>
-              <View style={styles.rooftopSwitchBtn}>
-                <Text style={styles.rooftopSwitchText}>Switch</Text>
-                <ChevronDown size={14} color={colors.primary} />
-              </View>
+              {isAdmin ? (
+                <View style={styles.rooftopSwitchBtn}>
+                  <Text style={styles.rooftopSwitchText}>Switch</Text>
+                  <ChevronDown size={14} color={colors.primary} />
+                </View>
+              ) : (
+                <View style={styles.rooftopLockedBadge}>
+                  <Lock size={12} color={colors.textSecondary} />
+                  <Text style={styles.rooftopLockedText}>Assigned</Text>
+                </View>
+              )}
             </TouchableOpacity>
 
             {/* Hero Subhead */}
             <View style={styles.heroSection}>
               <View style={styles.heroEyebrowRow}>
-                <Text style={styles.heroEyebrow}>BOORAN ROOFTOP FLEET</Text>
+                <Text style={styles.heroEyebrow}>
+                  {effectiveSiteId === 'ALL' ? 'NETWORK FLEET OVERVIEW' : 'BOORAN ROOFTOP FLEET'}
+                </Text>
               </View>
-              <Text style={styles.heroHeadline}>Workshop Vehicle Registry</Text>
+              <Text style={styles.heroHeadline}>
+                {effectiveSiteId === 'ALL' ? 'All Dealership Vehicles' : 'Workshop Vehicle Registry'}
+              </Text>
               <Text style={styles.heroSubhead}>
-                Vehicles assigned to {currentSite.name}. Tap any vehicle to raise an instant warranty evidence ticket.
+                {isAdmin
+                  ? effectiveSiteId === 'ALL'
+                    ? 'Showing all vehicles across all Booran dealership rooftops. Tap any vehicle to view active and historic warranty claims.'
+                    : `Vehicles assigned to ${currentSite.name}. Tap any vehicle to view active and historic warranty claims.`
+                  : `Vehicles assigned to ${currentSite.name}. Tap any vehicle to raise an instant warranty evidence ticket.`}
               </Text>
             </View>
 
@@ -394,7 +476,9 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
             </View>
 
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderTitle}>Rooftop Inventory</Text>
+              <Text style={styles.sectionHeaderTitle}>
+                {effectiveSiteId === 'ALL' ? 'All Rooftops Fleet' : 'Rooftop Inventory'}
+              </Text>
               <Text style={styles.sectionHeaderCount}>{filteredVehicles.length} vehicles</Text>
             </View>
           </View>
@@ -406,13 +490,15 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
             <Text style={styles.emptySubtitle}>
               No vehicles matched your search criteria for {currentSite.name}.
             </Text>
-            <Button
-              title="Add New Vehicle Case"
-              variant="primary"
-              onPress={handleCreateNewBlank}
-              leftIcon={<Plus size={16} color="#FFFFFF" />}
-              style={{ marginTop: spacing.md }}
-            />
+            {!isAdmin && (
+              <Button
+                title="Add New Vehicle Case"
+                variant="primary"
+                onPress={handleCreateNewBlank}
+                leftIcon={<Plus size={16} color="#FFFFFF" />}
+                style={{ marginTop: spacing.md }}
+              />
+            )}
           </View>
         }
         renderItem={({ item }) => {
@@ -484,86 +570,251 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
 
               {/* Card Footer Actions */}
               <View style={styles.cardActionsRow}>
-                {item.latestCase ? (
+                {isAdmin ? (
                   <TouchableOpacity
                     activeOpacity={0.8}
-                    onPress={() => onOpenCase(item.latestCase!)}
-                    style={styles.actionBtnOutline}
+                    onPress={() => handleViewCasesForVehicle(item)}
+                    style={styles.actionBtnAdminViewCases}
                   >
-                    <FileText size={14} color={colors.primary} />
-                    <Text style={styles.actionBtnOutlineText}>View Case</Text>
+                    <FileText size={15} color={colors.primary} />
+                    <Text style={styles.actionBtnAdminViewCasesText}>
+                      View Cases{item.caseCount > 0 ? ` (${item.caseCount})` : ''}
+                    </Text>
+                    <ArrowRight size={14} color={colors.primary} />
                   </TouchableOpacity>
-                ) : null}
+                ) : (
+                  <>
+                    {item.latestCase ? (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => onOpenCase(item.latestCase!)}
+                        style={styles.actionBtnOutline}
+                      >
+                        <FileText size={14} color={colors.primary} />
+                        <Text style={styles.actionBtnOutlineText}>View Case</Text>
+                      </TouchableOpacity>
+                    ) : null}
 
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => handleStartCaseForVehicle(item)}
-                  style={styles.actionBtnPrimary}
-                >
-                  <Plus size={15} color="#FFFFFF" />
-                  <Text style={styles.actionBtnPrimaryText}>New Warranty Case</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => handleStartCaseForVehicle(item)}
+                      style={styles.actionBtnPrimary}
+                    >
+                      <Plus size={15} color="#FFFFFF" />
+                      <Text style={styles.actionBtnPrimaryText}>New Warranty Case</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </View>
           );
         }}
       />
 
-      {/* Rooftop Switcher Modal */}
+      {/* Rooftop Switcher Modal - Admin Only */}
+      {isAdmin && (
+        <Modal
+          visible={showSitePicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowSitePicker(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowSitePicker(false)}
+          >
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderLeft}>
+                  <Building2 size={20} color={colors.primary} />
+                  <Text style={styles.modalTitle}>Select Rooftop Dealership</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowSitePicker(false)}>
+                  <X size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalSubtitle}>
+                Select your active workshop rooftop to view vehicles and warranty tickets.
+              </Text>
+
+              <View style={styles.siteList}>
+                {/* "All Dealerships & Rooftops" option */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => handleSelectSite(ALL_ROOFTOPS_SITE)}
+                  style={[styles.siteOption, selectedSiteId === 'ALL' && styles.siteOptionActive]}
+                >
+                  <View style={styles.siteOptionLeft}>
+                    <View style={[styles.siteOptionRadio, selectedSiteId === 'ALL' && styles.siteOptionRadioActive]}>
+                      {selectedSiteId === 'ALL' && <View style={styles.siteOptionRadioInner} />}
+                    </View>
+                    <View>
+                      <Text style={[styles.siteOptionName, selectedSiteId === 'ALL' && styles.siteOptionNameActive]}>
+                        All Rooftops & Dealerships
+                      </Text>
+                      <Text style={styles.siteOptionCode}>View all vehicles across all workshops</Text>
+                    </View>
+                  </View>
+                  {selectedSiteId === 'ALL' && (
+                    <Badge label="All Fleet" variant="success" size="sm" />
+                  )}
+                </TouchableOpacity>
+
+                {/* Individual Rooftops */}
+                {sites.map(s => {
+                  const isCurrent = s.id === selectedSiteId;
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      activeOpacity={0.8}
+                      onPress={() => handleSelectSite(s)}
+                      style={[styles.siteOption, isCurrent && styles.siteOptionActive]}
+                    >
+                      <View style={styles.siteOptionLeft}>
+                        <View style={[styles.siteOptionRadio, isCurrent && styles.siteOptionRadioActive]}>
+                          {isCurrent && <View style={styles.siteOptionRadioInner} />}
+                        </View>
+                        <View>
+                          <Text style={[styles.siteOptionName, isCurrent && styles.siteOptionNameActive]}>
+                            {s.name}
+                          </Text>
+                          <Text style={styles.siteOptionCode}>{s.code || s.id}</Text>
+                        </View>
+                      </View>
+                      {isCurrent && (
+                        <Badge label="Active" variant="primary" size="sm" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
+      {/* Vehicle Cases List Modal for Admin */}
       <Modal
-        visible={showSitePicker}
+        visible={!!selectedVehicleForCases}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowSitePicker(false)}
+        onRequestClose={() => setSelectedVehicleForCases(null)}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowSitePicker(false)}
+          onPress={() => setSelectedVehicleForCases(null)}
         >
-          <View style={styles.modalCard}>
+          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderLeft}>
-                <Building2 size={20} color={colors.primary} />
-                <Text style={styles.modalTitle}>Select Rooftop Dealership</Text>
+                <FileText size={20} color={colors.primary} />
+                <View>
+                  <Text style={styles.modalTitle}>Warranty Cases</Text>
+                  <Text style={styles.modalSubtitleVin}>
+                    {selectedVehicleForCases?.year} {selectedVehicleForCases?.make} {selectedVehicleForCases?.model} • {selectedVehicleForCases?.rego}
+                  </Text>
+                </View>
               </View>
-              <TouchableOpacity onPress={() => setShowSitePicker(false)}>
+              <TouchableOpacity onPress={() => setSelectedVehicleForCases(null)}>
                 <X size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.modalSubtitle}>
-              Select your active workshop rooftop to view vehicles and warranty tickets.
+              Select a warranty ticket below to review case details:
             </Text>
 
-            <View style={styles.siteList}>
-              {sites.map(s => {
-                const isCurrent = s.id === selectedSiteId;
-                return (
-                  <TouchableOpacity
-                    key={s.id}
-                    activeOpacity={0.8}
-                    onPress={() => handleSelectSite(s)}
-                    style={[styles.siteOption, isCurrent && styles.siteOptionActive]}
-                  >
-                    <View style={styles.siteOptionLeft}>
-                      <View style={[styles.siteOptionRadio, isCurrent && styles.siteOptionRadioActive]}>
-                        {isCurrent && <View style={styles.siteOptionRadioInner} />}
-                      </View>
-                      <View>
-                        <Text style={[styles.siteOptionName, isCurrent && styles.siteOptionNameActive]}>
-                          {s.name}
-                        </Text>
-                        <Text style={styles.siteOptionCode}>{s.code || s.id}</Text>
-                      </View>
+            <FlatList
+              data={vehicleCasesList}
+              keyExtractor={(c) => c.id}
+              style={{ maxHeight: 320 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              renderItem={({ item: c }) => (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setSelectedVehicleForCases(null);
+                    onOpenCase(c);
+                  }}
+                  style={styles.vehicleCaseItem}
+                >
+                  <View style={styles.vehicleCaseItemTop}>
+                    <Text style={styles.vehicleCaseRoText}>RO: {c.roNumber || 'N/A'}</Text>
+                    <Badge
+                      label={c.status}
+                      variant={
+                        c.status === 'Flagged'
+                          ? 'flagged'
+                          : c.status === 'Awaiting Review'
+                            ? 'primary'
+                            : c.status === 'Submitted'
+                              ? 'success'
+                              : 'outline'
+                      }
+                      size="sm"
+                    />
+                  </View>
+                  {c.concernTitle ? (
+                    <Text style={styles.vehicleCaseConcernText} numberOfLines={2}>
+                      {c.concernTitle}
+                    </Text>
+                  ) : null}
+                  <View style={styles.vehicleCaseItemBottom}>
+                    <Text style={styles.vehicleCaseDateText}>
+                      {new Date(c.createdAt || Date.now()).toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                    <View style={styles.vehicleCaseActionLink}>
+                      <Text style={styles.vehicleCaseActionLinkText}>View Details</Text>
+                      <ArrowRight size={12} color={colors.primary} />
                     </View>
-                    {isCurrent && (
-                      <Badge label="Active" variant="primary" size="sm" />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* No Cases Found Notice Modal for Admin */}
+      <Modal
+        visible={showNoCasesNotice}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNoCasesNotice(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowNoCasesNotice(false)}
+        >
+          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <AlertCircle size={20} color={colors.warning} />
+                <Text style={styles.modalTitle}>No Cases Logged</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowNoCasesNotice(false)}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
+
+            <Text style={styles.modalSubtitle}>
+              There are currently no warranty tickets or claims filed for {noticeVehicleName}.
+            </Text>
+
+            <Button
+              title="Close"
+              variant="outline"
+              onPress={() => setShowNoCasesNotice(false)}
+              style={{ marginTop: spacing.md }}
+            />
           </View>
         </TouchableOpacity>
       </Modal>
@@ -589,17 +840,19 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
           <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Vehicles</Text>
         </TouchableOpacity>
 
-        {/* 3. Red Primary Action Button (Center) */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleCreateNewBlank}
-          style={styles.bottomBarActionBtn}
-        >
-          <Plus size={15} color="#FFFFFF" />
-          <Text style={styles.bottomBarActionText} numberOfLines={1}>
-            New Warranty Case
-          </Text>
-        </TouchableOpacity>
+        {/* 3. Red Primary Action Button (Center) - only for Technicians */}
+        {!isAdmin && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleCreateNewBlank}
+            style={styles.bottomBarActionBtn}
+          >
+            <Plus size={15} color="#FFFFFF" />
+            <Text style={styles.bottomBarActionText} numberOfLines={1}>
+              New Warranty Case
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* 4. Awaiting Cases (Left Side of Profile) */}
         <TouchableOpacity
@@ -1268,5 +1521,89 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
     textAlign: 'center',
+  },
+  actionBtnAdminViewCases: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    gap: 8,
+  },
+  actionBtnAdminViewCasesText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  modalSubtitleVin: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  vehicleCaseItem: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  vehicleCaseItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  vehicleCaseRoText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  vehicleCaseConcernText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 6,
+    lineHeight: 16,
+  },
+  vehicleCaseItemBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  vehicleCaseDateText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  vehicleCaseActionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  vehicleCaseActionLinkText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  rooftopLockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  rooftopLockedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
 });

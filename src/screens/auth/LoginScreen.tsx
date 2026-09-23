@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -20,6 +21,13 @@ import { OtpVerificationModal } from '../../components/auth/OtpVerificationModal
 import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
+
+const ROOFTOP_OPTIONS = [
+  { id: 'site_cranbourne_byd', name: 'Booran BYD Cranbourne' },
+  { id: 'site_dandenong_multi', name: 'Booran Dandenong Multi-Franchise' },
+  { id: 'site_cheltenham_mg', name: 'Booran MG & Chery Cheltenham' },
+  { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Commercials' },
+];
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -49,6 +57,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
+  const [signUpSiteId, setSignUpSiteId] = useState('site_cranbourne_byd');
+  const [showRooftopModal, setShowRooftopModal] = useState(false);
 
   const [showDevConfig, setShowDevConfig] = useState(false);
   const [tempUrl, setTempUrl] = useState(serverUrl);
@@ -124,6 +134,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         email: signUpEmail.trim().toLowerCase(),
         password: signUpPassword,
         otp: otp.trim(),
+        defaultSiteId: signUpSiteId,
       });
       // Verification successful: redirect to login tab
       logout();
@@ -257,6 +268,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <>
             <Field label="Full name" icon="user" value={signUpName} onChangeText={setSignUpName} placeholder="Your full name" />
             <Field label="Work email" icon="mail" value={signUpEmail} onChangeText={setSignUpEmail} placeholder="name@booran.com.au" keyboardType="email-address" />
+
+            {/* Dealership Rooftop Dropdown */}
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>DEALERSHIP ROOFTOP</Text>
+              <TouchableOpacity
+                style={styles.dropdownSelector}
+                onPress={() => setShowRooftopModal(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.dropdownValueText}>
+                  {ROOFTOP_OPTIONS.find(s => s.id === signUpSiteId)?.name || 'Booran BYD Cranbourne'}
+                </Text>
+                <Icon name="chevron-down" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
             <Field label="Password" icon="lock" value={signUpPassword} onChangeText={setSignUpPassword} placeholder="At least 6 characters" secureTextEntry={!showPassword} />
             <Field label="Confirm password" icon="lock" value={signUpConfirmPassword} onChangeText={setSignUpConfirmPassword} placeholder="Re-enter your password" secureTextEntry={!showPassword} />
             <Button title="Verify & Create Account" variant="primary" size="lg" loading={isLoading} onPress={handleSignUpStart} fullWidth style={styles.actionButton} />
@@ -289,6 +316,70 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           setActiveTab('SIGN_IN');
         }}
       />
+
+      {/* Dealership Rooftop Selection Modal */}
+      <Modal
+        visible={showRooftopModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRooftopModal(false)}
+      >
+        <View style={styles.rooftopModalOverlay}>
+          <View style={styles.rooftopModalCard}>
+            <View style={styles.rooftopModalHeader}>
+              <Text style={styles.rooftopModalTitle}>Dealership Rooftop</Text>
+              <TouchableOpacity
+                onPress={() => setShowRooftopModal(false)}
+                style={styles.rooftopModalCloseBtn}
+              >
+                <Icon name="close" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.rooftopModalSub}>
+              Select your primary workshop location
+            </Text>
+
+            <View style={styles.rooftopOptionsList}>
+              {ROOFTOP_OPTIONS.map((site) => {
+                const isSelected = signUpSiteId === site.id;
+                return (
+                  <TouchableOpacity
+                    key={site.id}
+                    style={[
+                      styles.rooftopOptionItem,
+                      isSelected && styles.rooftopOptionItemActive,
+                    ]}
+                    onPress={() => {
+                      setSignUpSiteId(site.id);
+                      setShowRooftopModal(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.rooftopOptionLeft}>
+                      <Icon
+                        name="building"
+                        size={16}
+                        color={isSelected ? colors.primary : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.rooftopOptionText,
+                          isSelected && styles.rooftopOptionTextActive,
+                        ]}
+                      >
+                        {site.name}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Icon name="check" size={16} color={colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -385,5 +476,97 @@ const styles = StyleSheet.create({
   },
   actionButton: { marginTop: spacing.sm },
   footer: { color: colors.textMuted, fontSize: typography.sizes.xs, textAlign: 'center', marginTop: 'auto', paddingTop: spacing.xxl },
+  dropdownSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 50,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderHighlight,
+    paddingHorizontal: spacing.md,
+  },
+  dropdownValueText: {
+    fontSize: typography.sizes.md,
+    color: colors.textPrimary,
+    fontWeight: typography.weights.regular,
+  },
+  rooftopModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  rooftopModalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  rooftopModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  rooftopModalTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+  },
+  rooftopModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rooftopModalSub: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    marginTop: 2,
+    marginBottom: spacing.md,
+  },
+  rooftopOptionsList: {
+    gap: spacing.xs,
+  },
+  rooftopOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: spacing.borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundSecondary,
+  },
+  rooftopOptionItemActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  rooftopOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flex: 1,
+  },
+  rooftopOptionText: {
+    fontSize: typography.sizes.sm,
+    color: colors.textPrimary,
+    fontWeight: typography.weights.medium,
+  },
+  rooftopOptionTextActive: {
+    color: colors.primary,
+    fontWeight: typography.weights.bold,
+  },
 });
 

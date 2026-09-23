@@ -222,7 +222,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const handleNotificationSelect = (notif: AppNotificationPayload) => {
     const targetCase = notif.caseItem || cases.find((c) => c.id === notif.caseId);
     if (targetCase) {
-      if (notif.type === 'FLAGGED' || targetCase.status === 'Flagged') {
+      if (!isAdmin && (notif.type === 'FLAGGED' || targetCase.status === 'Flagged')) {
         onResolveFlag(targetCase);
       } else {
         onOpenCase(targetCase);
@@ -390,16 +390,24 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
             {flaggedCount > 0 && activeTab !== 'awaiting' && (
               <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => setShowNotifModal(true)}
+                onPress={() => {
+                  if (isAdmin) {
+                    setActiveTab('flagged');
+                  } else {
+                    setShowNotifModal(true);
+                  }
+                }}
                 style={styles.flagBanner}
               >
                 <Icon name="flag" size={18} color={colors.flagged} />
                 <View style={styles.flagBannerText}>
                   <Text style={styles.flagBannerTitle}>
-                    {flaggedCount} Case{flaggedCount > 1 ? 's' : ''} Flagged by Warranty Clerk
+                    {flaggedCount} Case{flaggedCount > 1 ? 's' : ''} Flagged for Evidence Correction
                   </Text>
                   <Text style={styles.flagBannerDesc}>
-                    Tap to view missing shots and re-submit.
+                    {isAdmin
+                      ? 'Audit flagged tickets and review corrected technician submissions.'
+                      : 'Tap to view missing shots and re-submit.'}
                   </Text>
                 </View>
                 <Icon name="chevron-right" size={20} color={colors.flagged} />
@@ -451,15 +459,19 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                 <Icon name="file-text" size={48} color={colors.surfaceElevated} />
                 <Text style={styles.emptyTitle}>No Warranty Cases Found</Text>
                 <Text style={styles.emptySubtitle}>
-                  Tap below to start a new technician evidence capture ticket.
+                  {isAdmin
+                    ? 'No warranty cases match your current filter.'
+                    : 'Tap below to start a new technician evidence capture ticket.'}
                 </Text>
-                <Button
-                  title="Start New Case"
-                  variant="primary"
-                  onPress={handleCreateNew}
-                  leftIcon={<Icon name="plus" size={18} color={colors.textPrimary} />}
-                  style={{ marginTop: spacing.lg }}
-                />
+                {!isAdmin && (
+                  <Button
+                    title="Start New Case"
+                    variant="primary"
+                    onPress={handleCreateNew}
+                    leftIcon={<Icon name="plus" size={18} color={colors.textPrimary} />}
+                    style={{ marginTop: spacing.lg }}
+                  />
+                )}
               </>
             )}
           </View>
@@ -471,7 +483,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
           return (
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={() => (isFlagged ? onResolveFlag(item) : onOpenCase(item))}
+              onPress={() => (!isAdmin && isFlagged ? onResolveFlag(item) : onOpenCase(item))}
               style={[
                 styles.caseCard,
                 isFlagged && styles.caseCardFlagged,
@@ -647,17 +659,19 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
           <Text style={styles.bottomBarLabel}>Vehicles</Text>
         </TouchableOpacity>
 
-        {/* 3. Red Primary Action Button (Center) */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleCreateNew}
-          style={styles.bottomBarActionBtn}
-        >
-          <Icon name="plus" size={15} color="#FFFFFF" />
-          <Text style={styles.bottomBarActionText} numberOfLines={1}>
-            New Warranty Case
-          </Text>
-        </TouchableOpacity>
+        {/* 3. Red Primary Action Button (Center) - only for technicians */}
+        {!isAdmin && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleCreateNew}
+            style={styles.bottomBarActionBtn}
+          >
+            <Icon name="plus" size={15} color="#FFFFFF" />
+            <Text style={styles.bottomBarActionText} numberOfLines={1}>
+              New Warranty Case
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* 4. Awaiting Cases (Left Side of Profile) */}
         <TouchableOpacity

@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Modal,
+  Platform,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -16,6 +18,7 @@ import { Button } from '../common/Button';
 import { BrandPackRule, EvidenceItem, VoiceNote } from '../../types';
 import { VoiceToTechButton } from '../voice/VoiceToTechButton';
 import { cameraService } from '../../services/cameraService';
+import { getBaseServerUrl } from '../../config/env';
 
 interface EvidenceCardProps {
   rule: BrandPackRule;
@@ -41,8 +44,27 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [showSampleGuide, setShowSampleGuide] = useState(false);
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
 
-  const isCaptured = !!evidence && (!!evidence.fileUri || !!evidence.serverUrl);
+  const rawImageUri =
+    evidence?.fileUri ||
+    evidence?.storageUrl ||
+    evidence?.serverUrl ||
+    evidence?.thumbnailUrl;
+
+  const imageUri = rawImageUri
+    ? rawImageUri.startsWith('http://') ||
+      rawImageUri.startsWith('https://') ||
+      rawImageUri.startsWith('file://') ||
+      rawImageUri.startsWith('content://') ||
+      rawImageUri.startsWith('data:')
+      ? rawImageUri
+      : rawImageUri.startsWith('/')
+      ? `${getBaseServerUrl().replace(/\/+$/, '')}${rawImageUri}`
+      : rawImageUri
+    : null;
+
+  const isCaptured = !!evidence && !!rawImageUri;
   const isVideo = rule.mediaType === 'video';
 
   const handleCapture = async (fromGallery: boolean = false) => {
@@ -194,12 +216,21 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
       {isCaptured ? (
         <View style={styles.previewContainer}>
           <View style={styles.previewMediaBox}>
-            {evidence?.fileUri && !isVideo ? (
-              <Image
-                source={{ uri: evidence.fileUri }}
-                style={styles.realThumbnail}
-                resizeMode="cover"
-              />
+            {imageUri && !isVideo ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setPreviewModalVisible(true)}
+                style={styles.thumbnailWrapper}
+              >
+                <Image
+                  source={{ uri: imageUri }}
+                  style={styles.realThumbnail}
+                  resizeMode="cover"
+                />
+                <View style={styles.tapToViewOverlay}>
+                  <Icon name="search" size={10} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
             ) : (
               <View style={styles.mockThumbnail}>
                 <Icon
@@ -309,6 +340,40 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
           />
         </View>
       )}
+
+      {/* Full screen inspection modal */}
+      <Modal
+        visible={previewModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewModalVisible(false)}
+      >
+        <View style={styles.previewModalOverlay}>
+          <View style={styles.previewModalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.previewModalTitle}>{rule.name}</Text>
+              <Text style={styles.previewModalSub}>{evidence?.oemFileName || `RO #${roNumber}`}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.previewModalCloseBtn}
+              onPress={() => setPreviewModalVisible(false)}
+            >
+              <Icon name="close" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.previewModalBody}>
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.fullPreviewImage} resizeMode="contain" />
+            ) : null}
+          </View>
+          {evidence?.ocrExtractedText ? (
+            <View style={styles.previewModalFooter}>
+              <Icon name="check-circle" size={16} color="#34D399" />
+              <Text style={styles.previewModalOcrText}>OCR: {evidence.ocrExtractedText}</Text>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -441,14 +506,27 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   realThumbnail: {
-    width: 72,
-    height: 56,
+    width: 84,
+    height: 64,
     borderRadius: spacing.borderRadius.sm,
-    backgroundColor: '#000000',
+    backgroundColor: '#0F172A',
+  },
+  thumbnailWrapper: {
+    position: 'relative',
+    borderRadius: spacing.borderRadius.sm,
+    overflow: 'hidden',
+  },
+  tapToViewOverlay: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 4,
+    padding: 3,
   },
   mockThumbnail: {
-    width: 72,
-    height: 56,
+    width: 84,
+    height: 64,
     borderRadius: spacing.borderRadius.sm,
     backgroundColor: colors.backgroundSecondary,
     alignItems: 'center',
@@ -546,5 +624,66 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.regular,
     marginTop: 2,
     textAlign: 'center',
+  },
+  previewModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 15, 29, 0.95)',
+    justifyContent: 'space-between',
+  },
+  previewModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: 48,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  previewModalTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
+  },
+  previewModalSub: {
+    fontSize: typography.sizes.xs,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  previewModalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.md,
+  },
+  previewModalBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  fullPreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(16, 185, 129, 0.3)',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingBottom: 36,
+  },
+  previewModalOcrText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#34D399',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });

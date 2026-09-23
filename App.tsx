@@ -254,6 +254,9 @@ function MainNavigator() {
             loadExistingCase(caseItem, false);
             setCurrentScreen('WIZARD');
           }}
+          onCaseUpdated={(updatedCase) => {
+            setSelectedCase(updatedCase);
+          }}
         />
       </View>
     );

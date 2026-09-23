@@ -90,4 +90,37 @@ export const casesApi = {
       payload || {}
     );
   },
+
+  flagCase: async (
+    caseId: string,
+    dto: {
+      evidenceRuleKey?: string;
+      reasonCode: string;
+      instruction: string;
+      flaggedBy?: string;
+    }
+  ): Promise<WarrantyCase> => {
+    return apiClient.post<WarrantyCase>(`/warranty-cases/${caseId}/flag`, {
+      evidenceRuleKey: dto.evidenceRuleKey || 'general',
+      reasonCode: dto.reasonCode || 'OTHER',
+      instruction: dto.instruction,
+      flaggedBy: dto.flaggedBy || 'Warranty Admin',
+    });
+  },
+
+  markSubmitted: async (
+    caseId: string,
+    dto: {
+      claimNumber?: string;
+      internalClerkNotes?: string;
+    }
+  ): Promise<WarrantyCase> => {
+    return apiClient.post<WarrantyCase>(
+      `/warranty-cases/${caseId}/mark-submitted`,
+      {
+        claimNumber: dto.claimNumber || `CLM-${Date.now().toString().slice(-6)}`,
+        internalClerkNotes: dto.internalClerkNotes || 'Approved by Admin',
+      }
+    );
+  },
 };

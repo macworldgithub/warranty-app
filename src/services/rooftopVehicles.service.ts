@@ -330,9 +330,11 @@ export const rooftopVehiclesService = {
    * merged with live warranty cases raised at that site.
    */
   getVehiclesForRooftop: (siteId: string, cases: WarrantyCase[] = []): RooftopVehicle[] => {
+    const isAll = !siteId || siteId.toUpperCase() === 'ALL';
+
     // 1. Get base rooftop vehicles
     const baseList = BASE_ROOFTOP_VEHICLES.filter(
-      (v) => !siteId || v.siteId.toLowerCase() === siteId.toLowerCase()
+      (v) => isAll || v.siteId.toLowerCase() === siteId.toLowerCase()
     );
 
     // 2. Map of existing vehicles by VIN
@@ -343,7 +345,7 @@ export const rooftopVehiclesService = {
 
     // 3. Merge cases for this siteId
     const siteCases = cases.filter(
-      (c) => !siteId || c.siteId?.toLowerCase() === siteId.toLowerCase()
+      (c) => isAll || c.siteId?.toLowerCase() === siteId.toLowerCase()
     );
 
     for (const c of siteCases) {
