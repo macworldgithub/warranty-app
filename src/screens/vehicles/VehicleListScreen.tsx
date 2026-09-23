@@ -29,6 +29,7 @@ import {
   Sparkles,
   AlertCircle,
   Lock,
+  Key,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -52,6 +53,7 @@ interface VehicleListScreenProps {
   onStartNewCase: (initialData?: any) => void;
   onOpenCase: (caseItem: WarrantyCase) => void;
   onOpenProfile: () => void;
+  onOpenLoaners?: () => void;
 }
 
 const FALLBACK_SITES: Site[] = [
@@ -72,6 +74,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onStartNewCase,
   onOpenCase,
   onOpenProfile,
+  onOpenLoaners,
 }) => {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId, setActiveSiteId } = useAuth();
@@ -821,72 +824,140 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
 
       {/* Website-Style 5-Item Symmetrical Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
-        {/* 1. Tickets */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => onOpenTickets('all')}
-          style={styles.bottomBarTab}
-        >
-          <FileText size={20} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Tickets</Text>
-        </TouchableOpacity>
-
-        {/* 2. Vehicles (ACTIVE) */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={styles.bottomBarTab}
-        >
-          <Car size={20} color={colors.primary} />
-          <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Vehicles</Text>
-        </TouchableOpacity>
-
-        {/* 3. Red Primary Action Button (Center) - only for Technicians */}
-        {!isAdmin && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleCreateNewBlank}
-            style={styles.bottomBarActionBtn}
-          >
-            <Plus size={15} color="#FFFFFF" />
-            <Text style={styles.bottomBarActionText} numberOfLines={1}>
-              New Warranty Case
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* 4. Awaiting Cases (Left Side of Profile) */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => onOpenTickets('awaiting')}
-          style={styles.bottomBarTab}
-        >
-          <View style={styles.tabIconWrapper}>
-            <Clock size={20} color={colors.textSecondary} />
-            {awaitingCount > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+        {isAdmin ? (
+          <>
+            {/* 1. Awaiting Cases (Extreme Left) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets('awaiting')}
+              style={styles.bottomBarTab}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Clock size={20} color={colors.textSecondary} />
+                {awaitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          <Text style={styles.bottomBarLabel}>Awaiting</Text>
-        </TouchableOpacity>
+              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+            </TouchableOpacity>
 
-        {/* 5. Logged-in User Profile (Right Side of Warranty Case & Awaiting) */}
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onPress={onOpenProfile}
-          style={styles.bottomBarUserTab}
-          accessibilityLabel="Account Profile"
-        >
-          <View style={[styles.bottomBarAvatar, isAdmin && styles.bottomBarAvatarAdmin]}>
-            <Text style={[styles.bottomBarAvatarText, isAdmin && styles.bottomBarAvatarTextAdmin]}>
-              {getUserInitials(user?.name)}
-            </Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>
-            {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
-          </Text>
-        </TouchableOpacity>
+            {/* 2. Vehicles (ACTIVE) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.primary} />
+              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Tickets (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets('all')}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Tickets</Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners (Left side of Profile) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenLoaners}
+              style={styles.bottomBarTab}
+            >
+              <Key size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Loaners</Text>
+            </TouchableOpacity>
+
+            {/* 5. Logged-in User Profile (Extreme Right) */}
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
+                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Technician Layout */}
+            {/* 1. Tickets */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets('all')}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Tickets</Text>
+            </TouchableOpacity>
+
+            {/* 2. Vehicles (ACTIVE) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.primary} />
+              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Red Primary Action Button (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleCreateNewBlank}
+              style={styles.bottomBarActionBtn}
+            >
+              <Plus size={15} color="#FFFFFF" />
+              <Text style={styles.bottomBarActionText} numberOfLines={1}>
+                New Warranty Case
+              </Text>
+            </TouchableOpacity>
+
+            {/* 4. Awaiting */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets('awaiting')}
+              style={styles.bottomBarTab}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Clock size={20} color={colors.textSecondary} />
+                {awaitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+            </TouchableOpacity>
+
+            {/* 5. Profile */}
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={[styles.bottomBarAvatar, isAdmin && styles.bottomBarAvatarAdmin]}>
+                <Text style={[styles.bottomBarAvatarText, isAdmin && styles.bottomBarAvatarTextAdmin]}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );

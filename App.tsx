@@ -31,6 +31,7 @@ import { Step5_VoiceNotes } from './src/screens/wizard/Step5_VoiceNotes';
 import { Step6_ReviewSubmit } from './src/screens/wizard/Step6_ReviewSubmit';
 import { ProfileScreen } from './src/screens/profile/ProfileScreen';
 import { VehicleListScreen } from './src/screens/vehicles/VehicleListScreen';
+import { LoanVehiclesScreen } from './src/screens/loaners/LoanVehiclesScreen';
 import { Header } from './src/components/common/Header';
 import { ProgressBar } from './src/components/common/ProgressBar';
 import { NotificationBanner } from './src/components/common/NotificationBanner';
@@ -42,7 +43,7 @@ import {
 import { casesApi } from './src/api';
 import { WarrantyCase } from './src/types';
 
-type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
+type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'LOANERS' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
 
 function MainNavigator() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -181,6 +182,9 @@ function MainNavigator() {
           onOpenVehicles={() => {
             setCurrentScreen('VEHICLES');
           }}
+          onOpenLoaners={() => {
+            setCurrentScreen('LOANERS');
+          }}
           onLogout={() => {
             logout();
             setCurrentScreen('LOGIN');
@@ -215,6 +219,20 @@ function MainNavigator() {
           onOpenProfile={() => {
             setCurrentScreen('PROFILE');
           }}
+          onOpenLoaners={() => {
+            setCurrentScreen('LOANERS');
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 2c. Service Loan Vehicle Operations
+  if (currentScreen === 'LOANERS') {
+    return (
+      <View style={{ flex: 1 }}>
+        <LoanVehiclesScreen
+          onBack={() => setCurrentScreen('LIST')}
         />
       </View>
     );

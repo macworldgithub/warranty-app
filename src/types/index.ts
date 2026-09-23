@@ -4,3 +4,4 @@ export * from './brand.types';
 export * from './brandPack.types';
 export * from './case.types';
 export * from './voice.types';
+export * from './loanAgreement.types';

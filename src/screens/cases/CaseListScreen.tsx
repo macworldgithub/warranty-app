@@ -14,7 +14,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
-import { Bell, FileText, CheckCircle2, Clock, Car } from 'lucide-react-native';
+import { Bell, FileText, CheckCircle2, Clock, Car, Key } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -37,6 +37,7 @@ interface CaseListScreenProps {
   onResolveFlag: (caseItem: WarrantyCase) => void;
   onOpenProfile: () => void;
   onOpenVehicles: () => void;
+  onOpenLoaners?: () => void;
   onLogout: () => void;
 }
 
@@ -79,6 +80,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onResolveFlag,
   onOpenProfile,
   onOpenVehicles,
+  onOpenLoaners,
   onLogout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -243,25 +245,38 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Clean App Header: Logo left, spacious Notification Bell right */}
+      {/* Clean App Header: Logo left, Loaners + Notification Bell right */}
       <Header
         showBrandLogo
         rightAction={
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => {
-              setShowNotifModal(true);
-            }}
-            style={styles.bellBtn}
-            accessibilityLabel="Warranty Alerts"
-          >
-            <Bell size={20} color="#FFFFFF" />
-            {(unreadNotifCount > 0 || flaggedCount > 0) && (
-              <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
-              </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {onOpenLoaners && (
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={onOpenLoaners}
+                style={styles.loanerHeaderBtn}
+                accessibilityLabel="Service Loaners"
+              >
+                <Icon name="key" size={14} color="#FFFFFF" />
+                <Text style={styles.loanerHeaderBtnText}>Loaners</Text>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setShowNotifModal(true);
+              }}
+              style={styles.bellBtn}
+              accessibilityLabel="Warranty Alerts"
+            >
+              <Bell size={20} color="#FFFFFF" />
+              {(unreadNotifCount > 0 || flaggedCount > 0) && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -637,77 +652,150 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
       {/* Website-Style 5-Item Symmetrical Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
-        {/* 1. Tickets */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => setActiveTab('all')}
-          style={styles.bottomBarTab}
-        >
-          <FileText size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
-            Tickets
-          </Text>
-        </TouchableOpacity>
-
-        {/* 2. Vehicles */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenVehicles}
-          style={styles.bottomBarTab}
-        >
-          <Car size={20} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Vehicles</Text>
-        </TouchableOpacity>
-
-        {/* 3. Red Primary Action Button (Center) - only for technicians */}
-        {!isAdmin && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleCreateNew}
-            style={styles.bottomBarActionBtn}
-          >
-            <Icon name="plus" size={15} color="#FFFFFF" />
-            <Text style={styles.bottomBarActionText} numberOfLines={1}>
-              New Warranty Case
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* 4. Awaiting Cases (Left Side of Profile) */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => setActiveTab('awaiting')}
-          style={styles.bottomBarTab}
-        >
-          <View style={styles.tabIconWrapper}>
-            <Clock size={20} color={activeTab === 'awaiting' ? colors.primary : colors.textSecondary} />
-            {awaitingCount > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+        {isAdmin ? (
+          <>
+            {/* 1. Awaiting Cases (Extreme Left) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveTab('awaiting')}
+              style={styles.bottomBarTab}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Clock size={20} color={activeTab === 'awaiting' ? colors.primary : colors.textSecondary} />
+                {awaitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          <Text style={[styles.bottomBarLabel, activeTab === 'awaiting' && { color: colors.primary }]}>
-            Awaiting
-          </Text>
-        </TouchableOpacity>
+              <Text style={[styles.bottomBarLabel, activeTab === 'awaiting' && { color: colors.primary }]}>
+                Awaiting
+              </Text>
+            </TouchableOpacity>
 
-        {/* 5. Logged-in User Profile (Right Side of Warranty Case & Awaiting) */}
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onPress={onOpenProfile}
-          style={styles.bottomBarUserTab}
-          accessibilityLabel="Account Profile"
-        >
-          <View style={[styles.bottomBarAvatar, isAdmin && styles.bottomBarAvatarAdmin]}>
-            <Text style={[styles.bottomBarAvatarText, isAdmin && styles.bottomBarAvatarTextAdmin]}>
-              {getUserInitials(user?.name)}
-            </Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>
-            {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
-          </Text>
-        </TouchableOpacity>
+            {/* 2. Vehicles */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenVehicles}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Tickets (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveTab('all')}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
+              <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
+                Tickets
+              </Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners (Left side of Profile) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenLoaners}
+              style={styles.bottomBarTab}
+            >
+              <Key size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Loaners</Text>
+            </TouchableOpacity>
+
+            {/* 5. Logged-in User Profile (Extreme Right) */}
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
+                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Technician Layout */}
+            {/* 1. Tickets */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveTab('all')}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
+              <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
+                Tickets
+              </Text>
+            </TouchableOpacity>
+
+            {/* 2. Vehicles */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenVehicles}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Red Primary Action Button (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleCreateNew}
+              style={styles.bottomBarActionBtn}
+            >
+              <Icon name="plus" size={15} color="#FFFFFF" />
+              <Text style={styles.bottomBarActionText} numberOfLines={1}>
+                New Warranty Case
+              </Text>
+            </TouchableOpacity>
+
+            {/* 4. Awaiting */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveTab('awaiting')}
+              style={styles.bottomBarTab}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Clock size={20} color={activeTab === 'awaiting' ? colors.primary : colors.textSecondary} />
+                {awaitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.bottomBarLabel, activeTab === 'awaiting' && { color: colors.primary }]}>
+                Awaiting
+              </Text>
+            </TouchableOpacity>
+
+            {/* 5. Profile */}
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={styles.bottomBarAvatar}>
+                <Text style={styles.bottomBarAvatarText}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* Notification Bell History Modal */}
@@ -746,6 +834,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: colors.primary,
+  },
+  loanerHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 16,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  loanerHeaderBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
   },
   bellBtn: {
     width: 44,
