@@ -117,13 +117,16 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
           capturedAt: new Date().toISOString(),
         });
 
-        // If VIN photo, auto-extract and decode
-        if (ruleKey === 'vin_photo' && !vin) {
-          const mockVin = '1C4HJXDG4MW482702';
-          setVin(mockVin);
-          decodeVinNow(mockVin);
-        } else if (ruleKey === 'odometer_photo' && (odometer === null || odometer === 0)) {
-          setOdometer(14250);
+        // If OCR text was detected on photo, auto-extract
+        if (ruleKey === 'vin_photo' && (res as any).ocrText && !vin) {
+          const extracted = normalizeVIN((res as any).ocrText);
+          setVin(extracted);
+          decodeVinNow(extracted);
+        } else if (ruleKey === 'odometer_photo' && (res as any).ocrText && (odometer === null || odometer === 0)) {
+          const num = parseInt((res as any).ocrText.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(num) && num > 0) {
+            setOdometer(num);
+          }
         }
       }
     } catch (err: any) {

@@ -63,27 +63,19 @@ export const LoanAgreementPdfModal: React.FC<LoanAgreementPdfModalProps> = ({
       setDownloading(true);
       const pdfUrl = `${ENV.API_URL}/loan-agreements/${agreement.id}/pdf`;
 
-      // Try opening the PDF in browser / system download manager or trigger native Share
-      const canOpen = await Linking.canOpenURL(pdfUrl);
-      if (canOpen) {
+      // Directly open URL in browser / system download manager so device downloads the PDF file
+      try {
         await Linking.openURL(pdfUrl);
-      } else {
+      } catch (linkErr) {
+        // Fallback share dialog if direct open fails
         await Share.share({
           title: `Loan Agreement - ${agreement.agreementNumber}`,
-          message: `Booran Motor Group Loan Agreement #${agreement.agreementNumber}\nCustomer: ${agreement.customer.name}\nVehicle: ${agreement.vehicle.year} ${agreement.vehicle.make} ${agreement.vehicle.model} (${agreement.vehicle.rego})\nDownload official signed PDF: ${pdfUrl}`,
+          message: `Booran Motor Group Official Customer Loan Agreement #${agreement.agreementNumber}\nCustomer: ${agreement.customer?.name}\nVehicle: ${agreement.vehicle?.rego} (${agreement.vehicle?.make} ${agreement.vehicle?.model})\nDownload Signed PDF: ${pdfUrl}`,
           url: pdfUrl,
         });
       }
     } catch (err: any) {
-      // Fallback share dialog
-      try {
-        await Share.share({
-          title: `Loan Agreement - ${agreement.agreementNumber}`,
-          message: `Booran Motor Group Official Customer Loan Agreement #${agreement.agreementNumber}\nCustomer: ${agreement.customer?.name}\nVehicle: ${agreement.vehicle?.rego} (${agreement.vehicle?.make} ${agreement.vehicle?.model})\nAll 18 Operative Clauses Accepted & Digitally Signed.`,
-        });
-      } catch {
-        Alert.alert('Download PDF', 'Could not open external PDF viewer. Document is securely stored on server.');
-      }
+      Alert.alert('Download PDF', 'Could not open browser to download PDF. Please check server connection.');
     } finally {
       setDownloading(false);
     }
@@ -148,13 +140,13 @@ export const LoanAgreementPdfModal: React.FC<LoanAgreementPdfModalProps> = ({
           <View style={styles.a4Page}>
             {/* 1. Header Banner */}
             <View style={styles.headerBanner}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bannerBrand}>BOORAN MOTOR GROUP</Text>
-                <Text style={styles.bannerSubtitle}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.bannerBrand} numberOfLines={1}>BOORAN MOTOR GROUP</Text>
+                <Text style={styles.bannerSubtitle} numberOfLines={2}>
                   CUSTOMER TEST DRIVE & LOAN VEHICLE AGREEMENT
                 </Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
                 <Text style={styles.bannerAgreementNum}>{agreement.agreementNumber}</Text>
                 <View style={styles.bannerStatusPill}>
                   <Text style={styles.bannerStatusText}>
@@ -268,8 +260,12 @@ export const LoanAgreementPdfModal: React.FC<LoanAgreementPdfModalProps> = ({
             {/* 3. Operative Terms & Conditions (18 Clauses) */}
             <View style={styles.termsContainer}>
               <View style={styles.termsHeadRow}>
-                <Text style={styles.termsHeading}>OPERATIVE TERMS & CONDITIONS (VICTORIA, AUSTRALIA)</Text>
-                <Text style={styles.clausesTag}>18 MANDATORY CLAUSES</Text>
+                <Text style={styles.termsHeading} numberOfLines={2}>
+                  OPERATIVE TERMS & CONDITIONS (VICTORIA, AUSTRALIA)
+                </Text>
+                <View style={styles.clausesTagBadge}>
+                  <Text style={styles.clausesTag}>18 MANDATORY CLAUSES</Text>
+                </View>
               </View>
 
               <View style={styles.clausesList}>
@@ -690,6 +686,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
     paddingBottom: 6,
@@ -700,15 +698,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: 0.3,
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 160,
+  },
+  clausesTagBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    alignSelf: 'center',
+    flexShrink: 0,
   },
   clausesTag: {
     fontSize: 8,
     fontWeight: '800',
     color: '#E11F26',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 3,
   },
   clausesList: {
     gap: 4,

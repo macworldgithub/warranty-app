@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Animated,
+  Easing,
+  Modal,
   Alert,
 } from 'react-native';
 import { colors } from '../../theme/colors';
@@ -57,6 +60,20 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Pulse animation for the submit overlay
+  const pulseAnim = useRef(new Animated.Value(0.8)).current;
+  useEffect(() => {
+    if (!submitting) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.8, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [submitting]);
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
@@ -72,7 +89,28 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <>
+      {/* Full-screen submitting overlay */}
+      <Modal visible={submitting} transparent animationType="fade">
+        <View style={styles.submittingOverlay}>
+          <View style={styles.submittingCard}>
+            <Animated.View style={[styles.submittingIconRing, { transform: [{ scale: pulseAnim }] }]}>
+              <ActivityIndicator size="large" color="#D71920" />
+            </Animated.View>
+            <Text style={styles.submittingTitle}>Submitting Warranty Pack…</Text>
+            <Text style={styles.submittingSubtitle}>
+              Uploading evidence and locking case file.{"\n"}Please don't close the app.
+            </Text>
+            <View style={styles.submittingDotsRow}>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={styles.submittingDot} />
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <ScrollView contentContainerStyle={styles.container}>
       {/* Header */}
       <View style={styles.introHeader}>
         <View style={styles.titleRow}>
@@ -272,6 +310,7 @@ export const Step6_ReviewSubmit: React.FC<Step6Props> = ({
         </View>
       </View>
     </ScrollView>
+    </>
   );
 };
 
@@ -462,6 +501,64 @@ const styles = StyleSheet.create({
   secondaryActionsRow: {
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  // Submitting overlay
+  submittingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  submittingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 10,
+    gap: 8,
+  },
+  submittingIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(215, 25, 32, 0.15)',
+  },
+  submittingTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  submittingSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  submittingDotsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 16,
+  },
+  submittingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#D71920',
+    opacity: 0.35,
   },
 });
 

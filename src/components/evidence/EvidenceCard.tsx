@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  Linking,
+  Alert,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -65,7 +67,16 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
     : null;
 
   const isCaptured = !!evidence && !!rawImageUri;
-  const isVideo = rule.mediaType === 'video';
+  const isVideo =
+    rule.mediaType === 'video' ||
+    (rule as any).evidenceType === 'video' ||
+    evidence?.mediaType === 'video' ||
+    Boolean(
+      rawImageUri &&
+      (rawImageUri.toLowerCase().endsWith('.mp4') ||
+       rawImageUri.toLowerCase().endsWith('.mov') ||
+       rawImageUri.toLowerCase().endsWith('.webm'))
+    );
 
   const handleCapture = async (fromGallery: boolean = false) => {
     setIsCapturing(true);
@@ -216,7 +227,25 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
       {isCaptured ? (
         <View style={styles.previewContainer}>
           <View style={styles.previewMediaBox}>
-            {imageUri && !isVideo ? (
+            {isVideo ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (imageUri) {
+                    Linking.openURL(imageUri).catch(() =>
+                      Alert.alert('Playback Error', 'Unable to launch native media player for this video.')
+                    );
+                  }
+                }}
+                style={styles.videoThumbnailWrapper}
+              >
+                <Icon name="video" size={26} color="#60A5FA" />
+                <View style={styles.videoThumbnailPlayBadge}>
+                  <Icon name="play" size={10} color="#FFFFFF" />
+                  <Text style={styles.videoThumbnailPlayText}>Play MP4</Text>
+                </View>
+              </TouchableOpacity>
+            ) : imageUri ? (
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => setPreviewModalVisible(true)}
@@ -234,13 +263,11 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
             ) : (
               <View style={styles.mockThumbnail}>
                 <Icon
-                  name={isVideo ? 'video' : 'camera'}
+                  name="camera"
                   size={24}
                   color={colors.primaryLight}
                 />
-                <Text style={styles.thumbnailLabel}>
-                  {isVideo ? 'MP4 Video Attached' : 'Photo Attached'}
-                </Text>
+                <Text style={styles.thumbnailLabel}>Photo Attached</Text>
               </View>
             )}
 
@@ -362,7 +389,27 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
             </TouchableOpacity>
           </View>
           <View style={styles.previewModalBody}>
-            {imageUri ? (
+            {isVideo && imageUri ? (
+              <View style={styles.videoModalCard}>
+                <View style={styles.videoModalIconRing}>
+                  <Icon name="video" size={44} color="#60A5FA" />
+                </View>
+                <Text style={styles.videoModalTitle}>{rule.name}</Text>
+                <Text style={styles.videoModalSubtitle}>MP4 Video Evidence Stream</Text>
+                <TouchableOpacity
+                  style={styles.videoModalPlayBtn}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Linking.openURL(imageUri).catch(() =>
+                      Alert.alert('Playback Error', 'Unable to launch native media player.')
+                    );
+                  }}
+                >
+                  <Icon name="play" size={18} color="#FFFFFF" />
+                  <Text style={styles.videoModalPlayBtnText}>Play in Media Player</Text>
+                </TouchableOpacity>
+              </View>
+            ) : imageUri ? (
               <Image source={{ uri: imageUri }} style={styles.fullPreviewImage} resizeMode="contain" />
             ) : null}
           </View>
@@ -685,5 +732,82 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     color: '#34D399',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  videoThumbnailWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: spacing.borderRadius.md,
+    backgroundColor: '#0F172A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    position: 'relative',
+    gap: 4,
+  },
+  videoThumbnailPlayBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  videoThumbnailPlayText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: typography.weights.bold,
+  },
+  videoModalCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    backgroundColor: '#0F172A',
+    borderRadius: spacing.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    width: '88%',
+    maxWidth: 340,
+  },
+  videoModalIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(37, 99, 235, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  videoModalTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  videoModalSubtitle: {
+    fontSize: typography.sizes.xs - 1,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  videoModalPlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: spacing.borderRadius.md,
+    width: '100%',
+  },
+  videoModalPlayBtnText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
   },
 });

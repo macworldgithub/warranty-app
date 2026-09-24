@@ -100,6 +100,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   const [selectedVehicleForCases, setSelectedVehicleForCases] = useState<RooftopVehicle | null>(null);
   const [vehicleCasesList, setVehicleCasesList] = useState<WarrantyCase[]>([]);
   const [showNoCasesNotice, setShowNoCasesNotice] = useState<boolean>(false);
+  const [selectedVehicleForNotice, setSelectedVehicleForNotice] = useState<RooftopVehicle | null>(null);
   const [noticeVehicleName, setNoticeVehicleName] = useState<string>('');
 
   // Load sites from API
@@ -232,10 +233,15 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   };
 
   const handleViewCasesForVehicle = (veh: RooftopVehicle) => {
+    const cleanVehVin = (veh.vin || '').trim().toUpperCase();
+    const cleanVehRo = (veh.roNumber || '').trim().toUpperCase();
+
     // Find all cases matching this vehicle by VIN or RO
     const matchingCases = cases.filter(c => {
-      const vinMatch = c.vin && veh.vin && c.vin.trim().toUpperCase() === veh.vin.trim().toUpperCase();
-      const roMatch = c.roNumber && veh.roNumber && c.roNumber.trim().toUpperCase() === veh.roNumber.trim().toUpperCase();
+      const cVin = (c.vin || '').trim().toUpperCase();
+      const cRo = (c.roNumber || '').trim().toUpperCase();
+      const vinMatch = cleanVehVin && cVin && (cVin === cleanVehVin || cVin.endsWith(cleanVehVin) || cleanVehVin.endsWith(cVin));
+      const roMatch = cleanVehRo && cRo && cRo === cleanVehRo;
       return vinMatch || roMatch;
     });
 
@@ -256,7 +262,8 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     }
 
     // No cases found on record
-    setNoticeVehicleName(`${veh.year} ${veh.make} ${veh.model}`);
+    setSelectedVehicleForNotice(veh);
+    setNoticeVehicleName(`${veh.year} ${veh.make} ${veh.model} (${veh.rego})`);
     setShowNoCasesNotice(true);
   };
 
@@ -574,6 +581,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
               {/* Card Footer Actions */}
               <View style={styles.cardActionsRow}>
                 {isAdmin ? (
+                  // Admins: only view cases, no creation
                   <TouchableOpacity
                     activeOpacity={0.8}
                     onPress={() => handleViewCasesForVehicle(item)}
@@ -581,23 +589,39 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                   >
                     <FileText size={15} color={colors.primary} />
                     <Text style={styles.actionBtnAdminViewCasesText}>
-                      View Cases{item.caseCount > 0 ? ` (${item.caseCount})` : ''}
+                      {item.caseCount > 1
+                        ? `View Cases (${item.caseCount})`
+                        : item.caseCount === 1
+                        ? 'View Case'
+                        : 'Case History'}
                     </Text>
                     <ArrowRight size={14} color={colors.primary} />
                   </TouchableOpacity>
+                ) : item.caseCount > 0 || item.latestCase ? (
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => handleViewCasesForVehicle(item)}
+                      style={styles.actionBtnAdminViewCases}
+                    >
+                      <FileText size={15} color={colors.primary} />
+                      <Text style={styles.actionBtnAdminViewCasesText}>
+                        {item.caseCount > 1 ? `View Cases (${item.caseCount})` : 'View Case'}
+                      </Text>
+                      <ArrowRight size={14} color={colors.primary} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => handleStartCaseForVehicle(item)}
+                      style={styles.actionBtnSmallNewCase}
+                    >
+                      <Plus size={14} color={colors.primary} />
+                      <Text style={styles.actionBtnSmallNewCaseText}>New Case</Text>
+                    </TouchableOpacity>
+                  </>
                 ) : (
                   <>
-                    {item.latestCase ? (
-                      <TouchableOpacity
-                        activeOpacity={0.8}
-                        onPress={() => onOpenCase(item.latestCase!)}
-                        style={styles.actionBtnOutline}
-                      >
-                        <FileText size={14} color={colors.primary} />
-                        <Text style={styles.actionBtnOutlineText}>View Case</Text>
-                      </TouchableOpacity>
-                    ) : null}
-
                     <TouchableOpacity
                       activeOpacity={0.85}
                       onPress={() => handleStartCaseForVehicle(item)}
@@ -605,6 +629,17 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                     >
                       <Plus size={15} color="#FFFFFF" />
                       <Text style={styles.actionBtnPrimaryText}>New Warranty Case</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => handleViewCasesForVehicle(item)}
+                      style={styles.actionBtnOutline}
+                    >
+                      <FileText size={14} color={colors.textSecondary} />
+                      <Text style={[styles.actionBtnOutlineText, { color: colors.textSecondary }]}>
+                        Case Info
+                      </Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -785,7 +820,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
         </TouchableOpacity>
       </Modal>
 
-      {/* No Cases Found Notice Modal for Admin */}
+      {/* No Cases Found Notice Modal */}
       <Modal
         visible={showNoCasesNotice}
         transparent
@@ -812,12 +847,43 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
               There are currently no warranty tickets or claims filed for {noticeVehicleName}.
             </Text>
 
-            <Button
-              title="Close"
-              variant="outline"
-              onPress={() => setShowNoCasesNotice(false)}
-              style={{ marginTop: spacing.md }}
-            />
+            <View style={{ gap: 10, marginTop: spacing.sm }}>
+              {/* Only Technicians can start a new case from here */}
+              {!isAdmin && selectedVehicleForNotice && (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    const v = selectedVehicleForNotice;
+                    setShowNoCasesNotice(false);
+                    handleStartCaseForVehicle(v);
+                  }}
+                  style={styles.modalActionPrimaryBtn}
+                >
+                  <Plus size={16} color="#FFF" />
+                  <Text style={styles.modalActionPrimaryBtnText}>Start New Warranty Case</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  setShowNoCasesNotice(false);
+                  onOpenTickets('all');
+                }}
+                style={styles.modalActionOutlineBtn}
+              >
+                <FileText size={16} color={colors.primary} />
+                <Text style={styles.modalActionOutlineBtnText}>View All Dealership Tickets</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowNoCasesNotice(false)}
+                style={{ paddingVertical: 8, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -1610,6 +1676,55 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: colors.primary,
+  },
+  actionBtnSmallNewCase: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 4,
+  },
+  actionBtnSmallNewCaseText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  modalActionPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  modalActionPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalActionOutlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  modalActionOutlineBtnText: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
   },
   modalSubtitleVin: {
     fontSize: 11,

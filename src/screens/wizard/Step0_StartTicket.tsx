@@ -16,6 +16,7 @@ import { Input } from '../../components/common/Input';
 import { Badge } from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
 import { useCaseWizard } from '../../context/CaseWizardContext';
+import { useAuth } from '../../context/AuthContext';
 import { sitesApi } from '../../api/sites.api';
 import { brandsApi } from '../../api/brands.api';
 import { Site, Brand } from '../../types';
@@ -44,6 +45,7 @@ const MOCK_BRANDS: Brand[] = [
 ];
 
 export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) => {
+  const { user } = useAuth();
   const {
     siteId,
     siteName,
@@ -64,6 +66,16 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
   // authorizedBrandIds for the currently selected site (null = not yet loaded)
   const [siteAuthorizedIds, setSiteAuthorizedIds] = useState<string[] | null>(null);
 
+  // Sites filtered to the technician's authorizedSiteIds
+  const authorizedSites = useMemo(() => {
+    const allowed = user?.authorizedSiteIds;
+    if (!allowed || allowed.length === 0) return sites; // admin/no restriction: show all
+    return sites.filter((s) => allowed.includes(s.id));
+  }, [sites, user?.authorizedSiteIds]);
+
+  // True when there is exactly one allowed rooftop (no picker needed)
+  const singleSiteLocked = authorizedSites.length === 1;
+
   /* -- Initial load: all sites + all brands -- */
   useEffect(() => {
     const fetchData = async () => {
@@ -74,11 +86,17 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
         setSites(siteList);
         setAllBrands(brandList);
 
-        // Auto-select first site if none chosen
-        if (siteList.length > 0 && !siteId) {
-          const firstSite = siteList[0];
+        // Determine allowed sites for this technician
+        const allowed = user?.authorizedSiteIds;
+        const allowedSites =
+          allowed && allowed.length > 0
+            ? siteList.filter((st) => allowed.includes(st.id))
+            : siteList;
+
+        // Auto-select first allowed site if none chosen
+        if (allowedSites.length > 0 && !siteId) {
+          const firstSite = allowedSites[0];
           setSite(firstSite);
-          // Pull authorized brand IDs for the default site
           const authIds = firstSite.authorizedBrands ?? (firstSite as any).authorizedBrandIds ?? null;
           setSiteAuthorizedIds(authIds);
         } else if (siteId) {
@@ -92,8 +110,13 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
         setSites(MOCK_SITES);
         setAllBrands(MOCK_BRANDS);
         if (!siteId) {
-          setSite(MOCK_SITES[0]);
-          setSiteAuthorizedIds(MOCK_SITES[0].authorizedBrands ?? []);
+          const allowed = user?.authorizedSiteIds;
+          const fallbackSite =
+            allowed && allowed.length > 0
+              ? MOCK_SITES.find((s) => allowed.includes(s.id)) || MOCK_SITES[0]
+              : MOCK_SITES[0];
+          setSite(fallbackSite);
+          setSiteAuthorizedIds(fallbackSite.authorizedBrands ?? []);
         }
       } finally {
         setLoading(false);
@@ -168,9 +191,16 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
 
         {loading ? (
           <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
+        ) : singleSiteLocked ? (
+          // Single assigned rooftop — show as read-only locked badge
+          <View style={styles.lockedSiteRow}>
+            <Icon name="shield" size={16} color={colors.primary} />
+            <Text style={styles.lockedSiteText}>{authorizedSites[0].name}</Text>
+            <Badge label="Your Rooftop" variant="success" size="sm" />
+          </View>
         ) : (
           <View style={styles.chipsContainer}>
-            {sites.map((s) => {
+            {authorizedSites.map((s) => {
               const isSelected = s.id === siteId;
               return (
                 <TouchableOpacity
@@ -285,6 +315,19 @@ const styles = StyleSheet.create({
   },
   chipsContainer: {
     gap: spacing.sm,
+  },
+  lockedSiteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  lockedSiteText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+    color: colors.textPrimary,
+    flex: 1,
   },
   chip: {
     flexDirection: 'row',

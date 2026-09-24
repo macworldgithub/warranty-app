@@ -97,7 +97,8 @@ export type IconName =
   | 'wrench'
   | 'building'
   | 'zap'
-  | 'zap-off';
+  | 'zap-off'
+  | 'edit';
 
 interface IconProps {
   name: IconName;
@@ -153,6 +154,7 @@ const icons: Record<IconName, React.ComponentType<LucideProps>> = {
   building: Building,
   zap: Zap,
   'zap-off': ZapOff,
+  edit: SlidersHorizontal,
 };
 
 export const Icon: React.FC<IconProps> = ({

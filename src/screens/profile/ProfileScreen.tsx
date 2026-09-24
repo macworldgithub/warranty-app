@@ -526,16 +526,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
 
         {/* Actions Section */}
         <View style={styles.actionSection}>
-          <Button
-            title="Refresh Account Data"
-            variant="secondary"
-            size="md"
-            leftIcon={<Icon name="refresh" size={16} color={colors.textPrimary} />}
-            loading={isRefreshing}
-            onPress={handleRefresh}
-            fullWidth
-            style={styles.refreshButton}
-          />
 
           <TouchableOpacity
             activeOpacity={0.8}

@@ -63,6 +63,7 @@ function MainNavigator() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(
     isAuthenticated ? 'LIST' : 'LOGIN'
   );
+  const [previousScreen, setPreviousScreen] = useState<AppScreen>('LIST');
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
   const [caseListTab, setCaseListTab] = useState<string>('all');
   const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
@@ -210,10 +211,12 @@ function MainNavigator() {
           }}
           onStartNewCase={(initialData) => {
             startNewCase(initialData);
+            setPreviousScreen('VEHICLES');
             setCurrentScreen('WIZARD');
           }}
           onOpenCase={(caseItem) => {
             setSelectedCase(caseItem);
+            setPreviousScreen('VEHICLES');
             setCurrentScreen('DETAIL');
           }}
           onOpenProfile={() => {
@@ -231,8 +234,27 @@ function MainNavigator() {
   if (currentScreen === 'LOANERS') {
     return (
       <View style={{ flex: 1 }}>
+        <NotificationBanner
+          notification={activeNotification}
+          onPress={handleNotificationPress}
+          onDismiss={() => setActiveNotification(null)}
+        />
         <LoanVehiclesScreen
           onBack={() => setCurrentScreen('LIST')}
+          onOpenTickets={(tab) => {
+            setCaseListTab(tab || 'all');
+            setCurrentScreen('LIST');
+          }}
+          onOpenVehicles={() => {
+            setCurrentScreen('VEHICLES');
+          }}
+          onOpenProfile={() => {
+            setCurrentScreen('PROFILE');
+          }}
+          onStartNewCase={() => {
+            startNewCase();
+            setCurrentScreen('WIZARD');
+          }}
         />
       </View>
     );
@@ -266,7 +288,7 @@ function MainNavigator() {
           caseItem={selectedCase}
           onBack={() => {
             setSelectedCase(null);
-            setCurrentScreen('LIST');
+            setCurrentScreen(previousScreen || 'LIST');
           }}
           onEditEvidence={(caseItem) => {
             loadExistingCase(caseItem, false);
@@ -380,59 +402,79 @@ function MainNavigator() {
       {/* Scope Section 5.7: Official Technician Submission Confirmation Screen */}
       <Modal
         visible={Boolean(submittedReceipt)}
-        animationType="slide"
+        animationType="fade"
         transparent={false}
       >
         <View style={styles.receiptContainer}>
+          {/* Top glow accent */}
+          <View style={styles.receiptGlowTop} />
+
           <View style={styles.receiptCard}>
-            <View style={styles.receiptIconWrapper}>
-              <CheckCircle2 size={56} color="#059669" strokeWidth={2.2} />
+            {/* Success Icon */}
+            <View style={styles.receiptIconOuter}>
+              <View style={styles.receiptIconWrapper}>
+                <CheckCircle2 size={48} color="#059669" strokeWidth={2.2} />
+              </View>
             </View>
 
             <Text style={styles.receiptTitle}>Warranty Pack Submitted!</Text>
             <Text style={styles.receiptSubtitle}>
-              Evidence frozen and transmitted to Warranty Review Clerk
+              Evidence frozen and transmitted to{"\n"}Warranty Review Clerk
             </Text>
 
+            {/* Status pill */}
             <View style={styles.receiptStatusBadge}>
-              <ShieldCheck size={14} color="#D97706" />
+              <ShieldCheck size={13} color="#D97706" />
               <Text style={styles.receiptStatusText}>Awaiting Clerk Review</Text>
             </View>
 
+            {/* Details grid */}
             <View style={styles.receiptDetails}>
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Repair Order (RO)</Text>
+                <Text style={styles.receiptLabel}>Repair Order</Text>
                 <Text style={styles.receiptValueBold}>
                   #{submittedReceipt?.roNumber || roNumber}
                 </Text>
               </View>
+              <View style={styles.receiptDivider} />
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Case Reference</Text>
                 <Text style={styles.receiptValueMono}>
                   {submittedReceipt?.id || 'CASE-CR-PENDING'}
                 </Text>
               </View>
+              <View style={styles.receiptDivider} />
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Rooftop & Brand</Text>
+                <Text style={styles.receiptLabel}>Rooftop</Text>
                 <Text style={styles.receiptValue}>
-                  {submittedReceipt?.siteName || 'Cranbourne'} · {submittedReceipt?.brandName || 'BYD'}
+                  {submittedReceipt?.siteName || 'Cranbourne'}
                 </Text>
               </View>
+              <View style={styles.receiptDivider} />
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Submission Time</Text>
+                <Text style={styles.receiptLabel}>Brand</Text>
+                <Text style={styles.receiptValue}>
+                  {submittedReceipt?.brandName || 'BYD'}
+                </Text>
+              </View>
+              <View style={styles.receiptDivider} />
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Submitted At</Text>
                 <Text style={styles.receiptValue}>
                   {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
             </View>
 
+            {/* Notice */}
             <View style={styles.receiptNotice}>
-              <FileText size={14} color="#64748B" />
+              <FileText size={13} color="#64748B" />
               <Text style={styles.receiptNoticeText}>
-                All photos and videos auto-named to OEM convention and attached to dealer case file.
+                All evidence auto-named to OEM convention and attached to dealer case file.
               </Text>
             </View>
 
+            {/* CTA */}
             <TouchableOpacity
               activeOpacity={0.88}
               style={styles.receiptBtn}
@@ -483,88 +525,119 @@ const styles = StyleSheet.create({
   },
   receiptContainer: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B1221',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  receiptGlowTop: {
+    position: 'absolute',
+    top: -60,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(5, 150, 105, 0.12)',
   },
   receiptCard: {
     width: '100%',
     maxWidth: 420,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 28,
+    padding: 28,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.35,
+    shadowRadius: 40,
+    elevation: 16,
+  },
+  receiptIconOuter: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   receiptIconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(5, 150, 105, 0.2)',
   },
   receiptTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
     marginBottom: 6,
+    marginTop: 12,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   receiptSubtitle: {
     fontSize: 13,
     color: '#64748B',
     textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 18,
+    marginBottom: 14,
+    lineHeight: 19,
   },
   receiptStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.2)',
   },
   receiptStatusText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#B45309',
+    letterSpacing: 0.2,
   },
   receiptDetails: {
     width: '100%',
     backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
   },
   receiptRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 10,
   },
   receiptLabel: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   receiptValue: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1E293B',
+    maxWidth: '55%',
+    textAlign: 'right',
   },
   receiptValueBold: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -576,10 +649,16 @@ const styles = StyleSheet.create({
   },
   receiptNotice: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     marginBottom: 20,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    width: '100%',
   },
   receiptNoticeText: {
     fontSize: 11,
@@ -589,17 +668,23 @@ const styles = StyleSheet.create({
   },
   receiptBtn: {
     width: '100%',
-    backgroundColor: '#E11F26',
+    backgroundColor: '#D71920',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 15,
+    borderRadius: 14,
+    shadowColor: '#D71920',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   receiptBtnText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.2,
   },
 });

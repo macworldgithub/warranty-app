@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cameraService } from '../../services/cameraService';
 import { loanAgreementsApi } from '../../api';
 import { LoanAgreement } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 interface IssueLoanerWizardScreenProps {
   onBack: () => void;
@@ -29,7 +30,7 @@ interface IssueLoanerWizardScreenProps {
 
 const ROOFTOPS = [
   { name: 'Cranbourne', siteId: 'site_cranbourne_byd', siteName: 'Booran BYD Cranbourne' },
-  { name: 'Dandenong', siteId: 'site_dandenong_multi', siteName: 'Booran Dandenong Multi' },
+  { name: 'Dandenong', siteId: 'site_dandenong_multi', siteName: 'Booran Dandenong Multi-Franchise' },
   { name: 'Berwick', siteId: 'site_berwick_nissan', siteName: 'Booran Nissan Berwick' },
   { name: 'Cheltenham', siteId: 'site_cheltenham_mg', siteName: 'Booran MG & Chery Cheltenham' },
 ];
@@ -56,6 +57,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   isRooftopLocked = false,
 }) => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,11 +65,11 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('14 Park Road, Cranbourne VIC 3977');
+  const [address, setAddress] = useState('');
   const [licenceNumber, setLicenceNumber] = useState('');
   const [licenceState, setLicenceState] = useState('VIC');
   const [licenceExpiry, setLicenceExpiry] = useState('');
-  const [birthYear, setBirthYear] = useState('1994');
+  const [birthYear, setBirthYear] = useState('');
   const [licenceSighted, setLicenceSighted] = useState(false);
   const [licencePhotoUri, setLicencePhotoUri] = useState<string>('');
 
@@ -76,7 +78,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [registration, setRegistration] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
-  const [vehicleYear, setVehicleYear] = useState('2024');
+  const [vehicleYear, setVehicleYear] = useState('');
   const [vin, setVin] = useState('');
   const [expectedReturnDate, setExpectedReturnDate] = useState(() => {
     const d = new Date();
@@ -86,10 +88,10 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   });
 
   // Step 3: Outbound Condition
-  const [odometerOut, setOdometerOut] = useState('12450');
-  const [fuelOut, setFuelOut] = useState('100');
-  const [cleanlinessVerified, setCleanlinessVerified] = useState(true);
-  const [existingDamageNotes, setExistingDamageNotes] = useState('Nil known damage. Checked pre-delivery.');
+  const [odometerOut, setOdometerOut] = useState('');
+  const [fuelOut, setFuelOut] = useState('');
+  const [cleanlinessVerified, setCleanlinessVerified] = useState(false);
+  const [existingDamageNotes, setExistingDamageNotes] = useState('');
   const [inspectionPhotos, setInspectionPhotos] = useState<{ [key: string]: string }>({});
 
   // Step 4: Terms
@@ -98,7 +100,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
 
   // Step 5: Sign
-  const [staffName, setStaffName] = useState('Sarah Jenkins (Service Advisor)');
+  const [staffName, setStaffName] = useState(() => (user?.name ? `${user.name}${user.role ? ` (${user.role.replace('_', ' ')})` : ''}` : ''));
   const [customerPaths, setCustomerPaths] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [isCustomerSigned, setIsCustomerSigned] = useState(false);
@@ -107,13 +109,17 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
   // Surcharges calculation
   const currentYear = new Date().getFullYear();
-  const customerAge = currentYear - (parseInt(birthYear, 10) || 1995);
+  const parsedBirthYear = parseInt(birthYear, 10);
+  const isValidBirthYear = !isNaN(parsedBirthYear) && parsedBirthYear > 1920 && parsedBirthYear <= currentYear;
+  const customerAge = isValidBirthYear ? currentYear - parsedBirthYear : null;
   let basicExcess = 2500;
   let ageSurcharge = 0;
-  if (customerAge < 21) {
-    ageSurcharge = 1250;
-  } else if (customerAge <= 25) {
-    ageSurcharge = 750;
+  if (customerAge !== null) {
+    if (customerAge < 21) {
+      ageSurcharge = 1250;
+    } else if (customerAge <= 25) {
+      ageSurcharge = 750;
+    }
   }
   const totalExcess = basicExcess + ageSurcharge;
 
@@ -255,8 +261,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
   const validateStep3 = () => {
     const odo = parseInt(odometerOut, 10);
-    if (isNaN(odo) || odo <= 0) {
-      Alert.alert('Invalid Odometer', 'Please provide a valid odometer reading.');
+    if (!odometerOut.trim() || isNaN(odo) || odo < 0) {
+      Alert.alert('Invalid Odometer', 'Please provide a valid outbound odometer reading.');
       return false;
     }
     return true;
@@ -300,31 +306,31 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
         purpose: 'SERVICE_LOANER' as const,
         dueBackDateTime: new Date(expectedReturnDate).toISOString(),
         customer: {
-          name: fullName,
-          dob: `${birthYear}-01-01`,
-          mobile: phone,
-          email: email || `${phone.replace(/\D/g, '')}@booran.com.au`,
-          residentialAddress: address,
-          licenceNumber,
-          licenceState,
-          licenceExpiry: licenceExpiry || '2028-09-01',
+          name: fullName.trim(),
+          dob: birthYear.trim() ? `${birthYear.trim()}-01-01` : undefined,
+          mobile: phone.trim(),
+          email: email.trim() || undefined,
+          residentialAddress: address.trim() || undefined,
+          licenceNumber: licenceNumber.trim(),
+          licenceState: licenceState.trim(),
+          licenceExpiry: licenceExpiry.trim() || undefined,
           licenceSighted: true,
           licencePhotoUrl: licencePhotoUri || undefined,
         },
         vehicle: {
-          rego: registration.toUpperCase(),
-          make: make || 'Mitsubishi',
-          model: model || 'Outlander',
-          year: parseInt(vehicleYear, 10) || 2024,
-          vin: vin || '6T1BF3EK4LA104928',
+          rego: registration.trim().toUpperCase(),
+          make: make.trim(),
+          model: model.trim(),
+          year: parseInt(vehicleYear, 10) || new Date().getFullYear(),
+          vin: vin.trim() || undefined,
         },
         dailyKmCap: 50,
         excessKmRate: 0.50,
-        basicInsuranceExcess: 2500,
+        basicInsuranceExcess: basicExcess,
         outbound: {
-          odometerOut: parseInt(odometerOut, 10) || 12000,
+          odometerOut: parseInt(odometerOut, 10) || 0,
           fuelLevelOutPercent: parseInt(fuelOut, 10) || 100,
-          damageNotes: existingDamageNotes,
+          damageNotes: existingDamageNotes.trim() || 'Nil reported',
           photos: {
             front: inspectionPhotos.front || undefined,
             rear: inspectionPhotos.rear || undefined,
@@ -333,8 +339,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             odometerDash: inspectionPhotos.odometerDash || undefined,
           },
           issuedAt: new Date().toISOString(),
-          issuedByStaffId: 'staff_advisor_1',
-          issuedByStaffName: staffName,
+          issuedByStaffId: user?.id || 'staff_advisor_1',
+          issuedByStaffName: staffName.trim() || user?.name || 'Staff Member',
         },
       };
 
@@ -506,7 +512,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <Text style={styles.inputLabel}>Residential Address</Text>
               <TextInput
                 style={styles.input}
-                placeholder="14 Park Road, Cranbourne VIC 3977"
+                placeholder="e.g. 14 Park Road, Cranbourne VIC 3977"
                 placeholderTextColor={colors.textMuted}
                 value={address}
                 onChangeText={setAddress}
@@ -540,7 +546,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 <Text style={styles.inputLabel}>Birth Year</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="1994"
+                  placeholder="YYYY (e.g. 1994)"
                   placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
                   value={birthYear}
@@ -554,7 +560,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <Icon name="shield" size={18} color={ageSurcharge > 0 ? colors.warning : colors.primary} />
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
                 <Text style={styles.ageBannerTitle}>
-                  Calculated Age: {customerAge} yrs • {ageSurcharge > 0 ? `Young Driver Excess applies` : `Standard Excess tier`}
+                  {customerAge !== null
+                    ? `Calculated Age: ${customerAge} yrs • ${ageSurcharge > 0 ? 'Young Driver Excess applies' : 'Standard Excess tier'}`
+                    : 'Standard Excess tier • Enter birth year to calculate'}
                 </Text>
                 <Text style={styles.ageBannerSubtitle}>
                   Basic: ${basicExcess.toLocaleString()} {ageSurcharge > 0 ? `+ $${ageSurcharge} young driver surcharge` : ''} = Total Excess: ${totalExcess.toLocaleString()}
@@ -747,6 +755,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 <Text style={styles.inputLabel}>Outbound Odometer (km) *</Text>
                 <TextInput
                   style={styles.input}
+                  placeholder="e.g. 12450"
+                  placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
                   value={odometerOut}
                   onChangeText={setOdometerOut}
@@ -756,6 +766,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 <Text style={styles.inputLabel}>Fuel / Battery (%)</Text>
                 <TextInput
                   style={styles.input}
+                  placeholder="100"
+                  placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
                   value={fuelOut}
                   onChangeText={setFuelOut}
@@ -815,7 +827,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 style={[styles.input, styles.textArea]}
                 multiline
                 numberOfLines={3}
-                placeholder="Note any minor existing marks..."
+                placeholder="Note any minor existing marks (or leave empty if none)..."
                 placeholderTextColor={colors.textMuted}
                 value={existingDamageNotes}
                 onChangeText={setExistingDamageNotes}
@@ -947,7 +959,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Odometer Out</Text>
-                <Text style={styles.summaryValue}>{parseInt(odometerOut, 10).toLocaleString()} km</Text>
+                <Text style={styles.summaryValue}>
+                  {odometerOut ? `${parseInt(odometerOut, 10).toLocaleString()} km` : 'Not recorded'}
+                </Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Departure Photos</Text>
@@ -1020,6 +1034,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <Text style={styles.inputLabel}>Staff / Service Advisor Name *</Text>
               <TextInput
                 style={styles.input}
+                placeholder="e.g. Service Advisor Name"
+                placeholderTextColor={colors.textMuted}
                 value={staffName}
                 onChangeText={setStaffName}
               />

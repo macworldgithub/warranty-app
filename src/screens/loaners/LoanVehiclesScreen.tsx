@@ -15,62 +15,86 @@ import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
 import { Header } from '../../components/common/Header';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LoanAgreement, LoanAgreementKpis } from '../../types';
+import { LoanAgreement, LoanAgreementKpis, WarrantyCase } from '../../types';
 import { loanAgreementsApi } from '../../api';
+import { casesApi } from '../../api/cases.api';
+import { offlineStorage } from '../../services/offlineStorage';
+import { Clock, Car, FileText, Key } from 'lucide-react-native';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
-import { INITIAL_REAL_LOAN_AGREEMENTS } from './loanSeedData';
 import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
+import { EditLoanerModal } from './EditLoanerModal';
+import { LoanVehicleDetailsModal } from './LoanVehicleDetailsModal';
 import { useAuth } from '../../context/AuthContext';
 
 interface LoanVehiclesScreenProps {
   onBack?: () => void;
+  onOpenTickets?: (tab?: 'all' | 'awaiting') => void;
+  onOpenVehicles?: () => void;
+  onOpenProfile?: () => void;
+  onStartNewCase?: () => void;
 }
 
 const ROOFTOPS = [
-  { label: 'All Rooftops', siteId: 'all' },
-  { label: 'Cranbourne', siteId: 'site_cranbourne_byd' },
-  { label: 'Dandenong', siteId: 'site_dandenong_multi' },
-  { label: 'Berwick', siteId: 'site_berwick_nissan' },
-  { label: 'Cheltenham', siteId: 'site_cheltenham_mg' },
+  { label: 'All Rooftops', siteId: 'all', fullName: 'All Rooftops & Dealerships' },
+  { label: 'Cranbourne', siteId: 'site_cranbourne_byd', fullName: 'Booran BYD Cranbourne' },
+  { label: 'Dandenong', siteId: 'site_dandenong_multi', fullName: 'Booran Dandenong Multi-Franchise' },
+  { label: 'Berwick', siteId: 'site_berwick_nissan', fullName: 'Booran Nissan Berwick' },
+  { label: 'Cheltenham', siteId: 'site_cheltenham_mg', fullName: 'Booran MG & Chery Cheltenham' },
 ];
+
+export const getDynamicLoanCategory = (
+  status?: string,
+  dueBackDateTime?: string
+): 'RETURNED' | 'OVERDUE' | 'DUE_SOON' | 'ACTIVE' => {
+  if (status === 'RETURNED' || status === 'CANCELLED') {
+    return 'RETURNED';
+  }
+  if (!dueBackDateTime) {
+    return 'ACTIVE';
+  }
+
+  const now = Date.now();
+  const dueTime = new Date(dueBackDateTime).getTime();
+  const in60Min = now + 60 * 60 * 1000;
+
+  if (dueTime < now) {
+    return 'OVERDUE';
+  }
+  if (dueTime <= in60Min) {
+    return 'DUE_SOON';
+  }
+  return 'ACTIVE';
+};
 
 const computeKpis = (agreementList: LoanAgreement[], siteId: string): LoanAgreementKpis => {
   const filtered = siteId === 'all'
     ? agreementList
     : agreementList.filter((a) => a.siteId === siteId);
 
-  const now = Date.now();
-  const in60Min = now + 3600000;
-
+  const totalCars = filtered.length;
+  let available = 0;
   let outNow = 0;
   let dueSoon = 0;
   let overdue = 0;
 
   for (const a of filtered) {
-    if (a.status === 'ACTIVE' || a.status === 'DUE_SOON' || a.status === 'OVERDUE') {
-      outNow++;
-      const dueTime = a.dueBackDateTime ? new Date(a.dueBackDateTime).getTime() : 0;
-      if (dueTime && dueTime < now) {
-        overdue++;
-      } else if (dueTime && dueTime <= in60Min) {
-        dueSoon++;
-      }
+    if (a.status === 'RETURNED') {
+      available++;
+      continue;
+    }
+
+    outNow++;
+    const category = getDynamicLoanCategory(a.status, a.dueBackDateTime);
+    if (category === 'OVERDUE') {
+      overdue++;
+    } else if (category === 'DUE_SOON') {
+      dueSoon++;
     }
   }
 
-  // Dealership fleet allocations across Booran network
-  const fleetCapacityMap: Record<string, number> = {
-    all: 36,
-    site_cranbourne_byd: 12,
-    site_dandenong_multi: 12,
-    site_berwick_nissan: 8,
-    site_cheltenham_mg: 8,
-  };
-  const totalCapacity = fleetCapacityMap[siteId] ?? 12;
-  const available = Math.max(0, totalCapacity - outNow);
-
   return {
+    totalCars,
     available,
     outNow,
     dueSoon,
@@ -78,33 +102,102 @@ const computeKpis = (agreementList: LoanAgreement[], siteId: string): LoanAgreem
   };
 };
 
-export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }) => {
+export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
+  onBack,
+  onOpenTickets,
+  onOpenVehicles,
+  onOpenProfile,
+  onStartNewCase,
+}) => {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId } = useAuth();
 
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
   // Role separation: Technician only views their assigned rooftop, Admin can view all
   const isTechnician = user?.role === 'TECHNICIAN';
   const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
   const technicianSiteObj = ROOFTOPS.find((r) => r.siteId === technicianSiteId) || ROOFTOPS[1];
 
+  const [awaitingCount, setAwaitingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchAwaitingCount = async () => {
+      try {
+        const data = await casesApi.getCases({ limit: 100 });
+        const pending = offlineStorage.getPendingUploads();
+        const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
+        const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
+        const merged = [
+          ...pending.filter((p) => !serverIds.has(p.id)),
+          ...serverList,
+        ];
+        const count = merged.filter((c) => c.status === 'Awaiting Review').length;
+        setAwaitingCount(count);
+      } catch {
+        const pending = offlineStorage.getPendingUploads();
+        setAwaitingCount(pending.filter((c) => c.status === 'Awaiting Review').length);
+      }
+    };
+    fetchAwaitingCount();
+  }, []);
+
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   const [selectedSiteId, setSelectedSiteId] = useState(isTechnician ? technicianSiteId : 'all');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'ATTENTION' | 'RETURNED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'AVAILABLE' | 'ACTIVE' | 'DUE_SOON' | 'OVERDUE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [agreements, setAgreements] = useState<LoanAgreement[]>(() => {
-    return isTechnician
-      ? INITIAL_REAL_LOAN_AGREEMENTS.filter((a) => a.siteId === technicianSiteId)
-      : INITIAL_REAL_LOAN_AGREEMENTS;
+  const [agreements, setAgreements] = useState<LoanAgreement[]>([]);
+  const [kpis, setKpis] = useState<LoanAgreementKpis>({
+    totalCars: 0,
+    available: 0,
+    outNow: 0,
+    dueSoon: 0,
+    overdue: 0,
   });
-  const [kpis, setKpis] = useState<LoanAgreementKpis>(() =>
-    computeKpis(INITIAL_REAL_LOAN_AGREEMENTS, isTechnician ? technicianSiteId : 'all')
-  );
 
   // Modals / Subscreens
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [returnTarget, setReturnTarget] = useState<LoanAgreement | null>(null);
   const [pdfTarget, setPdfTarget] = useState<LoanAgreement | null>(null);
+  const [detailsTarget, setDetailsTarget] = useState<LoanAgreement | null>(null);
+  const [editTarget, setEditTarget] = useState<LoanAgreement | null>(null);
+
+  const handleDeleteAgreement = (agreement: LoanAgreement) => {
+    Alert.alert(
+      'Delete Loan Vehicle Record',
+      `Are you sure you want to delete agreement ${agreement.agreementNumber} (${agreement.vehicle?.rego})? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              try {
+                await loanAgreementsApi.deleteAgreement(agreement.id);
+              } catch (apiErr) {
+                console.warn('Backend delete failed, removing locally:', apiErr);
+              }
+              setAgreements((prev) => prev.filter((a) => a.id !== agreement.id));
+              setDetailsTarget(null);
+              Alert.alert('Deleted', `Loan agreement ${agreement.agreementNumber} has been removed.`);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to delete loan agreement.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Enforce rooftop lock whenever technician user is detected
   useEffect(() => {
@@ -121,21 +214,19 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
         loanAgreementsApi.findAll(siteParam),
         loanAgreementsApi.getKpis(siteParam),
       ]);
-      const list = data && data.length > 0 ? data : INITIAL_REAL_LOAN_AGREEMENTS;
+      const list = data || [];
       const scopedList = isTechnician ? list.filter((a) => a.siteId === technicianSiteId) : list;
       setAgreements(scopedList);
-      if (kpiData && (kpiData.available > 0 || kpiData.outNow > 0 || kpiData.overdue > 0)) {
+      if (kpiData && typeof kpiData.totalCars === 'number') {
         setKpis(kpiData);
       } else {
         setKpis(computeKpis(scopedList, targetSiteId));
       }
     } catch (err: any) {
-      console.warn('Failed to load loan data from API, using real local fleet data:', err?.message);
-      const scopedList = isTechnician
-        ? INITIAL_REAL_LOAN_AGREEMENTS.filter((a) => a.siteId === technicianSiteId)
-        : INITIAL_REAL_LOAN_AGREEMENTS;
-      setAgreements(scopedList);
-      setKpis(computeKpis(scopedList, isTechnician ? technicianSiteId : selectedSiteId));
+      console.warn('Failed to load loan data from API:', err?.message);
+      // Fallback: gracefully retain current state without mock data
+      setAgreements((prev) => prev || []);
+      setKpis((prev) => prev || { totalCars: 0, available: 0, outNow: 0, dueSoon: 0, overdue: 0 });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -167,14 +258,19 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
       return false;
     }
 
+    const category = getDynamicLoanCategory(ag.status, ag.dueBackDateTime);
+
     // Tab filter
-    if (activeTab === 'ACTIVE' && ag.status !== 'ACTIVE' && ag.status !== 'DUE_SOON') {
+    if (activeTab === 'AVAILABLE' && category !== 'RETURNED') {
       return false;
     }
-    if (activeTab === 'ATTENTION' && ag.status !== 'DUE_SOON' && ag.status !== 'OVERDUE') {
+    if (activeTab === 'ACTIVE' && category !== 'ACTIVE' && category !== 'DUE_SOON') {
       return false;
     }
-    if (activeTab === 'RETURNED' && ag.status !== 'RETURNED') {
+    if (activeTab === 'DUE_SOON' && category !== 'DUE_SOON') {
+      return false;
+    }
+    if (activeTab === 'OVERDUE' && category !== 'OVERDUE') {
       return false;
     }
 
@@ -191,18 +287,26 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
     return true;
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'OVERDUE':
-        return { label: 'Overdue', bg: colors.dangerLight, text: colors.danger };
-      case 'DUE_SOON':
-        return { label: 'Due in 60m', bg: colors.warningLight, text: colors.warning };
+  const getStatusBadge = (status?: string, dueBackDateTime?: string) => {
+    const category = getDynamicLoanCategory(status, dueBackDateTime);
+    switch (category) {
+      case 'OVERDUE': {
+        const diffMinutes = dueBackDateTime ? Math.round((Date.now() - new Date(dueBackDateTime).getTime()) / 60000) : 0;
+        const label = diffMinutes >= 60
+          ? `Overdue (${Math.floor(diffMinutes / 60)}h)`
+          : `Overdue (${Math.max(1, diffMinutes)}m)`;
+        return { label, bg: colors.dangerLight, text: colors.danger };
+      }
+      case 'DUE_SOON': {
+        const diffMinutes = dueBackDateTime ? Math.max(1, Math.round((new Date(dueBackDateTime).getTime() - Date.now()) / 60000)) : 60;
+        return { label: `Due in ${diffMinutes}m`, bg: colors.warningLight, text: colors.warning };
+      }
       case 'ACTIVE':
         return { label: 'On Loan', bg: colors.primaryGlow, text: colors.primary };
       case 'RETURNED':
         return { label: 'Returned', bg: colors.successLight, text: colors.success };
       default:
-        return { label: status, bg: colors.border, text: colors.textSecondary };
+        return { label: status || 'Unknown', bg: colors.border, text: colors.textSecondary };
     }
   };
 
@@ -210,7 +314,14 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
     if (!isoString) return 'Not set';
     try {
       const d = new Date(isoString);
-      return `${d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}`;
+      const now = new Date();
+      const isToday = now.toDateString() === d.toDateString();
+      const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+      if (isToday) {
+        return `Today, ${timeStr}`;
+      }
+      const dateStr = d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+      return `${dateStr}, ${timeStr}`;
     } catch {
       return isoString;
     }
@@ -281,6 +392,14 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
                 <TouchableOpacity
                   style={[styles.rooftopPill, isSelected && styles.rooftopPillActive]}
                   onPress={() => setSelectedSiteId(item.siteId)}
+                  onLongPress={() => {
+                    Alert.alert(
+                      'Dealership Rooftop',
+                      item.fullName || item.label,
+                      [{ text: 'OK', style: 'default' }]
+                    );
+                  }}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.rooftopPillText, isSelected && styles.rooftopPillTextActive]}>
                     {item.label}
@@ -293,14 +412,24 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
         </View>
       )}
 
-      {/* KPI Cards Row (from PDF page 7 Example 2) */}
+      {/* KPI Cards Row */}
       <View style={styles.kpiContainer}>
         <TouchableOpacity
           style={[styles.kpiCard, activeTab === 'ALL' && styles.kpiCardActive]}
           onPress={() => setActiveTab('ALL')}
           activeOpacity={0.7}
         >
-          <Text style={styles.kpiVal}>{kpis.available}</Text>
+          <Text style={[styles.kpiVal, { color: colors.textPrimary }]}>{kpis.totalCars ?? agreements.length}</Text>
+          <Text style={styles.kpiLabel}>Total Cars</Text>
+          <View style={[styles.kpiIndicator, { backgroundColor: colors.textMuted }]} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.kpiCard, activeTab === 'AVAILABLE' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('AVAILABLE')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.kpiVal, { color: colors.success }]}>{kpis.available}</Text>
           <Text style={styles.kpiLabel}>Available</Text>
           <View style={[styles.kpiIndicator, { backgroundColor: colors.success }]} />
         </TouchableOpacity>
@@ -316,8 +445,8 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.kpiCard, activeTab === 'ATTENTION' && styles.kpiCardActive]}
-          onPress={() => setActiveTab('ATTENTION')}
+          style={[styles.kpiCard, activeTab === 'DUE_SOON' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('DUE_SOON')}
           activeOpacity={0.7}
         >
           <Text style={[styles.kpiVal, { color: colors.warning }]}>{kpis.dueSoon}</Text>
@@ -326,8 +455,8 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.kpiCard, activeTab === 'ATTENTION' && styles.kpiCardActive]}
-          onPress={() => setActiveTab('ATTENTION')}
+          style={[styles.kpiCard, activeTab === 'OVERDUE' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('OVERDUE')}
           activeOpacity={0.7}
         >
           <Text style={[styles.kpiVal, { color: colors.danger }]}>{kpis.overdue}</Text>
@@ -389,7 +518,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: Math.max(insets.bottom + 24, 48) },
+            { paddingBottom: Math.max(insets.bottom + 90, 110) },
           ]}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -403,8 +532,9 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
             </View>
           }
           renderItem={({ item }) => {
-            const badge = getStatusBadge(item.status);
-            const isLoanActive = item.status === 'ACTIVE' || item.status === 'DUE_SOON' || item.status === 'OVERDUE';
+            const badge = getStatusBadge(item.status, item.dueBackDateTime);
+            const category = getDynamicLoanCategory(item.status, item.dueBackDateTime);
+            const isLoanActive = category !== 'RETURNED';
             return (
               <View style={styles.card}>
                 {/* Top Row: Rego + Rooftop + Status */}
@@ -423,7 +553,23 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
                     </Text>
                     <Text style={styles.cardAgreementNum}>{item.agreementNumber}</Text>
                   </View>
-                  <Text style={styles.cardRooftop}>{item.siteName}</Text>
+                  <TouchableOpacity
+                    style={styles.cardRooftopBadge}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      const isMulti = item.siteId === 'site_dandenong_multi' || (item.siteName && item.siteName.toLowerCase().includes('multi'));
+                      Alert.alert(
+                        'Rooftop Location',
+                        `${item.siteName || 'Booran Dealership'}${isMulti ? '\n\nMulti-Franchise Dealership Network' : ''}`,
+                        [{ text: 'Close', style: 'cancel' }]
+                      );
+                    }}
+                  >
+                    <Text style={styles.cardRooftop} numberOfLines={1} ellipsizeMode="tail">
+                      {item.siteName}
+                    </Text>
+                    <Icon name="info" size={11} color={colors.primary} />
+                  </TouchableOpacity>
                 </View>
 
                 {/* Middle Info: Customer & Timings */}
@@ -438,7 +584,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
                   <View style={styles.detailItem}>
                     <Icon name="clock" size={14} color={colors.textSecondary} />
                     <Text style={styles.detailText}>
-                      {item.status === 'RETURNED'
+                      {category === 'RETURNED'
                         ? `Returned: ${formatDueTime(item.inbound?.returnedAt)}`
                         : `Expected: ${formatDueTime(item.dueBackDateTime)}`}
                     </Text>
@@ -461,25 +607,53 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
                   ) : null}
                 </View>
 
-                {/* Bottom Actions */}
+                {/* Bottom Actions: Details, Edit, PDF, Check In, Delete */}
                 <View style={styles.cardActions}>
                   <TouchableOpacity
-                    style={styles.cardPdfBtn}
-                    onPress={() => setPdfTarget(item)}
+                    style={styles.cardActionIconBtn}
+                    onPress={() => setDetailsTarget(item)}
+                    activeOpacity={0.7}
                   >
-                    <Icon name="file-text" size={16} color={colors.primary} />
-                    <Text style={styles.cardPdfBtnText}>View PDF</Text>
+                    <Icon name="info" size={14} color={colors.textSecondary} />
+                    <Text style={styles.cardActionIconBtnText}>Details</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cardActionIconBtn}
+                    onPress={() => setEditTarget(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="edit" size={14} color={colors.primary} />
+                    <Text style={[styles.cardActionIconBtnText, { color: colors.primary }]}>Edit</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cardActionIconBtn}
+                    onPress={() => setPdfTarget(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="file-text" size={14} color={colors.textSecondary} />
+                    <Text style={styles.cardActionIconBtnText}>PDF</Text>
                   </TouchableOpacity>
 
                   {isLoanActive && (
                     <TouchableOpacity
                       style={styles.cardReturnBtn}
                       onPress={() => setReturnTarget(item)}
+                      activeOpacity={0.7}
                     >
-                      <Icon name="check-circle" size={16} color="#FFF" />
-                      <Text style={styles.cardReturnBtnText}>Check In / Return</Text>
+                      <Icon name="check-circle" size={14} color="#FFF" />
+                      <Text style={styles.cardReturnBtnText}>Check In</Text>
                     </TouchableOpacity>
                   )}
+
+                  <TouchableOpacity
+                    style={styles.cardDeleteBtn}
+                    onPress={() => handleDeleteAgreement(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="trash" size={15} color={colors.danger} />
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -499,12 +673,182 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({ onBack }
         }}
       />
 
+      {/* View Details Modal (Read) */}
+      <LoanVehicleDetailsModal
+        visible={detailsTarget !== null}
+        agreement={detailsTarget}
+        onClose={() => setDetailsTarget(null)}
+        onEdit={(ag) => {
+          setDetailsTarget(null);
+          setEditTarget(ag);
+        }}
+        onViewPdf={(ag) => {
+          setDetailsTarget(null);
+          setPdfTarget(ag);
+        }}
+        onReturn={(ag) => {
+          setDetailsTarget(null);
+          setReturnTarget(ag);
+        }}
+        onDelete={(ag) => {
+          handleDeleteAgreement(ag);
+        }}
+      />
+
+      {/* Edit Loan Details Modal (Update) */}
+      <EditLoanerModal
+        visible={editTarget !== null}
+        agreement={editTarget}
+        onClose={() => setEditTarget(null)}
+        onUpdateCompleted={(_updated) => {
+          setEditTarget(null);
+          setAgreements((prev) => prev.map((a) => (a.id === _updated.id ? _updated : a)));
+          fetchLoanData();
+        }}
+      />
+
       {/* Official Legal PDF Viewer Modal */}
       <LoanAgreementPdfModal
         visible={pdfTarget !== null}
         agreement={pdfTarget}
         onClose={() => setPdfTarget(null)}
       />
+
+      {/* Website-Style 5-Item Symmetrical Bottom Bar */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
+        {isAdmin ? (
+          <>
+            {/* 1. Awaiting Cases (Extreme Left) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets?.('awaiting')}
+              style={styles.bottomBarTab}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Clock size={20} color={colors.textSecondary} />
+                {awaitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+            </TouchableOpacity>
+
+            {/* 2. Vehicles */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenVehicles}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Tickets (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets?.('all')}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Tickets</Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners (ACTIVE) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.bottomBarTab}
+            >
+              <Key size={20} color={colors.primary} />
+              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Loaners</Text>
+            </TouchableOpacity>
+
+            {/* 5. Logged-in User Profile (Extreme Right) */}
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
+                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Technician Layout */}
+            {/* 1. Tickets */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets?.('all')}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Tickets</Text>
+            </TouchableOpacity>
+
+            {/* 2. Vehicles */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenVehicles}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Loaners (ACTIVE) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={styles.bottomBarTab}
+            >
+              <Key size={20} color={colors.primary} />
+              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Loaners</Text>
+            </TouchableOpacity>
+
+            {/* 4. Awaiting */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onOpenTickets?.('awaiting')}
+              style={styles.bottomBarTab}
+            >
+              <View style={styles.tabIconWrapper}>
+                <Clock size={20} color={colors.textSecondary} />
+                {awaitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+            </TouchableOpacity>
+
+            {/* 5. Profile */}
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={styles.bottomBarAvatar}>
+                <Text style={styles.bottomBarAvatarText}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     </View>
   );
 };
@@ -756,10 +1100,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
+  cardRooftopBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    maxWidth: 135,
+    alignSelf: 'flex-start',
+  },
   cardRooftop: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.primary,
+    flexShrink: 1,
   },
   cardDetails: {
     backgroundColor: colors.background,
@@ -792,9 +1150,27 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: spacing.sm,
-    marginTop: 4,
+    gap: 6,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  cardActionIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceElevated || '#F1F5F9',
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 4,
+  },
+  cardActionIconBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   cardPdfBtn: {
     flexDirection: 'row',
@@ -814,16 +1190,26 @@ const styles = StyleSheet.create({
   cardReturnBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 6,
     backgroundColor: colors.success,
     gap: 4,
   },
   cardReturnBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#FFF',
     fontWeight: '700',
+  },
+  cardDeleteBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: colors.dangerLight,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   centerContainer: {
     flex: 1,
@@ -853,5 +1239,93 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     paddingHorizontal: spacing.lg,
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    minHeight: 84,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 6,
+    paddingTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 12,
+  },
+  bottomBarTab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 42,
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  bottomBarUserTab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 42,
+    paddingHorizontal: 2,
+    gap: 3,
+  },
+  bottomBarAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(215, 25, 32, 0.08)',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBarAvatarAdmin: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#D97706',
+  },
+  bottomBarAvatarText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: colors.primary,
+    includeFontPadding: false,
+  },
+  bottomBarAvatarTextAdmin: {
+    color: '#D97706',
+  },
+  tabIconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    minWidth: 15,
+    height: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  tabBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  bottomBarLabel: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: -0.1,
   },
 });

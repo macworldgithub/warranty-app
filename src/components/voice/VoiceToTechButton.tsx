@@ -139,7 +139,6 @@ export const VoiceToTechButton: React.FC<VoiceToTechButtonProps> = ({
                 <Icon name="sparkles" size={20} color={colors.primary} />
                 <Text style={styles.modalTitle}>Voice to Tech Transcript</Text>
               </View>
-              <Badge label="Australian English" variant="success" size="sm" />
             </View>
 
             {ruleName && (

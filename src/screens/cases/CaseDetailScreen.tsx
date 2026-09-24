@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -78,6 +79,27 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
       return `${base}${raw}`;
     }
     return raw;
+  };
+
+  // Helper to open / play video evidence via system media player
+  const handlePlayVideo = async (uri: string | null) => {
+    if (!uri) {
+      Alert.alert('Cannot Play Video', 'No valid video file URL found for this evidence.');
+      return;
+    }
+    try {
+      const canOpen = await Linking.canOpenURL(uri);
+      if (canOpen || Platform.OS === 'android') {
+        await Linking.openURL(uri);
+      } else {
+        Alert.alert('Cannot Play Video', 'No application found to stream or play this video.');
+      }
+    } catch (err) {
+      console.warn('Failed to open video with Linking.openURL:', err);
+      Linking.openURL(uri).catch(() => {
+        Alert.alert('Playback Error', 'Unable to launch native media player for this video.');
+      });
+    }
   };
 
   // Accept Form State
@@ -365,46 +387,83 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
                     </View>
 
                     {/* Image / Video Media Preview */}
-                    <TouchableOpacity
-                      style={styles.evidenceImageWrapper}
-                      activeOpacity={0.88}
-                      onPress={() => setSelectedEvidence(ev)}
-                    >
-                      {imgUri ? (
-                        <Image
-                          source={{ uri: imgUri }}
-                          style={styles.evidenceImagePreview}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.evidencePlaceholderBox}>
-                          <Icon
-                            name={isVideo ? 'video' : 'camera'}
-                            size={32}
-                            color={colors.textMuted}
-                          />
-                          <Text style={styles.evidencePlaceholderText}>
-                            {isVideo ? 'Video Evidence Recorded' : 'Photo Evidence Captured'}
-                          </Text>
-                        </View>
-                      )}
-
-                      {/* Video Play Overlay */}
-                      {isVideo && (
-                        <View style={styles.videoOverlayBadge}>
-                          <Icon name="play" size={16} color="#FFFFFF" />
+                    {isVideo ? (
+                      <View style={styles.videoCardWrapper}>
+                        <View style={styles.videoCardHeader}>
+                          <View style={styles.videoBadge}>
+                            <Icon name="video" size={13} color="#3B82F6" />
+                            <Text style={styles.videoBadgeText}>MP4 Video Evidence</Text>
+                          </View>
                           {ev.durationSeconds ? (
-                            <Text style={styles.videoOverlayDuration}>{ev.durationSeconds}s</Text>
+                            <View style={styles.videoDurationPill}>
+                              <Text style={styles.videoDurationText}>{ev.durationSeconds}s</Text>
+                            </View>
                           ) : null}
                         </View>
-                      )}
 
-                      {/* Enlarge / Full-screen Indicator */}
-                      <View style={styles.zoomChip}>
-                        <Icon name="search" size={11} color="#FFFFFF" />
-                        <Text style={styles.zoomChipText}>Tap to inspect</Text>
+                        <View style={styles.videoCenterPlayContainer}>
+                          <TouchableOpacity
+                            style={styles.videoPlayCircle}
+                            activeOpacity={0.8}
+                            onPress={() => handlePlayVideo(imgUri)}
+                          >
+                            <Icon name="play" size={26} color="#FFFFFF" />
+                          </TouchableOpacity>
+                          <Text style={styles.videoCenterHint}>Tap to stream in media player</Text>
+                        </View>
+
+                        <View style={styles.videoCardBottomActions}>
+                          <TouchableOpacity
+                            style={styles.videoInspectChip}
+                            activeOpacity={0.8}
+                            onPress={() => setSelectedEvidence(ev)}
+                          >
+                            <Icon name="search" size={11} color="#CBD5E1" />
+                            <Text style={styles.videoInspectChipText}>Evidence Info</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.videoDirectPlayBtn}
+                            activeOpacity={0.8}
+                            onPress={() => handlePlayVideo(imgUri)}
+                          >
+                            <Icon name="play" size={12} color="#FFFFFF" />
+                            <Text style={styles.videoDirectPlayBtnText}>Play MP4</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.evidenceImageWrapper}
+                        activeOpacity={0.88}
+                        onPress={() => setSelectedEvidence(ev)}
+                      >
+                        {imgUri ? (
+                          <Image
+                            source={{ uri: imgUri }}
+                            style={styles.evidenceImagePreview}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.evidencePlaceholderBox}>
+                            <Icon
+                              name="camera"
+                              size={32}
+                              color={colors.textMuted}
+                            />
+                            <Text style={styles.evidencePlaceholderText}>
+                              Photo Evidence Captured
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Enlarge / Full-screen Indicator */}
+                        <View style={styles.zoomChip}>
+                          <Icon name="search" size={11} color="#FFFFFF" />
+                          <Text style={styles.zoomChipText}>Tap to inspect</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )}
 
                     {/* OCR Extracted Text Display */}
                     {ev.ocrExtractedText ? (
@@ -741,28 +800,74 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
             </TouchableOpacity>
           </View>
 
-          {/* Full Screen Image Body */}
+          {/* Full Screen Image / Video Body */}
           <View style={styles.lightboxBody}>
-            {selectedEvidence && getEvidenceUri(selectedEvidence) ? (
-              <Image
-                source={{ uri: getEvidenceUri(selectedEvidence)! }}
-                style={styles.lightboxImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.lightboxNoImage}>
-                <Icon
-                  name={selectedEvidence?.mediaType === 'video' ? 'video' : 'camera'}
-                  size={48}
-                  color="#94A3B8"
-                />
-                <Text style={styles.lightboxNoImageText}>
-                  {selectedEvidence?.mediaType === 'video'
-                    ? 'Video Media File'
-                    : 'Image File Not Available'}
-                </Text>
-              </View>
-            )}
+            {(() => {
+              const selectedUri = selectedEvidence ? getEvidenceUri(selectedEvidence) : null;
+              const isSelectedVideo = Boolean(
+                selectedEvidence?.mediaType === 'video' ||
+                selectedEvidence?.storageUrl?.toLowerCase().endsWith('.mp4') ||
+                selectedEvidence?.storageUrl?.toLowerCase().endsWith('.mov') ||
+                selectedEvidence?.fileUri?.toLowerCase().endsWith('.mp4') ||
+                selectedEvidence?.fileUri?.toLowerCase().endsWith('.mov') ||
+                selectedUri?.toLowerCase().endsWith('.mp4') ||
+                selectedUri?.toLowerCase().endsWith('.mov')
+              );
+
+              if (selectedEvidence && isSelectedVideo) {
+                return (
+                  <View style={styles.lightboxVideoContainer}>
+                    <View style={styles.lightboxVideoIconRing}>
+                      <Icon name="video" size={44} color="#60A5FA" />
+                    </View>
+                    <Text style={styles.lightboxVideoTitle} numberOfLines={2}>
+                      {selectedEvidence.ruleName || selectedEvidence.name || selectedEvidence.ruleKey || 'Video Evidence Recording'}
+                    </Text>
+                    <Text style={styles.lightboxVideoSubtitle}>
+                      {selectedEvidence.durationSeconds ? `${selectedEvidence.durationSeconds}s Duration • ` : ''}H.264 / AAC MP4 Recording
+                    </Text>
+
+                    <TouchableOpacity
+                      style={styles.lightboxPlayButton}
+                      activeOpacity={0.85}
+                      onPress={() => handlePlayVideo(selectedUri)}
+                    >
+                      <Icon name="play" size={22} color="#FFFFFF" />
+                      <Text style={styles.lightboxPlayButtonText}>Play Video in Media Player</Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.lightboxVideoHint}>
+                      Streams with native hardware acceleration, audio, and scrub controls.
+                    </Text>
+                  </View>
+                );
+              }
+
+              if (selectedEvidence && selectedUri) {
+                return (
+                  <Image
+                    source={{ uri: selectedUri }}
+                    style={styles.lightboxImage}
+                    resizeMode="contain"
+                  />
+                );
+              }
+
+              return (
+                <View style={styles.lightboxNoImage}>
+                  <Icon
+                    name={isSelectedVideo ? 'video' : 'camera'}
+                    size={48}
+                    color="#94A3B8"
+                  />
+                  <Text style={styles.lightboxNoImageText}>
+                    {isSelectedVideo
+                      ? 'Video Media File'
+                      : 'Image File Not Available'}
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
           {/* Bottom Bar Info */}
@@ -1531,5 +1636,171 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.5,
+  },
+  // Video Card Styles
+  videoCardWrapper: {
+    width: '100%',
+    height: 190,
+    backgroundColor: '#0F172A',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: spacing.borderRadius.sm,
+  },
+  videoCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  videoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(59, 130, 246, 0.18)',
+    borderColor: 'rgba(59, 130, 246, 0.35)',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: spacing.borderRadius.full,
+  },
+  videoBadgeText: {
+    fontSize: typography.sizes.xs - 2,
+    fontWeight: typography.weights.bold,
+    color: '#93C5FD',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  videoDurationPill: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  videoDurationText: {
+    fontSize: typography.sizes.xs - 2,
+    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  videoCenterPlayContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  videoPlayCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  videoCenterHint: {
+    fontSize: typography.sizes.xs - 1,
+    color: '#94A3B8',
+    fontWeight: typography.weights.medium,
+  },
+  videoCardBottomActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  videoInspectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  videoInspectChipText: {
+    fontSize: typography.sizes.xs - 2,
+    color: '#CBD5E1',
+    fontWeight: typography.weights.medium,
+  },
+  videoDirectPlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#059669',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  videoDirectPlayBtnText: {
+    fontSize: typography.sizes.xs - 2,
+    color: '#FFFFFF',
+    fontWeight: typography.weights.bold,
+  },
+  // Lightbox Video Modal
+  lightboxVideoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    backgroundColor: '#0F172A',
+    borderRadius: spacing.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    width: '92%',
+    maxWidth: 380,
+  },
+  lightboxVideoIconRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(37, 99, 235, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  lightboxVideoTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  lightboxVideoSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  lightboxPlayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: spacing.borderRadius.md,
+    width: '100%',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  lightboxPlayButtonText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: '#FFFFFF',
+  },
+  lightboxVideoHint: {
+    fontSize: typography.sizes.xs - 2,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: spacing.md,
+    lineHeight: 16,
   },
 });

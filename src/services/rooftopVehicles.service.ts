@@ -337,27 +337,40 @@ export const rooftopVehiclesService = {
       (v) => isAll || v.siteId.toLowerCase() === siteId.toLowerCase()
     );
 
-    // 2. Map of existing vehicles by VIN
+    // 2. Map of existing vehicles by VIN - initialize dynamically with 0 cases
     const vehicleMap = new Map<string, RooftopVehicle>();
     for (const v of baseList) {
-      vehicleMap.set(v.vin.toUpperCase(), { ...v });
+      vehicleMap.set(v.vin.toUpperCase(), {
+        ...v,
+        caseCount: 0,
+        latestCase: undefined,
+        warrantyStatus: 'Under Warranty',
+      });
     }
 
-    // 3. Merge cases for this siteId
+    // 3. Merge cases for this siteId (or all if network view)
     const siteCases = cases.filter(
-      (c) => isAll || c.siteId?.toLowerCase() === siteId.toLowerCase()
+      (c) => isAll || (c.siteId && c.siteId.toLowerCase() === siteId.toLowerCase())
     );
 
     for (const c of siteCases) {
-      if (!c.vin) continue;
-      const cleanVin = c.vin.toUpperCase();
-      const existing = vehicleMap.get(cleanVin);
+      if (!c.vin && !c.roNumber) continue;
+      const cleanVin = (c.vin || '').trim().toUpperCase();
+      const cleanRo = (c.roNumber || '').trim().toUpperCase();
+
+      let existing = cleanVin ? vehicleMap.get(cleanVin) : undefined;
+      if (!existing && cleanRo) {
+        existing = Array.from(vehicleMap.values()).find(
+          v => v.roNumber && v.roNumber.trim().toUpperCase() === cleanRo
+        );
+      }
 
       if (existing) {
         existing.caseCount += 1;
         existing.latestCase = c;
         if (c.roNumber) existing.roNumber = c.roNumber;
         if (c.claimNumber) existing.claimNumber = c.claimNumber;
+        if (c.concernTitle) existing.concernTitle = c.concernTitle;
         if (c.odometer && c.odometer > (existing.odometer || 0)) {
           existing.odometer = c.odometer;
         }
@@ -366,8 +379,8 @@ export const rooftopVehiclesService = {
         } else if (c.status === 'Submitted' || c.status === 'Closed') {
           existing.warrantyStatus = 'Complete';
         }
-      } else {
-        // Vehicle created dynamically from case
+      } else if (cleanVin) {
+        // Vehicle created dynamically from live case
         vehicleMap.set(cleanVin, {
           id: `dyn_${cleanVin.slice(-6)}`,
           vin: cleanVin,

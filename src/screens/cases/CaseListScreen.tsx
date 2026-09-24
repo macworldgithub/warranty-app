@@ -101,7 +101,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
     }
   }, [initialTab]);
 
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
 
   useEffect(() => {
     setUnreadNotifCount(notificationsService.getUnreadCount());
@@ -245,38 +245,25 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Clean App Header: Logo left, Loaners + Notification Bell right */}
+      {/* Clean App Header: Logo left, Notification Bell right */}
       <Header
         showBrandLogo
         rightAction={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {onOpenLoaners && (
-              <TouchableOpacity
-                activeOpacity={0.75}
-                onPress={onOpenLoaners}
-                style={styles.loanerHeaderBtn}
-                accessibilityLabel="Service Loaners"
-              >
-                <Icon name="key" size={14} color="#FFFFFF" />
-                <Text style={styles.loanerHeaderBtnText}>Loaners</Text>
-              </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              setShowNotifModal(true);
+            }}
+            style={styles.bellBtn}
+            accessibilityLabel="Warranty Alerts"
+          >
+            <Bell size={20} color="#FFFFFF" />
+            {(unreadNotifCount > 0 || flaggedCount > 0) && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
+              </View>
             )}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                setShowNotifModal(true);
-              }}
-              style={styles.bellBtn}
-              accessibilityLabel="Warranty Alerts"
-            >
-              <Bell size={20} color="#FFFFFF" />
-              {(unreadNotifCount > 0 || flaggedCount > 0) && (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         }
       />
 
@@ -834,22 +821,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: colors.primary,
-  },
-  loanerHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 16,
-    gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  loanerHeaderBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 12,
   },
   bellBtn: {
     width: 44,

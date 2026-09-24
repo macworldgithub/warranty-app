@@ -33,4 +33,12 @@ export const loanAgreementsApi = {
   returnAgreement: async (id: string, dto: any): Promise<LoanAgreement> => {
     return apiClient.post<LoanAgreement>(`/loan-agreements/${id}/return`, dto);
   },
+
+  updateAgreement: async (id: string, dto: any): Promise<LoanAgreement> => {
+    return apiClient.patch<LoanAgreement>(`/loan-agreements/${id}`, dto);
+  },
+
+  deleteAgreement: async (id: string): Promise<{ success: boolean; message: string }> => {
+    return apiClient.delete<{ success: boolean; message: string }>(`/loan-agreements/${id}`);
+  },
 };
