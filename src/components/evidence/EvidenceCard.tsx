@@ -10,6 +10,7 @@ import {
   Platform,
   Linking,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -47,6 +48,8 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
   const [isCapturing, setIsCapturing] = useState(false);
   const [showSampleGuide, setShowSampleGuide] = useState(false);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 360;
 
   const rawImageUri =
     evidence?.fileUri ||
@@ -77,6 +80,19 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
        rawImageUri.toLowerCase().endsWith('.mov') ||
        rawImageUri.toLowerCase().endsWith('.webm'))
     );
+
+  const formatCapturedAt = (value?: string) => {
+    if (!value) return 'Timestamp unavailable';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Timestamp unavailable';
+    return parsed.toLocaleString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   const handleCapture = async (fromGallery: boolean = false) => {
     setIsCapturing(true);
@@ -226,7 +242,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
       {/* Captured Evidence Preview */}
       {isCaptured ? (
         <View style={styles.previewContainer}>
-          <View style={styles.previewMediaBox}>
+          <View style={[styles.previewMediaBox, isCompactLayout && styles.previewMediaBoxCompact]}>
             {isVideo ? (
               <TouchableOpacity
                 activeOpacity={0.85}
@@ -289,6 +305,14 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
                   <Icon name="clock" size={14} color={colors.warning} />
                   <Text style={styles.metaText}>
                     Duration: {evidence.durationSeconds}s
+                  </Text>
+                </View>
+              ) : null}
+              {evidence?.capturedAt ? (
+                <View style={styles.metaRow}>
+                  <Icon name="clock" size={14} color={colors.accentCyan || '#06B6D4'} />
+                  <Text style={styles.metaText} numberOfLines={2}>
+                    Captured: {formatCapturedAt(evidence.capturedAt)}
                   </Text>
                 </View>
               ) : null}
@@ -527,6 +551,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    flexWrap: 'wrap',
   },
   galleryBtn: {
     width: 44,
@@ -551,6 +576,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     gap: spacing.md,
+  },
+  previewMediaBoxCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   realThumbnail: {
     width: 84,
@@ -593,12 +622,15 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 6,
+    flexShrink: 1,
   },
   metaText: {
     fontSize: 11,
     color: colors.textSecondary,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   actionRow: {
     flexDirection: 'row',

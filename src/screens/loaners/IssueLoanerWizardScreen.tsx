@@ -11,6 +11,7 @@ import {
   PanResponder,
   Image,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -20,6 +21,7 @@ import { cameraService } from '../../services/cameraService';
 import { loanAgreementsApi } from '../../api';
 import { LoanAgreement } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { formatDateForInput } from '../../utils/date';
 
 interface IssueLoanerWizardScreenProps {
   onBack: () => void;
@@ -72,6 +74,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [birthYear, setBirthYear] = useState('');
   const [licenceSighted, setLicenceSighted] = useState(false);
   const [licencePhotoUri, setLicencePhotoUri] = useState<string>('');
+  const [showLicenceExpiryPicker, setShowLicenceExpiryPicker] = useState(false);
 
   // Step 2: Vehicle
   const [rooftop, setRooftop] = useState(initialRooftop);
@@ -80,12 +83,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [model, setModel] = useState('');
   const [vehicleYear, setVehicleYear] = useState('');
   const [vin, setVin] = useState('');
+  const [showExpectedDatePicker, setShowExpectedDatePicker] = useState(false);
+  const [showExpectedTimePicker, setShowExpectedTimePicker] = useState(false);
   const [expectedReturnDate, setExpectedReturnDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    d.setHours(17, 0, 0, 0);
-    return d.toISOString().slice(0, 16).replace('T', ' ');
+    return formatDateForInput(d);
   });
+  const [expectedReturnTime, setExpectedReturnTime] = useState('17:00');
 
   // Step 3: Outbound Condition
   const [odometerOut, setOdometerOut] = useState('');
@@ -298,13 +303,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
     try {
       setIsSubmitting(true);
       const chosenRooftop = ROOFTOPS.find((r) => r.name.toLowerCase() === rooftop.toLowerCase()) || ROOFTOPS[0];
+      const dueBackDate = new Date(`${expectedReturnDate}T${expectedReturnTime || '17:00'}`);
 
       // 1. Create Draft Loan Agreement in MongoDB
       const createPayload = {
         siteId: chosenRooftop.siteId,
         siteName: chosenRooftop.siteName,
         purpose: 'SERVICE_LOANER' as const,
-        dueBackDateTime: new Date(expectedReturnDate).toISOString(),
+        dueBackDateTime: dueBackDate.toISOString(),
         customer: {
           name: fullName.trim(),
           dob: birthYear.trim() ? `${birthYear.trim()}-01-01` : undefined,
@@ -555,6 +561,36 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
             </View>
 
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Licence Expiry</Text>
+              <TouchableOpacity
+                onPress={() => setShowLicenceExpiryPicker(true)}
+                activeOpacity={0.8}
+              >
+                <TextInput
+                  style={styles.input}
+                  placeholder="Select expiry date"
+                  placeholderTextColor={colors.textMuted}
+                  value={licenceExpiry}
+                  editable={false}
+                  pointerEvents="none"
+                />
+              </TouchableOpacity>
+              {showLicenceExpiryPicker && (
+                <DateTimePicker
+                  value={licenceExpiry ? new Date(licenceExpiry) : new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(_, selectedDate) => {
+                    setShowLicenceExpiryPicker(false);
+                    if (selectedDate) {
+                      setLicenceExpiry(formatDateForInput(selectedDate));
+                    }
+                  }}
+                />
+              )}
+            </View>
+
             {/* Age Surcharge Callout */}
             <View style={styles.ageBanner}>
               <Icon name="shield" size={18} color={ageSurcharge > 0 ? colors.warning : colors.primary} />
@@ -724,13 +760,50 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Expected Return Date & Time</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="2026-09-24 17:00"
-                placeholderTextColor={colors.textMuted}
-                value={expectedReturnDate}
-                onChangeText={setExpectedReturnDate}
-              />
+              <View style={styles.row}>
+                <TouchableOpacity
+                  style={[styles.input, styles.dateFieldContainer, { flex: 1, marginRight: spacing.sm }]}
+                  onPress={() => setShowExpectedDatePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dateFieldText}>{expectedReturnDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.input, styles.dateFieldContainer, { flex: 1 }]}
+                  onPress={() => setShowExpectedTimePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.dateFieldText}>{expectedReturnTime || 'Select time'}</Text>
+                </TouchableOpacity>
+              </View>
+              {showExpectedDatePicker && (
+                <DateTimePicker
+                  value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
+                  mode="date"
+                  display="default"
+                  onChange={(_, selectedDate) => {
+                    setShowExpectedDatePicker(false);
+                    if (selectedDate) {
+                      setExpectedReturnDate(formatDateForInput(selectedDate));
+                    }
+                  }}
+                />
+              )}
+              {showExpectedTimePicker && (
+                <DateTimePicker
+                  value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
+                  mode="time"
+                  display="default"
+                  onChange={(_, selectedDate) => {
+                    setShowExpectedTimePicker(false);
+                    if (selectedDate) {
+                      const nextHour = selectedDate.getHours().toString().padStart(2, '0');
+                      const nextMinute = selectedDate.getMinutes().toString().padStart(2, '0');
+                      setExpectedReturnTime(`${nextHour}:${nextMinute}`);
+                    }
+                  }}
+                />
+              )}
             </View>
 
             <View style={styles.capNotice}>
@@ -1214,6 +1287,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
+  dateFieldContainer: {
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  dateFieldText: {
     color: colors.textPrimary,
     fontSize: 14,
   },

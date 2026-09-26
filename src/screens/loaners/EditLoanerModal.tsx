@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -44,6 +45,7 @@ export const EditLoanerModal: React.FC<EditLoanerModalProps> = ({
   const [model, setModel] = useState(agreement.vehicle?.model || '');
   const [colour, setColour] = useState(agreement.vehicle?.colour || '');
   const [dueBackIso, setDueBackIso] = useState(agreement.dueBackDateTime || new Date().toISOString());
+  const [showDueBackPicker, setShowDueBackPicker] = useState(false);
   const [dailyKmCap, setDailyKmCap] = useState(String(agreement.dailyKmCap || 50));
   const [excessKmRate, setExcessKmRate] = useState(String(agreement.excessKmRate || 0.5));
   const [damageNotes, setDamageNotes] = useState(agreement.outbound?.damageNotes || '');
@@ -218,6 +220,28 @@ export const EditLoanerModal: React.FC<EditLoanerModalProps> = ({
                   <Text style={styles.quickTimeBtnText}>Tomorrow{'\n'}5:30 PM</Text>
                 </TouchableOpacity>
               </View>
+
+              <Text style={[styles.subFieldLabel, { marginTop: spacing.md }]}>Set return date & time</Text>
+              <TouchableOpacity
+                style={[styles.input, styles.dateFieldContainer]}
+                onPress={() => setShowDueBackPicker(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dateFieldText}>{formatDueDisplay(dueBackIso)}</Text>
+              </TouchableOpacity>
+              {showDueBackPicker && (
+                <DateTimePicker
+                  value={new Date(dueBackIso)}
+                  mode="datetime"
+                  display="default"
+                  onChange={(_, selectedDate) => {
+                    setShowDueBackPicker(false);
+                    if (selectedDate) {
+                      setDueBackIso(selectedDate.toISOString());
+                    }
+                  }}
+                />
+              )}
             </View>
 
             {/* Customer Details */}
@@ -506,6 +530,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 14,
     color: colors.textPrimary,
+  },
+  dateFieldContainer: {
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  dateFieldText: {
+    color: colors.textPrimary,
+    fontSize: 14,
   },
   textArea: {
     minHeight: 64,
