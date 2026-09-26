@@ -2,16 +2,22 @@ export function pad(value: number): string {
   return value.toString().padStart(2, '0');
 }
 
-export function formatDateForInput(date: Date | string | null | undefined): string {
+export function formatDateForInput(
+  date: Date | string | null | undefined,
+): string {
   if (!date) return '';
 
   const parsed = typeof date === 'string' ? new Date(date) : date;
   if (Number.isNaN(parsed.getTime())) return '';
 
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(
+    parsed.getDate(),
+  )}`;
 }
 
-export function formatDateTimeForInput(date: Date | string | null | undefined): string {
+export function formatDateTimeForInput(
+  date: Date | string | null | undefined,
+): string {
   if (!date) return '';
 
   const parsed = typeof date === 'string' ? new Date(date) : date;
