@@ -121,7 +121,9 @@ function MainNavigator() {
 
   // Initialize notifications on authentication & listen for background / foreground push
   useEffect(() => {
-    const techId = (user as any)?.id || 'usr_tech_1';
+    if (!isAuthenticated || !user) return;
+    const techId = (user as any)?.id;
+    if (!techId) return;
     notificationsService.registerDevice(techId);
 
     const unsubscribePush = notificationsService.onNotification((payload) => {

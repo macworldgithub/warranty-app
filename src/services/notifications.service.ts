@@ -36,6 +36,8 @@ interface FirebaseMessagingAdapter {
   onTokenRefresh?: (handler: (token: string) => void) => () => void;
   subscribeToTopic?: (topic: string) => Promise<void>;
   requestPermission?: () => Promise<any>;
+  registerDeviceForRemoteMessages?: () => Promise<void>;
+  getAPNSToken?: () => Promise<string | null>;
 }
 
 function getFirebaseMessagingAdapter(): FirebaseMessagingAdapter | null {
@@ -76,7 +78,7 @@ function getFirebaseMessagingAdapter(): FirebaseMessagingAdapter | null {
         if (typeof instance.onMessage === 'function') {
           return instance.onMessage(handler);
         }
-        return () => {};
+        return () => { };
       },
       onNotificationOpenedApp: (handler) => {
         if (typeof fb.onNotificationOpenedApp === 'function') {
@@ -85,7 +87,7 @@ function getFirebaseMessagingAdapter(): FirebaseMessagingAdapter | null {
         if (typeof instance.onNotificationOpenedApp === 'function') {
           return instance.onNotificationOpenedApp(handler);
         }
-        return () => {};
+        return () => { };
       },
       getInitialNotification: async () => {
         try {
@@ -107,7 +109,7 @@ function getFirebaseMessagingAdapter(): FirebaseMessagingAdapter | null {
         if (typeof instance.onTokenRefresh === 'function') {
           return instance.onTokenRefresh(handler);
         }
-        return () => {};
+        return () => { };
       },
       subscribeToTopic: async (topic: string) => {
         try {
@@ -120,6 +122,15 @@ function getFirebaseMessagingAdapter(): FirebaseMessagingAdapter | null {
         } catch (e) {
           console.warn(`[FCM] Error subscribing to topic '${topic}':`, e);
         }
+      },
+      registerDeviceForRemoteMessages: async () => {
+        if (typeof fb.registerDeviceForRemoteMessages === 'function') await fb.registerDeviceForRemoteMessages(instance);
+        else if (typeof instance.registerDeviceForRemoteMessages === 'function') await instance.registerDeviceForRemoteMessages();
+      },
+      getAPNSToken: async () => {
+        if (typeof fb.getAPNSToken === 'function') return fb.getAPNSToken(instance);
+        if (typeof instance.getAPNSToken === 'function') return instance.getAPNSToken();
+        return null;
       },
       requestPermission: async () => {
         try {
@@ -158,8 +169,9 @@ class NotificationsService {
   /**
    * Initializes push token registration.
    */
-  public async registerDevice(userId: string = 'usr_tech_1'): Promise<string> {
+  public async registerDevice(userId: string): Promise<string | null> {
     try {
+      if (!userId) return null;
       let token: string | null = null;
 
       // 1. Request Android 13+ (API 33+) POST_NOTIFICATIONS permission
@@ -171,7 +183,7 @@ class NotificationsService {
               title: 'Warranty Push Notifications',
               message: 'Allow notifications to receive alerts when warranty claims are approved, flagged, or reviewed.',
               buttonPositive: 'Allow',
-              buttonNegative: 'Don\'t Allow',
+              buttonNegative: "Don't Allow",
             }
           );
           console.log('[Notifications] Android 13+ notification permission status:', granted);
@@ -185,16 +197,33 @@ class NotificationsService {
 
       if (fbAdapter) {
         // Request FCM/APNs permission if required
-        await fbAdapter.requestPermission?.();
+        if (Platform.OS === 'ios') {
+          const permission = await fbAdapter.requestPermission?.();
+          if (permission !== 1 && permission !== 2) {
+            console.warn('[FCM] iOS notification display permission is not granted.');
+          }
+          await fbAdapter.registerDeviceForRemoteMessages?.();
+          const apnsToken = await fbAdapter.getAPNSToken?.();
+          if (!apnsToken) console.warn('[FCM] APNs token unavailable; check push entitlement and provisioning.');
+        }
 
         // Obtain real Google FCM device token
         token = await fbAdapter.getToken();
-        
+
+        const divider = '═'.repeat(60);
+        console.log('\n' + divider);
+        console.log('🔑 [FCM TOKEN STATUS on login]');
+        console.log(divider);
         if (token) {
+          console.log('✅ FCM Token obtained successfully!');
+          console.log('📌 Token:', token);
           this.printFcmBanner(token, userId);
         } else {
-          console.warn('[FCM] Native getToken() returned null or empty.');
+          console.log('❌ FCM Token is NULL');
+          console.log('ℹ️  iOS Simulator does NOT support real FCM/APNs tokens.');
+          console.log('ℹ️  Test on a real iPhone to get a valid token.');
         }
+        console.log(divider + '\n');
 
         // Subscribe to relevant FCM topics for guaranteed delivery
         await fbAdapter.subscribeToTopic?.('warranty-techs');
@@ -257,15 +286,16 @@ class NotificationsService {
                 setTimeout(() => this.notifyOpenListeners(payload), 800);
               }
             }
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
 
       if (!token) {
-        token = `fcm_dev_${Platform.OS}_${userId}_${Date.now().toString(36)}`;
-        console.warn('[Notifications] Real FCM token unavailable; using dev fallback token:', token);
+        console.warn('\n❌ [FCM] Token unavailable — backend registration skipped.');
+        console.warn('ℹ️  On iOS Simulator, APNs/FCM tokens are not supported.');
+        console.warn('ℹ️  Run on a real iPhone to get a valid FCM token.\n');
+        return null;
       }
-
       this.deviceToken = token;
 
       const res = await apiClient.post('/notifications/devices/register', {
@@ -279,7 +309,7 @@ class NotificationsService {
       return this.deviceToken;
     } catch (err: any) {
       console.warn('[Notifications] Failed to register device token with backend:', err?.message);
-      return this.deviceToken || 'dev_token_fallback';
+      return null;
     }
   }
 
@@ -615,4 +645,3 @@ class NotificationsService {
 }
 
 export const notificationsService = new NotificationsService();
-
