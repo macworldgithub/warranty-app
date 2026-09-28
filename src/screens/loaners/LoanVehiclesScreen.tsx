@@ -33,6 +33,7 @@ interface LoanVehiclesScreenProps {
   onOpenVehicles?: () => void;
   onOpenProfile?: () => void;
   onStartNewCase?: () => void;
+  onOpenRoadTest?: (vehicleData?: any) => void;
 }
 
 const ROOFTOPS = [
@@ -108,6 +109,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   onOpenVehicles,
   onOpenProfile,
   onStartNewCase,
+  onOpenRoadTest,
 }) => {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId } = useAuth();
@@ -259,11 +261,21 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   const chooseAgreementPurpose = () => {
     Alert.alert(
-      'Create Vehicle Agreement',
-      'Choose the agreement workflow to start.',
+      'Vehicle Workflow',
+      'Choose the workflow to start:',
       [
-        { text: 'Service Loaner', onPress: () => openAgreementWizard('SERVICE_LOANER') },
-        { text: 'Test Drive', onPress: () => openAgreementWizard('TEST_DRIVE') },
+        {
+          text: 'Start Road Test & Telemetry',
+          onPress: () => onOpenRoadTest?.(),
+        },
+        {
+          text: 'Service Loaner Agreement',
+          onPress: () => openAgreementWizard('SERVICE_LOANER'),
+        },
+        {
+          text: 'Test Drive Agreement (Paperwork)',
+          onPress: () => openAgreementWizard('TEST_DRIVE'),
+        },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -752,6 +764,25 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                       <Text style={styles.cardReturnBtnText}>Check In</Text>
                     </TouchableOpacity>
                   )}
+
+                  <TouchableOpacity
+                    style={styles.cardRoadTestBtn}
+                    onPress={() =>
+                      onOpenRoadTest?.({
+                        rego: (item.vehicle as any)?.rego || (item.vehicle as any)?.registration,
+                        vin: item.vehicle?.vin,
+                        roNumber: item.agreementNumber,
+                        make: item.vehicle?.make,
+                        model: item.vehicle?.model,
+                        year: item.vehicle?.year,
+                        customerName: item.customer?.name,
+                      })
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="map-pin" size={12} color="#FFF" />
+                    <Text style={styles.cardRoadTestBtnText}>Telemetry</Text>
+                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.cardDeleteBtn}
@@ -1347,6 +1378,20 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cardReturnBtnText: {
+    fontSize: 11,
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  cardRoadTestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    gap: 4,
+  },
+  cardRoadTestBtnText: {
     fontSize: 11,
     color: '#FFF',
     fontWeight: '700',

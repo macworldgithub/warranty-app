@@ -11,7 +11,7 @@ import {
   PanResponder,
   Image,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DatePickerModal from '../../components/common/DatePickerModal';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
@@ -589,19 +589,17 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                   pointerEvents="none"
                 />
               </TouchableOpacity>
-              {showLicenceExpiryPicker && (
-                <DateTimePicker
-                  value={licenceExpiry ? new Date(licenceExpiry) : new Date()}
-                  mode="date"
-                  display="default"
-                  onChange={(_, selectedDate) => {
-                    setShowLicenceExpiryPicker(false);
-                    if (selectedDate) {
-                      setLicenceExpiry(formatDateForInput(selectedDate));
-                    }
-                  }}
-                />
-              )}
+              <DatePickerModal
+                visible={showLicenceExpiryPicker}
+                value={licenceExpiry ? new Date(licenceExpiry) : new Date()}
+                mode="date"
+                title="Licence Expiry"
+                onConfirm={(date) => {
+                  setShowLicenceExpiryPicker(false);
+                  setLicenceExpiry(formatDateForInput(date));
+                }}
+                onCancel={() => setShowLicenceExpiryPicker(false)}
+              />
             </View>
 
             {/* Age Surcharge Callout */}
@@ -789,34 +787,31 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                   <Text style={styles.dateFieldText}>{expectedReturnTime || 'Select time'}</Text>
                 </TouchableOpacity>
               </View>
-              {showExpectedDatePicker && (
-                <DateTimePicker
-                  value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
-                  mode="date"
-                  display="default"
-                  onChange={(_, selectedDate) => {
-                    setShowExpectedDatePicker(false);
-                    if (selectedDate) {
-                      setExpectedReturnDate(formatDateForInput(selectedDate));
-                    }
-                  }}
-                />
-              )}
-              {showExpectedTimePicker && (
-                <DateTimePicker
-                  value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
-                  mode="time"
-                  display="default"
-                  onChange={(_, selectedDate) => {
-                    setShowExpectedTimePicker(false);
-                    if (selectedDate) {
-                      const nextHour = selectedDate.getHours().toString().padStart(2, '0');
-                      const nextMinute = selectedDate.getMinutes().toString().padStart(2, '0');
-                      setExpectedReturnTime(`${nextHour}:${nextMinute}`);
-                    }
-                  }}
-                />
-              )}
+              <DatePickerModal
+                visible={showExpectedDatePicker}
+                value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
+                mode="date"
+                minimumDate={new Date()}
+                title="Return Date"
+                onConfirm={(date) => {
+                  setShowExpectedDatePicker(false);
+                  setExpectedReturnDate(formatDateForInput(date));
+                }}
+                onCancel={() => setShowExpectedDatePicker(false)}
+              />
+              <DatePickerModal
+                visible={showExpectedTimePicker}
+                value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
+                mode="time"
+                title="Return Time"
+                onConfirm={(date) => {
+                  setShowExpectedTimePicker(false);
+                  const nextHour = date.getHours().toString().padStart(2, '0');
+                  const nextMinute = date.getMinutes().toString().padStart(2, '0');
+                  setExpectedReturnTime(`${nextHour}:${nextMinute}`);
+                }}
+                onCancel={() => setShowExpectedTimePicker(false)}
+              />
             </View>
 
             <View style={styles.capNotice}>

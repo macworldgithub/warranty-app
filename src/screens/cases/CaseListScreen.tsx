@@ -38,6 +38,7 @@ interface CaseListScreenProps {
   onOpenProfile: () => void;
   onOpenVehicles: () => void;
   onOpenLoaners?: () => void;
+  onOpenRoadTest?: (vehicleData?: any) => void;
   onLogout: () => void;
 }
 
@@ -81,6 +82,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onOpenProfile,
   onOpenVehicles,
   onOpenLoaners,
+  onOpenRoadTest,
   onLogout,
 }) => {
   const insets = useSafeAreaInsets();
