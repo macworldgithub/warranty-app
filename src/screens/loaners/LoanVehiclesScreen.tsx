@@ -19,7 +19,7 @@ import { LoanAgreement, LoanAgreementKpis, WarrantyCase } from '../../types';
 import { loanAgreementsApi } from '../../api';
 import { casesApi } from '../../api/cases.api';
 import { offlineStorage } from '../../services/offlineStorage';
-import { Clock, Car, FileText, Key } from 'lucide-react-native';
+import { Clock, Car, FileText, Key, Gauge } from 'lucide-react-native';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
 import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
@@ -33,7 +33,7 @@ interface LoanVehiclesScreenProps {
   onOpenVehicles?: () => void;
   onOpenProfile?: () => void;
   onStartNewCase?: () => void;
-  onOpenRoadTest?: (vehicleData?: any) => void;
+  onOpenRoadTest?: () => void;
 }
 
 const ROOFTOPS = [
@@ -261,21 +261,12 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   const chooseAgreementPurpose = () => {
     Alert.alert(
-      'Vehicle Workflow',
-      'Choose the workflow to start:',
+      'Vehicle Operations',
+      'Choose the workflow to start.',
       [
-        {
-          text: 'Start Road Test & Telemetry',
-          onPress: () => onOpenRoadTest?.(),
-        },
-        {
-          text: 'Service Loaner Agreement',
-          onPress: () => openAgreementWizard('SERVICE_LOANER'),
-        },
-        {
-          text: 'Test Drive Agreement (Paperwork)',
-          onPress: () => openAgreementWizard('TEST_DRIVE'),
-        },
+        { text: 'Live Road Test Telemetry', onPress: () => onOpenRoadTest?.() },
+        { text: 'Customer Test Drive Agreement', onPress: () => openAgreementWizard('TEST_DRIVE') },
+        { text: 'Service Loaner Agreement', onPress: () => openAgreementWizard('SERVICE_LOANER') },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -766,25 +757,6 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                   )}
 
                   <TouchableOpacity
-                    style={styles.cardRoadTestBtn}
-                    onPress={() =>
-                      onOpenRoadTest?.({
-                        rego: (item.vehicle as any)?.rego || (item.vehicle as any)?.registration,
-                        vin: item.vehicle?.vin,
-                        roNumber: item.agreementNumber,
-                        make: item.vehicle?.make,
-                        model: item.vehicle?.model,
-                        year: item.vehicle?.year,
-                        customerName: item.customer?.name,
-                      })
-                    }
-                    activeOpacity={0.7}
-                  >
-                    <Icon name="map-pin" size={12} color="#FFF" />
-                    <Text style={styles.cardRoadTestBtnText}>Telemetry</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
                     style={styles.cardDeleteBtn}
                     onPress={() => handleDeleteAgreement(item)}
                     activeOpacity={0.7}
@@ -855,21 +827,14 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {isAdmin ? (
           <>
-            {/* 1. Awaiting Cases (Extreme Left) */}
+            {/* 1. Test Drive (Extreme Left - Replaces Awaiting) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onOpenTickets?.('awaiting')}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
-              <View style={styles.tabIconWrapper}>
-                <Clock size={20} color={colors.textSecondary} />
-                {awaitingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+              <Gauge size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Test Drive</Text>
             </TouchableOpacity>
 
             {/* 2. Vehicles */}
@@ -950,21 +915,14 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
               <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Loaners</Text>
             </TouchableOpacity>
 
-            {/* 4. Awaiting */}
+            {/* 4. Test Drive (Replaces Awaiting) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onOpenTickets?.('awaiting')}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
-              <View style={styles.tabIconWrapper}>
-                <Clock size={20} color={colors.textSecondary} />
-                {awaitingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+              <Gauge size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Test Drive</Text>
             </TouchableOpacity>
 
             {/* 5. Profile */}
@@ -1378,20 +1336,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cardReturnBtnText: {
-    fontSize: 11,
-    color: '#FFF',
-    fontWeight: '700',
-  },
-  cardRoadTestBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-    gap: 4,
-  },
-  cardRoadTestBtnText: {
     fontSize: 11,
     color: '#FFF',
     fontWeight: '700',

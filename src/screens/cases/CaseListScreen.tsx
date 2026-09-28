@@ -14,7 +14,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
-import { Bell, FileText, CheckCircle2, Clock, Car, Key } from 'lucide-react-native';
+import { Bell, FileText, CheckCircle2, Clock, Car, Key, Gauge } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -38,7 +38,7 @@ interface CaseListScreenProps {
   onOpenProfile: () => void;
   onOpenVehicles: () => void;
   onOpenLoaners?: () => void;
-  onOpenRoadTest?: (vehicleData?: any) => void;
+  onOpenRoadTest?: () => void;
   onLogout: () => void;
 }
 
@@ -643,22 +643,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {isAdmin ? (
           <>
-            {/* 1. Awaiting Cases (Extreme Left) */}
+            {/* 1. Test Drive (Extreme Left - Replaces Awaiting) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => setActiveTab('awaiting')}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
-              <View style={styles.tabIconWrapper}>
-                <Clock size={20} color={activeTab === 'awaiting' ? colors.primary : colors.textSecondary} />
-                {awaitingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.bottomBarLabel, activeTab === 'awaiting' && { color: colors.primary }]}>
-                Awaiting
+              <Gauge size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>
+                Test Drive
               </Text>
             </TouchableOpacity>
 
@@ -748,22 +741,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               </Text>
             </TouchableOpacity>
 
-            {/* 4. Awaiting */}
+            {/* 4. Test Drive (Replaces Awaiting) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => setActiveTab('awaiting')}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
-              <View style={styles.tabIconWrapper}>
-                <Clock size={20} color={activeTab === 'awaiting' ? colors.primary : colors.textSecondary} />
-                {awaitingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={[styles.bottomBarLabel, activeTab === 'awaiting' && { color: colors.primary }]}>
-                Awaiting
+              <Gauge size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>
+                Test Drive
               </Text>
             </TouchableOpacity>
 

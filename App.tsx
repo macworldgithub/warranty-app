@@ -41,9 +41,11 @@ import {
   FlagNotificationPayload,
 } from './src/services/notifications.service';
 import { casesApi } from './src/api';
+import { RoadTestScreen } from './src/screens/roadtest/RoadTestScreen';
+import { RoadTestProvider } from './src/context/RoadTestContext';
 import { WarrantyCase } from './src/types';
 
-type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'LOANERS' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
+type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'LOANERS' | 'ROAD_TEST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
 
 function MainNavigator() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -188,6 +190,9 @@ function MainNavigator() {
           onOpenLoaners={() => {
             setCurrentScreen('LOANERS');
           }}
+          onOpenRoadTest={() => {
+            setCurrentScreen('ROAD_TEST');
+          }}
           onLogout={() => {
             logout();
             setCurrentScreen('LOGIN');
@@ -227,6 +232,9 @@ function MainNavigator() {
           onOpenLoaners={() => {
             setCurrentScreen('LOANERS');
           }}
+          onOpenRoadTest={() => {
+            setCurrentScreen('ROAD_TEST');
+          }}
         />
       </View>
     );
@@ -256,6 +264,32 @@ function MainNavigator() {
           onStartNewCase={() => {
             startNewCase();
             setCurrentScreen('WIZARD');
+          }}
+          onOpenRoadTest={() => {
+            setCurrentScreen('ROAD_TEST');
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 2d. Road Test Telemetry & Geofence Operations
+  if (currentScreen === 'ROAD_TEST') {
+    return (
+      <View style={{ flex: 1 }}>
+        <RoadTestScreen
+          onOpenTickets={() => {
+            setCaseListTab('all');
+            setCurrentScreen('LIST');
+          }}
+          onOpenVehicles={() => {
+            setCurrentScreen('VEHICLES');
+          }}
+          onOpenLoaners={() => {
+            setCurrentScreen('LOANERS');
+          }}
+          onOpenProfile={() => {
+            setCurrentScreen('PROFILE');
           }}
         />
       </View>
@@ -509,7 +543,9 @@ export default function App() {
       <NetworkProvider>
         <AuthProvider>
           <CaseWizardProvider>
-            <MainNavigator />
+            <RoadTestProvider>
+              <MainNavigator />
+            </RoadTestProvider>
           </CaseWizardProvider>
         </AuthProvider>
       </NetworkProvider>

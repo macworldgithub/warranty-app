@@ -30,7 +30,6 @@ import {
   AlertCircle,
   Lock,
   Key,
-  Activity,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -55,7 +54,7 @@ interface VehicleListScreenProps {
   onOpenCase: (caseItem: WarrantyCase) => void;
   onOpenProfile: () => void;
   onOpenLoaners?: () => void;
-  onOpenRoadTest?: (vehicleData?: any) => void;
+  onOpenRoadTest?: () => void;
 }
 
 const FALLBACK_SITES: Site[] = [
@@ -585,40 +584,21 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
               <View style={styles.cardActionsRow}>
                 {isAdmin ? (
                   // Admins: only view cases, no creation
-                  <>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => handleViewCasesForVehicle(item)}
-                      style={styles.actionBtnAdminViewCases}
-                    >
-                      <FileText size={15} color={colors.primary} />
-                      <Text style={styles.actionBtnAdminViewCasesText}>
-                        {item.caseCount > 1
-                          ? `View Cases (${item.caseCount})`
-                          : item.caseCount === 1
-                          ? 'View Case'
-                          : 'Case History'}
-                      </Text>
-                      <ArrowRight size={14} color={colors.primary} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => onOpenRoadTest?.({
-                        rego: item.rego,
-                        vin: item.vin,
-                        roNumber: item.roNumber || `RO-${item.rego}`,
-                        make: item.make,
-                        model: item.model,
-                        year: item.year,
-                        customerName: item.concernTitle || 'Rooftop Vehicle',
-                      })}
-                      style={styles.actionBtnRoadTest}
-                    >
-                      <Activity size={13} color={colors.primary} />
-                      <Text style={styles.actionBtnRoadTestText}>Road Test</Text>
-                    </TouchableOpacity>
-                  </>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => handleViewCasesForVehicle(item)}
+                    style={styles.actionBtnAdminViewCases}
+                  >
+                    <FileText size={15} color={colors.primary} />
+                    <Text style={styles.actionBtnAdminViewCasesText}>
+                      {item.caseCount > 1
+                        ? `View Cases (${item.caseCount})`
+                        : item.caseCount === 1
+                        ? 'View Case'
+                        : 'Case History'}
+                    </Text>
+                    <ArrowRight size={14} color={colors.primary} />
+                  </TouchableOpacity>
                 ) : item.caseCount > 0 || item.latestCase ? (
                   <>
                     <TouchableOpacity
@@ -641,23 +621,6 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                       <Plus size={14} color={colors.primary} />
                       <Text style={styles.actionBtnSmallNewCaseText}>New Case</Text>
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => onOpenRoadTest?.({
-                        rego: item.rego,
-                        vin: item.vin,
-                        roNumber: item.roNumber || `RO-${item.rego}`,
-                        make: item.make,
-                        model: item.model,
-                        year: item.year,
-                        customerName: item.concernTitle || 'Rooftop Vehicle',
-                      })}
-                      style={styles.actionBtnRoadTest}
-                    >
-                      <Activity size={13} color={colors.primary} />
-                      <Text style={styles.actionBtnRoadTestText}>Test</Text>
-                    </TouchableOpacity>
                   </>
                 ) : (
                   <>
@@ -671,30 +634,13 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => onOpenRoadTest?.({
-                        rego: item.rego,
-                        vin: item.vin,
-                        roNumber: item.roNumber || `RO-${item.rego}`,
-                        make: item.make,
-                        model: item.model,
-                        year: item.year,
-                        customerName: item.concernTitle || 'Rooftop Vehicle',
-                      })}
-                      style={styles.actionBtnRoadTest}
-                    >
-                      <Activity size={13} color={colors.primary} />
-                      <Text style={styles.actionBtnRoadTestText}>Road Test</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
                       activeOpacity={0.8}
                       onPress={() => handleViewCasesForVehicle(item)}
                       style={styles.actionBtnOutline}
                     >
                       <FileText size={14} color={colors.textSecondary} />
                       <Text style={[styles.actionBtnOutlineText, { color: colors.textSecondary }]}>
-                        Info
+                        Case Info
                       </Text>
                     </TouchableOpacity>
                   </>
@@ -948,21 +894,14 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {isAdmin ? (
           <>
-            {/* 1. Awaiting Cases (Extreme Left) */}
+            {/* 1. Test Drive (Extreme Left - Replaces Awaiting) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onOpenTickets('awaiting')}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
-              <View style={styles.tabIconWrapper}>
-                <Clock size={20} color={colors.textSecondary} />
-                {awaitingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+              <Gauge size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Test Drive</Text>
             </TouchableOpacity>
 
             {/* 2. Vehicles (ACTIVE) */}
@@ -1045,21 +984,14 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
               </Text>
             </TouchableOpacity>
 
-            {/* 4. Awaiting */}
+            {/* 4. Test Drive (Replaces Awaiting) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onOpenTickets('awaiting')}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
-              <View style={styles.tabIconWrapper}>
-                <Clock size={20} color={colors.textSecondary} />
-                {awaitingCount > 0 && (
-                  <View style={styles.tabBadge}>
-                    <Text style={styles.tabBadgeText}>{awaitingCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.bottomBarLabel}>Awaiting</Text>
+              <Gauge size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Test Drive</Text>
             </TouchableOpacity>
 
             {/* 5. Profile */}
@@ -1474,22 +1406,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 2,
-  },
-  actionBtnRoadTest: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: 'rgba(215, 25, 32, 0.25)',
-    gap: 4,
-  },
-  actionBtnRoadTestText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: colors.primary,
   },
   actionBtnOutline: {
     flexDirection: 'row',

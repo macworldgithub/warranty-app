@@ -1,475 +1,528 @@
 import React, { useState } from 'react';
 import {
+  StyleSheet,
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Switch,
+  Keyboard,
   FlatList,
+  Switch,
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft,
-  Activity,
-  Car,
+  Gauge,
+  MapPin,
   Clock,
-  Settings,
+  Car,
+  Search,
+  CheckCircle2,
+  AlertTriangle,
   Play,
   RotateCcw,
-  CheckCircle2,
-  AlertCircle,
-  MapPin,
-  Gauge,
-  Compass,
-  Radio,
-  Search,
-  Check,
   Shield,
+  Radio,
   FileText,
-  User,
+  Key,
   ChevronDown,
   ChevronUp,
-  Sparkles,
+  Sliders,
+  Check,
+  Flag,
+  Navigation,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { useRoadTest } from '../../context/RoadTestContext';
-import { RouteMapSvg } from '../../components/roadtest/RouteMapSvg';
-import { DEMO_ROUTE, formatClock, lookupVehicleInList } from '../../services/roadtest/roadTestData';
-import { LookupMode, TripRecord } from '../../types/roadTest';
-
-type TabKey = 'LIVE' | 'VEHICLE' | 'TRIPS' | 'SETTINGS';
+import { useAuth } from '../../context/AuthContext';
+import { useRoadTest, RoadTestTripRecord } from '../../context/RoadTestContext';
+import { RoadTestRouteMap } from '../../components/roadtest/RoadTestRouteMap';
 
 interface RoadTestScreenProps {
-  onBack: () => void;
-  initialVehicleData?: {
-    rego?: string;
-    vin?: string;
-    roNumber?: string;
-    make?: string;
-    model?: string;
-    year?: number;
-    customerName?: string;
-  };
+  onOpenTickets: () => void;
+  onOpenVehicles: () => void;
+  onOpenLoaners: () => void;
+  onOpenProfile: () => void;
 }
 
-export function RoadTestScreen({ onBack, initialVehicleData }: RoadTestScreenProps) {
+type SubTab = 'live' | 'history' | 'settings';
+
+export function RoadTestScreen({
+  onOpenTickets,
+  onOpenVehicles,
+  onOpenLoaners,
+  onOpenProfile,
+}: RoadTestScreenProps) {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabKey>('LIVE');
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
 
   const {
     vehicle,
     armed,
     tripState,
     demoRunning,
-    routePoints,
     speedKph,
     maxSpeedKph,
     elapsedSec,
     distanceKm,
+    routePoints,
     fenceRadius,
+    tripRecords,
     setFenceRadius,
-    startDemoDrive,
-    resetDemo,
     armVehicle,
     disarmVehicle,
-    armCustomVehicle,
-    tripRecords,
-    allVehicles,
+    startDemoDrive,
+    resetDemo,
+    loadVehicleByROOrRego,
   } = useRoadTest();
 
-  // Search & lookup state for Vehicle tab
-  const [searchMode, setSearchMode] = useState<LookupMode>('repairOrder');
-  const [searchQuery, setSearchQuery] = useState(initialVehicleData?.roNumber || initialVehicleData?.rego || 'RO-48291');
-  const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('live');
+  const [searchQuery, setSearchQuery] = useState('RO-48291');
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(tripRecords[0]?.id || null);
+  const [filterType, setFilterType] = useState<'all' | 'flagged' | 'week'>('all');
 
-  // Expanded trip in Trips tab
-  const [expandedTripId, setExpandedTripId] = useState<string | null>(tripRecords[0]?.id ?? null);
+  // Automation Settings
+  const [notifEnabled, setNotifEnabled] = useState(true);
+  const [historyEnabled, setHistoryEnabled] = useState(true);
+  const [speedAlertsEnabled, setSpeedAlertsEnabled] = useState(false);
 
-  // Settings tab switches
-  const [notifications, setNotifications] = useState(true);
-  const [keepHistory, setKeepHistory] = useState(true);
-  const [speedAlerts, setSpeedAlerts] = useState(false);
-
-  // Status computation for Live tab
-  const statusConfig = tripState === 'outside'
-    ? { label: 'ROAD TEST IN PROGRESS', title: 'Vehicle is outside the geofence', color: colors.primary }
-    : tripState === 'returned'
-    ? { label: 'ROAD TEST SAVED', title: 'Vehicle returned automatically', color: colors.success }
-    : { label: 'VEHICLE ARMED', title: 'Waiting inside workshop boundary', color: colors.accentCyan };
-
-  const handleLookup = () => {
-    const result = lookupVehicleInList(allVehicles, searchMode, searchQuery);
-    if (!result) {
-      setLookupMessage('No matching record. Try RO-48291, SGS 274, or C-10482.');
-      return;
-    }
-    armCustomVehicle(result);
-    setLookupMessage('Vehicle and repair order linked & armed.');
+  const formatClock = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
   };
 
+  const handleSearch = () => {
+    Keyboard.dismiss();
+    loadVehicleByROOrRego(searchQuery);
+  };
+
+  const statusInfo =
+    tripState === 'outside'
+      ? { label: 'ROAD TEST IN PROGRESS', title: 'Vehicle outside workshop zone', color: colors.primary }
+      : tripState === 'returned'
+      ? { label: 'ROAD TEST SAVED', title: 'Vehicle returned automatically', color: colors.success }
+      : { label: 'VEHICLE ARMED', title: 'Ready inside workshop boundary', color: colors.accentCyan };
+
+  const filteredTrips = tripRecords.filter((t) => {
+    if (filterType === 'flagged') return t.outcome === 'Flagged';
+    return true;
+  });
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Top Navigation Bar */}
-      <View style={styles.topNav}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack} activeOpacity={0.7}>
-          <ArrowLeft size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-        <View style={styles.navTitleGroup}>
-          <Text style={styles.navTitle}>Road Test Telemetry</Text>
-          <Text style={styles.navSubtitle}>Booran Automated Warranty GPS</Text>
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {/* 1. Header Bar */}
+      <View style={styles.header}>
+        <View style={styles.brandGroup}>
+          <View style={styles.brandIconWrap}>
+            <Gauge size={20} color="#FFFFFF" />
+          </View>
+          <View>
+            <Text style={styles.brandName}>BOORAN MOTORS</Text>
+            <Text style={styles.brandSub}>WARRANTY ROAD TEST</Text>
+          </View>
         </View>
+
         <View style={styles.liveIndicator}>
-          <View style={[styles.statusDot, { backgroundColor: statusConfig.color }]} />
-          <Text style={styles.liveIndicatorText}>
-            {tripState === 'outside' ? 'LIVE' : tripState === 'returned' ? 'SAVED' : 'ARMED'}
+          <View style={[styles.pulseDot, { backgroundColor: statusInfo.color }]} />
+          <Text style={[styles.liveIndicatorText, { color: statusInfo.color }]}>
+            {tripState === 'outside' ? 'LIVE TRACKING' : 'STANDBY'}
           </Text>
         </View>
       </View>
 
-      {/* Segmented Top Tab Bar */}
-      <View style={styles.tabBar}>
+      {/* 2. Sub-Tabs Bar */}
+      <View style={styles.subTabBar}>
         <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'LIVE' && styles.tabItemActive]}
-          onPress={() => setActiveTab('LIVE')}
           activeOpacity={0.7}
+          onPress={() => setActiveSubTab('live')}
+          style={[styles.subTabItem, activeSubTab === 'live' && styles.subTabItemActive]}
         >
-          <Activity size={16} color={activeTab === 'LIVE' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabLabel, activeTab === 'LIVE' && styles.tabLabelActive]}>Live Drive</Text>
+          <Navigation size={14} color={activeSubTab === 'live' ? colors.primary : colors.textSecondary} />
+          <Text style={[styles.subTabText, activeSubTab === 'live' && styles.subTabTextActive]}>
+            Live Drive
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'VEHICLE' && styles.tabItemActive]}
-          onPress={() => setActiveTab('VEHICLE')}
           activeOpacity={0.7}
+          onPress={() => setActiveSubTab('history')}
+          style={[styles.subTabItem, activeSubTab === 'history' && styles.subTabItemActive]}
         >
-          <Car size={16} color={activeTab === 'VEHICLE' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabLabel, activeTab === 'VEHICLE' && styles.tabLabelActive]}>Vehicle</Text>
+          <Clock size={14} color={activeSubTab === 'history' ? colors.primary : colors.textSecondary} />
+          <Text style={[styles.subTabText, activeSubTab === 'history' && styles.subTabTextActive]}>
+            Trip History ({tripRecords.length})
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'TRIPS' && styles.tabItemActive]}
-          onPress={() => setActiveTab('TRIPS')}
           activeOpacity={0.7}
+          onPress={() => setActiveSubTab('settings')}
+          style={[styles.subTabItem, activeSubTab === 'settings' && styles.subTabItemActive]}
         >
-          <Clock size={16} color={activeTab === 'TRIPS' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabLabel, activeTab === 'TRIPS' && styles.tabLabelActive]}>Trips ({tripRecords.length})</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'SETTINGS' && styles.tabItemActive]}
-          onPress={() => setActiveTab('SETTINGS')}
-          activeOpacity={0.7}
-        >
-          <Settings size={16} color={activeTab === 'SETTINGS' ? colors.primary : colors.textMuted} />
-          <Text style={[styles.tabLabel, activeTab === 'SETTINGS' && styles.tabLabelActive]}>Geofence</Text>
+          <Sliders size={14} color={activeSubTab === 'settings' ? colors.primary : colors.textSecondary} />
+          <Text style={[styles.subTabText, activeSubTab === 'settings' && styles.subTabTextActive]}>
+            Geofence
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Content Area */}
-      <ScrollView style={styles.contentScroll} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* ==================== TAB 1: LIVE DRIVE ==================== */}
-        {activeTab === 'LIVE' && (
-          <View>
-            {/* Status Card */}
-            <View style={styles.darkStatusCard}>
-              <View style={styles.statusHeaderRow}>
-                <View style={[styles.statusBadgeDot, { backgroundColor: statusConfig.color }]} />
-                <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
-              </View>
-              <Text style={styles.statusMainTitle}>{statusConfig.title}</Text>
-              {vehicle ? (
-                <View style={styles.vehicleStrip}>
-                  <Text style={styles.vehicleStripName}>{vehicle.year} {vehicle.make} {vehicle.model}</Text>
-                  <Text style={styles.vehicleStripMeta}>{vehicle.registration} • {vehicle.repairOrder}</Text>
+      {/* 3. Main Body */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 110 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeSubTab === 'live' && (
+          <>
+            {/* Search Lookup Bar */}
+            <View style={styles.searchCard}>
+              <View style={styles.searchRow}>
+                <View style={styles.inputWrap}>
+                  <Search size={18} color={colors.textMuted} />
+                  <TextInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onSubmitEditing={handleSearch}
+                    placeholder="Search RO, Rego, or VIN"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="characters"
+                    style={styles.searchInput}
+                  />
                 </View>
-              ) : null}
-            </View>
-
-            {/* Live Interactive Route Map */}
-            <RouteMapSvg points={routePoints} state={tripState} />
-
-            {/* Telemetry Metric Cards */}
-            <View style={styles.metricsRow}>
-              {/* Big Speed Card */}
-              <View style={styles.speedCard}>
-                <View style={styles.speedIconCircle}>
-                  <Gauge size={18} color="#EF4444" />
-                </View>
-                <Text style={styles.speedValueText}>{speedKph}</Text>
-                <Text style={styles.speedUnitText}>KM/H</Text>
-                <Text style={styles.speedLabelText}>CURRENT SPEED</Text>
+                <TouchableOpacity activeOpacity={0.8} onPress={handleSearch} style={styles.searchBtn}>
+                  <Text style={styles.searchBtnText}>Lookup</Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Sub Metrics Column 1 */}
-              <View style={styles.metricColumn}>
-                <View style={styles.metricTile}>
-                  <Clock size={16} color={colors.textSecondary} />
-                  <Text style={styles.tileLabel}>DURATION</Text>
-                  <Text style={styles.tileValue}>{formatClock(elapsedSec)}</Text>
-                </View>
-                <View style={styles.metricTile}>
-                  <MapPin size={16} color={colors.textSecondary} />
-                  <Text style={styles.tileLabel}>DISTANCE</Text>
-                  <Text style={styles.tileValue}>{distanceKm.toFixed(1)} km</Text>
-                </View>
-              </View>
-
-              {/* Sub Metrics Column 2 */}
-              <View style={styles.metricColumn}>
-                <View style={styles.metricTile}>
-                  <Activity size={16} color={colors.textSecondary} />
-                  <Text style={styles.tileLabel}>MAX SPEED</Text>
-                  <Text style={styles.tileValue}>{maxSpeedKph} km/h</Text>
-                </View>
-                <View style={styles.metricTile}>
-                  <Radio size={16} color={colors.success} />
-                  <Text style={styles.tileLabel}>STATUS</Text>
-                  <Text style={[styles.tileValue, { color: colors.success }]}>
-                    {tripState === 'outside' ? 'Logging' : tripState === 'returned' ? 'Complete' : 'Armed'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Automation Audit Timeline */}
-            <View style={styles.timelineCard}>
-              <Text style={styles.sectionHeader}>AUTOMATED GEOFENCE LOG</Text>
-              
-              <View style={styles.timelineItem}>
-                <View style={[styles.timelineNode, styles.timelineNodeDone]}>
-                  <Check size={12} color="#059669" />
-                </View>
-                <View style={styles.timelineTextWrap}>
-                  <Text style={styles.timelineItemTitle}>Vehicle Armed & Synced</Text>
-                  <Text style={styles.timelineItemSub}>Linked to {vehicle?.repairOrder || 'RO'}</Text>
-                </View>
-                <Text style={styles.timelineTime}>Active</Text>
-              </View>
-
-              <View style={styles.timelineItem}>
-                <View style={[styles.timelineNode, tripState !== 'inside' && styles.timelineNodeActive]}>
-                  {tripState !== 'inside' ? <Check size={12} color="#FFFFFF" /> : null}
-                </View>
-                <View style={styles.timelineTextWrap}>
-                  <Text style={styles.timelineItemTitle}>Geofence Exit Detected</Text>
-                  <Text style={styles.timelineItemSub}>Automatic route & speed recording trigger</Text>
-                </View>
-                <Text style={styles.timelineTime}>{tripState === 'inside' ? 'Pending' : 'Recorded'}</Text>
-              </View>
-
-              <View style={[styles.timelineItem, { borderBottomWidth: 0 }]}>
-                <View style={[styles.timelineNode, tripState === 'returned' && styles.timelineNodeDone]}>
-                  {tripState === 'returned' ? <Check size={12} color="#059669" /> : null}
-                </View>
-                <View style={styles.timelineTextWrap}>
-                  <Text style={styles.timelineItemTitle}>Geofence Re-entry</Text>
-                  <Text style={styles.timelineItemSub}>Drive completed & stored to warranty audit</Text>
-                </View>
-                <Text style={styles.timelineTime}>{tripState === 'returned' ? 'Saved' : 'Waiting'}</Text>
-              </View>
-            </View>
-
-            {/* Drive Simulation Controls */}
-            <View style={styles.actionsRow}>
-              <TouchableOpacity
-                style={[styles.primaryActionBtn, demoRunning && styles.disabledBtn]}
-                onPress={tripState === 'returned' ? resetDemo : startDemoDrive}
-                disabled={demoRunning}
-                activeOpacity={0.8}
-              >
-                {tripState === 'returned' ? (
-                  <>
-                    <RotateCcw size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryActionText}>RESET ROAD TEST DEMO</Text>
-                  </>
-                ) : (
-                  <>
-                    <Play size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryActionText}>
-                      {demoRunning ? 'SIMULATING ROAD TEST DRIVE...' : 'START ROAD TEST TRACKING'}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* ==================== TAB 2: VEHICLE & WORK ==================== */}
-        {activeTab === 'VEHICLE' && (
-          <View>
-            <View style={styles.card}>
-              <Text style={styles.kicker}>VEHICLE LOOKUP</Text>
-              <Text style={styles.cardTitle}>Find & Arm Vehicle</Text>
-
-              {/* Mode Selector */}
-              <View style={styles.modePillRow}>
-                {(['repairOrder', 'registration', 'vin', 'customer'] as LookupMode[]).map((m) => (
+              <View style={styles.quickChipsRow}>
+                <Text style={styles.chipsLabel}>QUICK DEMO:</Text>
+                {['RO-48291', 'BWM 882', 'VIC 901'].map((code) => (
                   <TouchableOpacity
-                    key={m}
-                    style={[styles.modePill, searchMode === m && styles.modePillActive]}
-                    onPress={() => setSearchMode(m)}
+                    key={code}
                     activeOpacity={0.7}
+                    onPress={() => {
+                      setSearchQuery(code);
+                      loadVehicleByROOrRego(code);
+                    }}
+                    style={styles.chipBtn}
                   >
-                    <Text style={[styles.modePillText, searchMode === m && styles.modePillTextActive]}>
-                      {m === 'repairOrder' ? 'RO' : m === 'registration' ? 'Rego' : m === 'vin' ? 'VIN' : 'Customer'}
-                    </Text>
+                    <Text style={styles.chipBtnText}>{code}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
-              {/* Search Input & Button */}
-              <View style={styles.searchRow}>
-                <View style={styles.inputContainer}>
-                  <Search size={18} color={colors.textMuted} />
-                  <TextInput
-                    style={styles.searchInput}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Enter RO, Rego, or VIN"
-                    placeholderTextColor={colors.textMuted}
-                    autoCapitalize="characters"
-                  />
-                </View>
-                <TouchableOpacity style={styles.searchBtn} onPress={handleLookup} activeOpacity={0.8}>
-                  <Text style={styles.searchBtnText}>Search</Text>
-                </TouchableOpacity>
-              </View>
-
-              {lookupMessage ? (
-                <Text style={[styles.messageText, lookupMessage.startsWith('No') ? styles.errorMsg : styles.successMsg]}>
-                  {lookupMessage}
-                </Text>
-              ) : null}
             </View>
 
-            {/* Currently Armed Vehicle Card */}
+            {/* Vehicle Summary Card */}
             {vehicle ? (
-              <View style={styles.darkVehicleCard}>
-                <View style={styles.darkVehicleHeader}>
-                  <View style={styles.carIconBox}>
-                    <Car size={24} color={colors.primary} />
+              <View style={styles.vehicleCard}>
+                <View style={styles.vehicleTop}>
+                  <View style={styles.carBadgeWrap}>
+                    <Car size={22} color={colors.primary} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.darkVehicleTitle}>{vehicle.year} {vehicle.make} {vehicle.model}</Text>
-                    <Text style={styles.darkVehicleVariant}>{vehicle.variant} • {vehicle.colour}</Text>
+                  <View style={styles.vehicleNameWrap}>
+                    <Text style={styles.vehicleTitle}>
+                      {vehicle.year} {vehicle.make} {vehicle.model}
+                    </Text>
+                    <Text style={styles.vehicleSub}>
+                      {vehicle.variant} • {vehicle.colour}
+                    </Text>
                   </View>
-                  <View style={styles.regoPill}>
-                    <Text style={styles.regoPillText}>{vehicle.registration}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.darkDivider} />
-
-                <View style={styles.detailsGrid}>
-                  <View style={styles.detailGridItem}>
-                    <Text style={styles.gridLabel}>REPAIR ORDER</Text>
-                    <Text style={styles.gridValue}>{vehicle.repairOrder}</Text>
-                  </View>
-                  <View style={styles.detailGridItem}>
-                    <Text style={styles.gridLabel}>CUSTOMER</Text>
-                    <Text style={styles.gridValue}>{vehicle.customerName}</Text>
-                  </View>
-                  <View style={styles.detailGridItem}>
-                    <Text style={styles.gridLabel}>ODOMETER</Text>
-                    <Text style={styles.gridValue}>{vehicle.odometerKm.toLocaleString()} km</Text>
-                  </View>
-                  <View style={styles.detailGridItem}>
-                    <Text style={styles.gridLabel}>VIN</Text>
-                    <Text style={styles.gridValue}>•••••• {vehicle.vin.slice(-6)}</Text>
+                  <View style={styles.regoPlate}>
+                    <Text style={styles.regoText}>{vehicle.registration}</Text>
                   </View>
                 </View>
 
-                <View style={styles.concernContainer}>
-                  <FileText size={16} color={colors.textMuted} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.concernTitle}>DIAGNOSTIC CONCERN</Text>
-                    <Text style={styles.concernBody}>{vehicle.concern}</Text>
+                <View style={styles.vehicleDetailsGrid}>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>REPAIR ORDER</Text>
+                    <Text style={styles.detailValue}>{vehicle.repairOrder}</Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>CUSTOMER</Text>
+                    <Text style={styles.detailValue}>{vehicle.customerName}</Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>ODOMETER</Text>
+                    <Text style={styles.detailValue}>{vehicle.odometerKm.toLocaleString()} km</Text>
+                  </View>
+                  <View style={styles.detailCol}>
+                    <Text style={styles.detailLabel}>VIN</Text>
+                    <Text style={styles.detailValue}>...{vehicle.vin.slice(-6)}</Text>
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  style={[styles.armButton, armed ? styles.armButtonActive : styles.armButtonInactive]}
-                  onPress={armed ? disarmVehicle : armVehicle}
-                  activeOpacity={0.8}
-                >
-                  <CheckCircle2 size={16} color="#FFFFFF" />
-                  <Text style={styles.armButtonText}>
-                    {armed ? 'VEHICLE IS ARMED FOR ROAD TEST' : 'ARM THIS VEHICLE'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.concernBox}>
+                  <Text style={styles.concernLabel}>CUSTOMER FAULT CONCERN</Text>
+                  <Text style={styles.concernText}>{vehicle.concern}</Text>
+                </View>
+
+                {/* Geofence Boundary Status */}
+                <View style={styles.fenceRow}>
+                  <View style={styles.fenceIcon}>
+                    <MapPin size={16} color={colors.success} />
+                  </View>
+                  <View style={styles.fenceTextWrap}>
+                    <Text style={styles.fenceTitle}>
+                      {armed ? 'Automatic Road-Test Geofence Armed' : 'Geofence Standby'}
+                    </Text>
+                    <Text style={styles.fenceSub}>
+                      Booran Motors Service • {fenceRadius}m departure boundary
+                    </Text>
+                  </View>
+                  <View style={[styles.fenceStatusDot, armed && styles.fenceStatusDotActive]} />
+                </View>
               </View>
             ) : null}
-          </View>
-        )}
 
-        {/* ==================== TAB 3: TRIPS HISTORY ==================== */}
-        {activeTab === 'TRIPS' && (
-          <View>
-            <View style={styles.tripsSummaryRow}>
-              <View style={styles.summaryBox}>
-                <Text style={styles.summaryValue}>{tripRecords.length}</Text>
-                <Text style={styles.summaryLabel}>TOTAL DRIVES</Text>
+            {/* Live SVG Route Map */}
+            <View style={styles.mapWrap}>
+              <RoadTestRouteMap points={routePoints} state={tripState} />
+            </View>
+
+            {/* Speedometer & Telemetry Dashboard */}
+            <View style={styles.telemetryGrid}>
+              {/* Giant Speed Gauge Card */}
+              <View style={styles.speedGaugeCard}>
+                <View style={styles.gaugeIconWrap}>
+                  <Gauge size={18} color={colors.primaryLight} />
+                </View>
+                <Text style={styles.speedNumber}>{speedKph}</Text>
+                <Text style={styles.speedUnit}>KM/H</Text>
+                <Text style={styles.speedLabel}>CURRENT SPEED</Text>
               </View>
-              <View style={styles.summaryBox}>
-                <Text style={styles.summaryValue}>72</Text>
-                <Text style={styles.summaryLabel}>AVG KM/H</Text>
+
+              {/* Stats Columns */}
+              <View style={styles.metricColumn}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardLabel}>TRAVEL TIME</Text>
+                  <Text style={styles.statCardValue}>{formatClock(elapsedSec)}</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardLabel}>DISTANCE</Text>
+                  <Text style={styles.statCardValue}>{distanceKm.toFixed(1)} km</Text>
+                </View>
               </View>
-              <View style={styles.summaryBox}>
-                <Text style={[styles.summaryValue, { color: colors.success }]}>100%</Text>
-                <Text style={styles.summaryLabel}>LOGGED</Text>
+
+              <View style={styles.metricColumn}>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardLabel}>MAX SPEED</Text>
+                  <Text style={styles.statCardValue}>{maxSpeedKph} km/h</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Text style={styles.statCardLabel}>GPS STATUS</Text>
+                  <Text
+                    style={[
+                      styles.statCardValue,
+                      { color: tripState === 'outside' ? colors.primary : colors.success },
+                    ]}
+                  >
+                    {tripState === 'outside' ? 'Recording' : tripState === 'returned' ? 'Saved' : 'Armed'}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {tripRecords.map((item) => {
+            {/* Automation Milestone Log */}
+            <View style={styles.timelineCard}>
+              <Text style={styles.timelineSectionTitle}>AUTOMATION MILESTONE LOG</Text>
+              <View style={styles.timelineItem}>
+                <View style={[styles.timelineDot, styles.timelineDotDone]}>
+                  <Check size={11} color="#FFFFFF" />
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineTitle}>Vehicle Armed to RO</Text>
+                  <Text style={styles.timelineSub}>
+                    {vehicle?.repairOrder} paired with mobile tracking sensor
+                  </Text>
+                </View>
+                <Text style={styles.timelineTime}>Ready</Text>
+              </View>
+
+              <View style={styles.timelineItem}>
+                <View
+                  style={[
+                    styles.timelineDot,
+                    tripState !== 'inside' ? styles.timelineDotDone : null,
+                    tripState === 'outside' ? styles.timelineDotActive : null,
+                  ]}
+                >
+                  {tripState !== 'inside' ? <Check size={11} color="#FFFFFF" /> : null}
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineTitle}>Workshop Geofence Exit</Text>
+                  <Text style={styles.timelineSub}>
+                    Speed, route, and duration tracking automatically triggered
+                  </Text>
+                </View>
+                <Text style={styles.timelineTime}>
+                  {tripState === 'inside' ? 'Waiting' : 'Triggered'}
+                </Text>
+              </View>
+
+              <View style={styles.timelineItem}>
+                <View
+                  style={[
+                    styles.timelineDot,
+                    tripState === 'returned' ? styles.timelineDotDone : null,
+                  ]}
+                >
+                  {tripState === 'returned' ? <Check size={11} color="#FFFFFF" /> : null}
+                </View>
+                <View style={styles.timelineContent}>
+                  <Text style={styles.timelineTitle}>Workshop Geofence Return</Text>
+                  <Text style={styles.timelineSub}>
+                    Trip stopped and road test evidence log compiled
+                  </Text>
+                </View>
+                <Text style={styles.timelineTime}>
+                  {tripState === 'returned' ? 'Saved' : 'Pending'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Primary Action Button */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={demoRunning}
+              onPress={tripState === 'returned' ? resetDemo : startDemoDrive}
+              style={[styles.primaryActionBtn, demoRunning && styles.primaryActionBtnDisabled]}
+            >
+              {tripState === 'returned' ? (
+                <RotateCcw size={20} color="#FFFFFF" />
+              ) : (
+                <Play size={20} color="#FFFFFF" />
+              )}
+              <Text style={styles.primaryActionBtnText}>
+                {demoRunning
+                  ? 'SIMULATING ROAD TEST DRIVE...'
+                  : tripState === 'returned'
+                  ? 'RESET ROAD TEST'
+                  : armed
+                  ? 'START ROAD TEST DRIVE'
+                  : 'ARM VEHICLE'}
+              </Text>
+            </TouchableOpacity>
+
+            {armed && !demoRunning && tripState === 'inside' ? (
+              <TouchableOpacity activeOpacity={0.7} onPress={disarmVehicle} style={styles.disarmBtn}>
+                <Text style={styles.disarmBtnText}>Disarm tracking</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
+        )}
+
+        {activeSubTab === 'history' && (
+          <View style={styles.historyContainer}>
+            {/* KPI Summary Row */}
+            <View style={styles.kpiRow}>
+              <View style={styles.kpiCard}>
+                <Text style={styles.kpiNumber}>{tripRecords.length}</Text>
+                <Text style={styles.kpiLabel}>TOTAL DRIVES</Text>
+              </View>
+              <View style={styles.kpiCard}>
+                <Text style={styles.kpiNumber}>74 km/h</Text>
+                <Text style={styles.kpiLabel}>AVG MAX SPEED</Text>
+              </View>
+              <View style={styles.kpiCard}>
+                <Text style={[styles.kpiNumber, { color: colors.success }]}>100%</Text>
+                <Text style={styles.kpiLabel}>AUTO CAPTURED</Text>
+              </View>
+            </View>
+
+            {/* Filter Pills */}
+            <View style={styles.filterPillsRow}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setFilterType('all')}
+                style={[styles.filterPill, filterType === 'all' && styles.filterPillActive]}
+              >
+                <Text
+                  style={[styles.filterPillText, filterType === 'all' && styles.filterPillTextActive]}
+                >
+                  All Trips
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setFilterType('flagged')}
+                style={[styles.filterPill, filterType === 'flagged' && styles.filterPillActive]}
+              >
+                <Text
+                  style={[styles.filterPillText, filterType === 'flagged' && styles.filterPillTextActive]}
+                >
+                  Flagged Only
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Trip Cards List */}
+            {filteredTrips.map((item) => {
               const isExpanded = expandedTripId === item.id;
+              const isFlagged = item.outcome === 'Flagged';
+
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.tripCard}
+                  activeOpacity={0.8}
                   onPress={() => setExpandedTripId(isExpanded ? null : item.id)}
-                  activeOpacity={0.85}
+                  style={styles.tripCard}
                 >
                   <View style={styles.tripCardHeader}>
-                    <View style={[styles.tripOutcomeBadge, item.outcome === 'Flagged' ? styles.badgeFlagged : styles.badgePass]}>
-                      <Check size={14} color={item.outcome === 'Flagged' ? colors.danger : colors.success} />
+                    <View
+                      style={[
+                        styles.outcomeIcon,
+                        isFlagged ? styles.outcomeIconFlagged : styles.outcomeIconPassed,
+                      ]}
+                    >
+                      {isFlagged ? (
+                        <Flag size={15} color={colors.danger} />
+                      ) : (
+                        <Check size={15} color={colors.success} />
+                      )}
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.tripVehicleText}>{item.vehicleLabel}</Text>
-                      <Text style={styles.tripMetaText}>{item.registration} • {item.repairOrder}</Text>
+                    <View style={styles.tripCardTitleWrap}>
+                      <Text style={styles.tripCardVehicle}>{item.vehicleLabel}</Text>
+                      <Text style={styles.tripCardMeta}>
+                        {item.registration} • {item.repairOrder}
+                      </Text>
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.tripDateText}>{item.dateLabel}</Text>
-                      <Text style={styles.tripTimeText}>{item.startTime}</Text>
+                    <View style={styles.tripCardDateWrap}>
+                      <Text style={styles.tripCardDate}>{item.dateLabel}</Text>
+                      <Text style={styles.tripCardTime}>{item.startTime}</Text>
                     </View>
                   </View>
 
                   <View style={styles.tripStatsRow}>
-                    <View style={styles.tripStatItem}>
-                      <Text style={styles.tripStatLabel}>TIME</Text>
+                    <View style={styles.tripStat}>
+                      <Text style={styles.tripStatLabel}>DURATION</Text>
                       <Text style={styles.tripStatVal}>{item.duration}</Text>
                     </View>
-                    <View style={styles.tripStatItem}>
+                    <View style={styles.tripStat}>
                       <Text style={styles.tripStatLabel}>DISTANCE</Text>
-                      <Text style={styles.tripStatVal}>{item.distanceKm.toFixed(1)} km</Text>
+                      <Text style={styles.tripStatVal}>{item.distanceKm} km</Text>
                     </View>
-                    <View style={styles.tripStatItem}>
+                    <View style={styles.tripStat}>
                       <Text style={styles.tripStatLabel}>MAX SPEED</Text>
                       <Text style={styles.tripStatVal}>{item.maxSpeedKph} km/h</Text>
                     </View>
-                    {isExpanded ? <ChevronUp size={16} color={colors.textMuted} /> : <ChevronDown size={16} color={colors.textMuted} />}
+                    {isExpanded ? (
+                      <ChevronUp size={18} color={colors.textMuted} />
+                    ) : (
+                      <ChevronDown size={18} color={colors.textMuted} />
+                    )}
                   </View>
 
                   {isExpanded && (
-                    <View style={styles.expandedSection}>
-                      <RouteMapSvg points={DEMO_ROUTE} state="returned" compact />
-                      <View style={styles.tripNoteBox}>
-                        <Text style={styles.tripNoteLabel}>TECHNICIAN AUDIT NOTE</Text>
-                        <Text style={styles.tripNoteBody}>{item.note}</Text>
+                    <View style={styles.expandedTripSection}>
+                      <RoadTestRouteMap points={routePoints} state="returned" compact />
+                      <View style={styles.technicianNoteBox}>
+                        <Text style={styles.technicianNoteLabel}>
+                          TECHNICIAN NOTE ({item.technician})
+                        </Text>
+                        <Text style={styles.technicianNoteText}>{item.note}</Text>
                       </View>
                     </View>
                   )}
@@ -479,448 +532,302 @@ export function RoadTestScreen({ onBack, initialVehicleData }: RoadTestScreenPro
           </View>
         )}
 
-        {/* ==================== TAB 4: GEOFENCE & SETTINGS ==================== */}
-        {activeTab === 'SETTINGS' && (
-          <View>
-            <View style={styles.card}>
-              <Text style={styles.kicker}>DEALERSHIP BOUNDARY</Text>
-              <Text style={styles.cardTitle}>Geofence Radius</Text>
-              <Text style={styles.cardSubtitle}>
-                Vehicle departure triggers automated speed & telemetry recording. Re-entry finalises the warranty audit record.
+        {activeSubTab === 'settings' && (
+          <View style={styles.settingsContainer}>
+            <View style={styles.settingsSectionCard}>
+              <View style={styles.settingsHeaderRow}>
+                <View>
+                  <Text style={styles.settingsKicker}>WORKSHOP BOUNDARY</Text>
+                  <Text style={styles.settingsTitle}>Geofence Radius</Text>
+                </View>
+                <View style={styles.radiusPill}>
+                  <Text style={styles.radiusPillText}>{fenceRadius} m</Text>
+                </View>
+              </View>
+
+              <Text style={styles.settingsHelperText}>
+                Telemetry tracking begins immediately when the vehicle leaves this radius and stops
+                upon returning. Recommended standard is 180 m.
               </Text>
 
-              {/* Radius Chips */}
-              <View style={styles.radiusRow}>
-                {[120, 180, 250, 400].map((radius) => (
+              <View style={styles.radiusButtonsRow}>
+                {[120, 180, 250, 400].map((rad) => (
                   <TouchableOpacity
-                    key={radius}
-                    style={[styles.radiusChip, fenceRadius === radius && styles.radiusChipActive]}
-                    onPress={() => setFenceRadius(radius)}
+                    key={rad}
                     activeOpacity={0.7}
+                    onPress={() => setFenceRadius(rad)}
+                    style={[
+                      styles.radiusBtn,
+                      fenceRadius === rad && styles.radiusBtnActive,
+                    ]}
                   >
-                    <Text style={[styles.radiusChipText, fenceRadius === radius && styles.radiusChipTextActive]}>
-                      {radius} m
+                    <Text
+                      style={[
+                        styles.radiusBtnText,
+                        fenceRadius === rad && styles.radiusBtnTextActive,
+                      ]}
+                    >
+                      {rad}m
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            {/* Automation Options Card */}
-            <View style={styles.card}>
-              <Text style={styles.kicker}>AUTOMATION PREFERENCES</Text>
-              <Text style={styles.cardTitle}>Record Behaviour</Text>
+            <View style={styles.settingsSectionCard}>
+              <Text style={styles.settingsKicker}>AUTOMATION PREFERENCES</Text>
+              <Text style={styles.settingsTitle}>Recording Rules</Text>
 
-              <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.settingLabel}>Departure & Return Alerts</Text>
-                  <Text style={styles.settingSub}>Notify technician on geofence transition</Text>
+              <View style={styles.switchRow}>
+                <View style={styles.switchLabelWrap}>
+                  <Text style={styles.switchTitle}>Return Notifications</Text>
+                  <Text style={styles.switchSub}>Alert when a road-test record is saved</Text>
                 </View>
                 <Switch
-                  value={notifications}
-                  onValueChange={setNotifications}
+                  value={notifEnabled}
+                  onValueChange={setNotifEnabled}
                   trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={notifications ? colors.primary : '#FFFFFF'}
+                  thumbColor={notifEnabled ? colors.primary : '#FFFFFF'}
                 />
               </View>
 
-              <View style={styles.settingRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.settingLabel}>Attach Route to Warranty Case</Text>
-                  <Text style={styles.settingSub}>Save telemetry directly to warranty ticket</Text>
+              <View style={styles.switchRow}>
+                <View style={styles.switchLabelWrap}>
+                  <Text style={styles.switchTitle}>Auto-Attach to Repair Order</Text>
+                  <Text style={styles.switchSub}>Store route & telemetry directly with warranty evidence</Text>
                 </View>
                 <Switch
-                  value={keepHistory}
-                  onValueChange={setKeepHistory}
+                  value={historyEnabled}
+                  onValueChange={setHistoryEnabled}
                   trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={keepHistory ? colors.primary : '#FFFFFF'}
+                  thumbColor={historyEnabled ? colors.primary : '#FFFFFF'}
                 />
               </View>
 
-              <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.settingLabel}>Speed Compliance Warnings</Text>
-                  <Text style={styles.settingSub}>Flag speeds exceeding road test protocol</Text>
+              <View style={[styles.switchRow, { borderBottomWidth: 0 }]}>
+                <View style={styles.switchLabelWrap}>
+                  <Text style={styles.switchTitle}>Speed Threshold Flagging</Text>
+                  <Text style={styles.switchSub}>Flag test drives that exceed statutory limits</Text>
                 </View>
                 <Switch
-                  value={speedAlerts}
-                  onValueChange={setSpeedAlerts}
+                  value={speedAlertsEnabled}
+                  onValueChange={setSpeedAlertsEnabled}
                   trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={speedAlerts ? colors.primary : '#FFFFFF'}
+                  thumbColor={speedAlertsEnabled ? colors.primary : '#FFFFFF'}
                 />
               </View>
             </View>
 
-            {/* Privacy Card */}
             <View style={styles.privacyCard}>
               <Shield size={20} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.privacyTitle}>Privacy by Design</Text>
-                <Text style={styles.privacySub}>
-                  GPS telemetry is locked strictly to the active repair order and road test duration.
+              <View style={styles.privacyContent}>
+                <Text style={styles.privacyTitle}>Technician Privacy Protected</Text>
+                <Text style={styles.privacyText}>
+                  Location tracking is strictly restricted to armed repair orders during active test
+                  drives. No personal location history is stored outside customer warranty validation.
                 </Text>
               </View>
             </View>
           </View>
         )}
       </ScrollView>
+
+      {/* 4. Symmetrical 5-Item Bottom Navbar (Replacing Awaiting with Test Drive) */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
+        {isAdmin ? (
+          <>
+            {/* 1. Test Drive (ACTIVE) */}
+            <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
+              <Gauge size={20} color={colors.primary} />
+              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Test Drive</Text>
+            </TouchableOpacity>
+
+            {/* 2. Vehicles */}
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenVehicles} style={styles.bottomBarTab}>
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Tickets */}
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenTickets} style={styles.bottomBarTab}>
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Tickets</Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners */}
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenLoaners} style={styles.bottomBarTab}>
+              <Key size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Loaners</Text>
+            </TouchableOpacity>
+
+            {/* 5. Profile */}
+            <TouchableOpacity activeOpacity={0.75} onPress={onOpenProfile} style={styles.bottomBarUserTab}>
+              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
+                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
+                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'BM'}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {/* Technician Layout */}
+            {/* 1. Tickets */}
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenTickets} style={styles.bottomBarTab}>
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Tickets</Text>
+            </TouchableOpacity>
+
+            {/* 2. Vehicles */}
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenVehicles} style={styles.bottomBarTab}>
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 3. Test Drive (ACTIVE - Center or Left) */}
+            <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
+              <Gauge size={20} color={colors.primary} />
+              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Test Drive</Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners */}
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenLoaners} style={styles.bottomBarTab}>
+              <Key size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Loaners</Text>
+            </TouchableOpacity>
+
+            {/* 5. Profile */}
+            <TouchableOpacity activeOpacity={0.75} onPress={onOpenProfile} style={styles.bottomBarUserTab}>
+              <View style={styles.bottomBarAvatar}>
+                <Text style={styles.bottomBarAvatarText}>
+                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'BM'}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>
+                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8FAFC',
   },
-  topNav: {
-    backgroundColor: colors.primary,
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  backButton: {
+  brandGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 10,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navTitleGroup: {
-    flex: 1,
-  },
-  navTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  brandName: {
+    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 0.2,
+    color: '#0F172A',
+    letterSpacing: 0.8,
   },
-  navSubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 10,
-    fontWeight: '600',
+  brandSub: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 0.6,
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  liveIndicatorText: {
-    color: '#FFFFFF',
-    fontSize: 9.5,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tabItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabItemActive: {
-    borderBottomColor: colors.primary,
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textMuted,
-  },
-  tabLabelActive: {
-    color: colors.primary,
-    fontWeight: '900',
-  },
-  contentScroll: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: spacing.md,
-    paddingBottom: 40,
-  },
-  darkStatusCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  statusHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  statusBadgeDot: {
+  pulseDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
   },
-  statusBadgeText: {
+  liveIndicatorText: {
     fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  statusMainTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  vehicleStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-  },
-  vehicleStripName: {
-    color: '#F1F5F9',
-    fontSize: 12,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  vehicleStripMeta: {
-    color: '#94A3B8',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  metricsRow: {
+  subTabBar: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: spacing.sm,
-  },
-  speedCard: {
-    flex: 1.1,
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    padding: 12,
-    justifyContent: 'flex-end',
-    borderWidth: 1,
-    borderColor: '#1E293B',
-    minHeight: 140,
-  },
-  speedIconCircle: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: '#1E293B',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  speedValueText: {
-    color: '#FFFFFF',
-    fontSize: 42,
-    fontWeight: '900',
-    letterSpacing: -1.5,
-    lineHeight: 46,
-  },
-  speedUnitText: {
-    color: '#EF4444',
-    fontSize: 9.5,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  speedLabelText: {
-    color: '#94A3B8',
-    fontSize: 7.5,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    marginTop: 4,
-  },
-  metricColumn: {
-    flex: 1,
-    gap: 8,
-  },
-  metricTile: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-  },
-  tileLabel: {
-    color: colors.textMuted,
-    fontSize: 7.5,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    marginTop: 2,
-  },
-  tileValue: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '900',
-    marginTop: 1,
-  },
-  timelineCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginTop: spacing.sm,
-  },
-  sectionHeader: {
-    color: colors.textSecondary,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    marginBottom: 10,
-  },
-  timelineItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 9,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    gap: 10,
-  },
-  timelineNode: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  timelineNodeDone: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  timelineNodeActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  timelineTextWrap: {
-    flex: 1,
-  },
-  timelineItemTitle: {
-    color: colors.textPrimary,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  timelineItemSub: {
-    color: colors.textSecondary,
-    fontSize: 9,
-    marginTop: 1,
-  },
-  timelineTime: {
-    color: colors.textMuted,
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  actionsRow: {
-    marginTop: spacing.md,
-  },
-  primaryActionBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 14,
-    height: 50,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderBottomColor: '#E2E8F0',
     gap: 8,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
   },
-  disabledBtn: {
-    opacity: 0.7,
-  },
-  primaryActionText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
-  },
-  kicker: {
-    color: colors.primary,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    marginBottom: 4,
-  },
-  cardTitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  cardSubtitle: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 4,
-    marginBottom: 12,
-  },
-  modePillRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  modePill: {
+  subTabItem: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
   },
-  modePillActive: {
+  subTabItemActive: {
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: 'rgba(215, 25, 32, 0.25)',
+    borderColor: 'rgba(215, 25, 32, 0.2)',
   },
-  modePillText: {
-    fontSize: 10,
+  subTabText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: '#64748B',
   },
-  modePillTextActive: {
+  subTabTextActive: {
     color: colors.primary,
     fontWeight: '900',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  searchCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
   },
   searchRow: {
     flexDirection: 'row',
     gap: 8,
   },
-  inputContainer: {
+  inputWrap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -928,218 +835,442 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 10,
     gap: 8,
-    height: 44,
+    height: 42,
   },
   searchInput: {
     flex: 1,
-    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
+    color: '#0F172A',
     paddingVertical: 0,
   },
   searchBtn: {
     backgroundColor: colors.primary,
     borderRadius: 10,
-    paddingHorizontal: 16,
-    alignItems: 'center',
+    paddingHorizontal: 14,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   searchBtnText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '800',
   },
-  messageText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    marginTop: 8,
+  quickChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
   },
-  successMsg: {
-    color: colors.success,
+  chipsLabel: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.6,
   },
-  errorMsg: {
-    color: colors.danger,
+  chipBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  darkVehicleCard: {
+  chipBtnText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  vehicleCard: {
     backgroundColor: '#0F172A',
     borderRadius: 18,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#1E293B',
-    marginTop: spacing.sm,
+    marginBottom: 12,
   },
-  darkVehicleHeader: {
+  vehicleTop: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  carIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#FEF2F2',
+  carBadgeWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(215, 25, 32, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  darkVehicleTitle: {
+  vehicleNameWrap: {
+    flex: 1,
+  },
+  vehicleTitle: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
   },
-  darkVehicleVariant: {
+  vehicleSub: {
     color: '#94A3B8',
     fontSize: 10,
-    fontWeight: '600',
-    marginTop: 1,
+    fontWeight: '700',
+    marginTop: 2,
   },
-  regoPill: {
+  regoPlate: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 6,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  regoPillText: {
-    color: colors.textPrimary,
+  regoText: {
+    color: '#0F172A',
     fontSize: 10,
     fontWeight: '900',
+    letterSpacing: 0.6,
   },
-  darkDivider: {
-    height: 1,
-    backgroundColor: '#1E293B',
-    marginVertical: 12,
-  },
-  detailsGrid: {
+  vehicleDetailsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 10,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+    rowGap: 8,
   },
-  detailGridItem: {
+  detailCol: {
     width: '50%',
   },
-  gridLabel: {
+  detailLabel: {
     color: '#94A3B8',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  gridValue: {
-    color: '#F8FAFC',
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  concernContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    backgroundColor: '#1E293B',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 12,
-  },
-  concernTitle: {
-    color: '#94A3B8',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  concernBody: {
-    color: '#E2E8F0',
-    fontSize: 10.5,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  armButton: {
-    marginTop: 14,
-    borderRadius: 10,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  armButtonActive: {
-    backgroundColor: colors.success,
-  },
-  armButtonInactive: {
-    backgroundColor: colors.primary,
-  },
-  armButtonText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  tripsSummaryRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: spacing.sm,
-  },
-  summaryBox: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  summaryValue: {
-    color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  summaryLabel: {
-    color: colors.textMuted,
     fontSize: 8,
     fontWeight: '800',
     letterSpacing: 0.6,
+  },
+  detailValue: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '700',
     marginTop: 2,
+  },
+  concernBox: {
+    backgroundColor: '#1E293B',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+  },
+  concernLabel: {
+    color: '#94A3B8',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  concernText: {
+    color: '#E2E8F0',
+    fontSize: 10.5,
+    fontWeight: '600',
+    marginTop: 3,
+    lineHeight: 15,
+  },
+  fenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 8,
+  },
+  fenceIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fenceTextWrap: {
+    flex: 1,
+  },
+  fenceTitle: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  fenceSub: {
+    color: '#94A3B8',
+    fontSize: 9,
+    marginTop: 1,
+  },
+  fenceStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#475569',
+  },
+  fenceStatusDotActive: {
+    backgroundColor: colors.success,
+  },
+  mapWrap: {
+    marginBottom: 12,
+  },
+  telemetryGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  speedGaugeCard: {
+    flex: 1.1,
+    minHeight: 130,
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 12,
+    justifyContent: 'flex-end',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    position: 'relative',
+  },
+  gaugeIconWrap: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+  },
+  speedNumber: {
+    color: '#FFFFFF',
+    fontSize: 38,
+    fontWeight: '900',
+    lineHeight: 42,
+    letterSpacing: -1,
+  },
+  speedUnit: {
+    color: colors.primaryLight,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  speedLabel: {
+    color: '#94A3B8',
+    fontSize: 7.5,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginTop: 4,
+  },
+  metricColumn: {
+    flex: 1,
+    gap: 8,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 9,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+  },
+  statCardLabel: {
+    color: '#94A3B8',
+    fontSize: 7.5,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  statCardValue: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  timelineCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  timelineSectionTitle: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+  },
+  timelineDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timelineDotDone: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+  timelineDotActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  timelineContent: {
+    flex: 1,
+  },
+  timelineTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  timelineSub: {
+    fontSize: 8.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  timelineTime: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#94A3B8',
+  },
+  primaryActionBtn: {
+    height: 48,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  primaryActionBtnDisabled: {
+    opacity: 0.7,
+  },
+  primaryActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  disarmBtn: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  disarmBtnText: {
+    color: colors.primaryLight,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  historyContainer: {
+    gap: 10,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 4,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  kpiNumber: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  kpiLabel: {
+    fontSize: 7.5,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.6,
+    marginTop: 3,
+  },
+  filterPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 4,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
   },
   tripCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
+    borderColor: '#E2E8F0',
   },
   tripCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  tripOutcomeBadge: {
+  outcomeIcon: {
     width: 28,
     height: 28,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgePass: {
+  outcomeIconPassed: {
     backgroundColor: '#ECFDF5',
   },
-  badgeFlagged: {
+  outcomeIconFlagged: {
     backgroundColor: '#FEF2F2',
   },
-  tripVehicleText: {
-    color: colors.textPrimary,
-    fontSize: 12.5,
-    fontWeight: '900',
+  tripCardTitleWrap: {
+    flex: 1,
   },
-  tripMetaText: {
-    color: colors.textSecondary,
+  tripCardVehicle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  tripCardMeta: {
     fontSize: 9.5,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#64748B',
     marginTop: 1,
   },
-  tripDateText: {
-    color: colors.textPrimary,
-    fontSize: 9.5,
-    fontWeight: '800',
+  tripCardDateWrap: {
+    alignItems: 'flex-end',
   },
-  tripTimeText: {
-    color: colors.textMuted,
+  tripCardDate: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  tripCardTime: {
     fontSize: 8.5,
+    color: '#94A3B8',
+    marginTop: 1,
   },
   tripStatsRow: {
     flexDirection: 'row',
@@ -1149,109 +1280,220 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
-  tripStatItem: {
+  tripStat: {
     flex: 1,
   },
   tripStatLabel: {
-    color: colors.textMuted,
-    fontSize: 7.5,
-    fontWeight: '800',
+    fontSize: 7,
+    fontWeight: '900',
+    color: '#94A3B8',
     letterSpacing: 0.6,
   },
   tripStatVal: {
-    color: colors.textPrimary,
     fontSize: 10.5,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#0F172A',
     marginTop: 1,
   },
-  expandedSection: {
-    marginTop: 12,
-    paddingTop: 12,
+  expandedTripSection: {
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#E2E8F0',
   },
-  tripNoteBox: {
+  technicianNoteBox: {
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
     padding: 10,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
   },
-  tripNoteLabel: {
-    color: colors.textMuted,
+  technicianNoteLabel: {
     fontSize: 7.5,
-    fontWeight: '800',
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.6,
+  },
+  technicianNoteText: {
+    fontSize: 9.5,
+    color: '#334155',
+    marginTop: 3,
+    lineHeight: 14,
+  },
+  settingsContainer: {
+    gap: 12,
+  },
+  settingsSectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  settingsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingsKicker: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#64748B',
     letterSpacing: 0.8,
   },
-  tripNoteBody: {
-    color: colors.textPrimary,
-    fontSize: 10,
-    lineHeight: 14,
-    marginTop: 2,
+  settingsTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 1,
   },
-  radiusRow: {
+  radiusPill: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 25, 32, 0.2)',
+  },
+  radiusPillText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: colors.primary,
+  },
+  settingsHelperText: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 8,
+    lineHeight: 14,
+  },
+  radiusButtonsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 6,
+    marginTop: 12,
   },
-  radiusChip: {
+  radiusBtn: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: '#F1F5F9',
-    borderRadius: 10,
+    borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
   },
-  radiusChipActive: {
+  radiusBtnActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  radiusChipText: {
-    color: colors.textSecondary,
+  radiusBtnText: {
     fontSize: 11,
     fontWeight: '800',
+    color: '#475569',
   },
-  radiusChipTextActive: {
+  radiusBtnTextActive: {
     color: '#FFFFFF',
   },
-  settingRow: {
+  switchRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
-  settingLabel: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '800',
+  switchLabelWrap: {
+    flex: 1,
+    paddingRight: 10,
   },
-  settingSub: {
-    color: colors.textSecondary,
-    fontSize: 9.5,
-    marginTop: 2,
+  switchTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  switchSub: {
+    fontSize: 9,
+    color: '#64748B',
+    marginTop: 1,
   },
   privacyCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 10,
     backgroundColor: '#F1F5F9',
     borderRadius: 14,
-    padding: 14,
-    gap: 10,
+    padding: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
+    alignItems: 'flex-start',
+  },
+  privacyContent: {
+    flex: 1,
   },
   privacyTitle: {
-    color: colors.textPrimary,
     fontSize: 11,
     fontWeight: '900',
+    color: '#0F172A',
   },
-  privacySub: {
+  privacyText: {
+    fontSize: 9,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 13,
+  },
+  bottomBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingTop: 8,
+    paddingHorizontal: 8,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  bottomBarTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  bottomBarLabel: {
+    fontSize: 10,
+    fontWeight: '700',
     color: colors.textSecondary,
+    marginTop: 3,
+  },
+  bottomBarUserTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  bottomBarAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(215, 25, 32, 0.08)',
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBarAvatarAdmin: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#D97706',
+  },
+  bottomBarAvatarText: {
     fontSize: 9.5,
-    lineHeight: 14,
-    marginTop: 1,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  bottomBarAvatarTextAdmin: {
+    color: '#D97706',
   },
 });

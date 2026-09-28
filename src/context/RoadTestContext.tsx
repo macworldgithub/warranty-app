@@ -1,50 +1,192 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { RoadTestVehicle, TripRecord, TripState, PermissionState, RoutePoint } from '../types/roadTest';
-import { DEFAULT_VEHICLES, INITIAL_TRIPS, DEMO_ROUTE } from '../services/roadtest/roadTestData';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 
-type RoadTestContextValue = {
+export type TripState = 'inside' | 'outside' | 'returned';
+
+export interface RoadTestVehicle {
+  id: string;
+  registration: string;
+  repairOrder: string;
+  customerName: string;
+  make: string;
+  model: string;
+  year: number;
+  variant: string;
+  colour: string;
+  odometerKm: number;
+  vin: string;
+  concern: string;
+}
+
+export interface RoutePoint {
+  x: number;
+  y: number;
+  speed: number;
+}
+
+export interface RoadTestTripRecord {
+  id: string;
+  repairOrder: string;
+  registration: string;
+  vehicleLabel: string;
+  dateLabel: string;
+  startTime: string;
+  duration: string;
+  distanceKm: number;
+  maxSpeedKph: number;
+  outcome: 'Passed' | 'Flagged';
+  technician: string;
+  note: string;
+}
+
+export const DEFAULT_DEMO_ROUTE: RoutePoint[] = [
+  { x: 18, y: 68, speed: 0 },
+  { x: 18, y: 65, speed: 12 },
+  { x: 19, y: 58, speed: 28 },
+  { x: 23, y: 54, speed: 42 },
+  { x: 31, y: 55, speed: 58 },
+  { x: 42, y: 62, speed: 64 },
+  { x: 50, y: 68, speed: 71 },
+  { x: 62, y: 76, speed: 76 },
+  { x: 74, y: 79, speed: 68 },
+  { x: 84, y: 72, speed: 54 },
+  { x: 80, y: 58, speed: 46 },
+  { x: 68, y: 44, speed: 62 },
+  { x: 55, y: 35, speed: 67 },
+  { x: 44, y: 28, speed: 52 },
+  { x: 35, y: 24, speed: 48 },
+  { x: 26, y: 22, speed: 38 },
+  { x: 21, y: 32, speed: 29 },
+  { x: 18, y: 48, speed: 22 },
+  { x: 18, y: 68, speed: 0 },
+];
+
+export const INITIAL_DEMO_VEHICLES: RoadTestVehicle[] = [
+  {
+    id: 'veh-1',
+    registration: 'SGS 274',
+    repairOrder: 'RO-48291',
+    customerName: 'Marcus Vance',
+    make: 'Holden',
+    model: 'Commodore',
+    year: 2021,
+    variant: 'RS-V Liftback',
+    colour: 'Heron White',
+    odometerKm: 48210,
+    vin: '6G1MK5E37LL194821',
+    concern: 'Intermittent shudder under light load at 60–80 km/h after transmission fluid service.',
+  },
+  {
+    id: 'veh-2',
+    registration: 'BWM 882',
+    repairOrder: 'RO-48305',
+    customerName: 'Sarah Jenkins',
+    make: 'Hyundai',
+    model: 'Tucson',
+    year: 2022,
+    variant: 'Highlander AWD',
+    colour: 'Phantom Black',
+    odometerKm: 32150,
+    vin: 'KMHJ381BBNU842109',
+    concern: 'Rattle from front-right suspension over sharp road joints.',
+  },
+  {
+    id: 'veh-3',
+    registration: 'VIC 901',
+    repairOrder: 'RO-48319',
+    customerName: 'David Chen',
+    make: 'Kia',
+    model: 'Sportage',
+    year: 2023,
+    variant: 'GT-Line Diesel',
+    colour: 'Steel Grey',
+    odometerKm: 18400,
+    vin: 'KNAFX81ABPT291048',
+    concern: 'Check engine warning lamp illuminated during sustained highway driving.',
+  },
+];
+
+export const INITIAL_TRIP_RECORDS: RoadTestTripRecord[] = [
+  {
+    id: 'trip-1',
+    repairOrder: 'RO-48291',
+    registration: 'SGS 274',
+    vehicleLabel: '2021 Holden Commodore RS-V',
+    dateLabel: 'Today',
+    startTime: '2:18 pm',
+    duration: '12m 48s',
+    distanceKm: 6.8,
+    maxSpeedKph: 76,
+    outcome: 'Passed',
+    technician: 'Senior Tech (A. Miller)',
+    note: 'Shudder duplicated between 64 km/h and 71 km/h on Dandenong Rd test sector. Telemetry confirms lockup clutch slip variance.',
+  },
+  {
+    id: 'trip-2',
+    repairOrder: 'RO-48190',
+    registration: '1QZ 4AA',
+    vehicleLabel: '2022 Hyundai Tucson Highlander',
+    dateLabel: 'Yesterday',
+    startTime: '10:45 am',
+    duration: '15m 12s',
+    distanceKm: 9.4,
+    maxSpeedKph: 82,
+    outcome: 'Passed',
+    technician: 'Lead Diagnostics Tech',
+    note: 'Post-sway bar bushing replacement check. Noise resolved across all simulated road undulations.',
+  },
+  {
+    id: 'trip-3',
+    repairOrder: 'RO-47952',
+    registration: 'YTX 108',
+    vehicleLabel: '2020 Kia Sorento GT-Line',
+    dateLabel: '24 Sep',
+    startTime: '4:02 pm',
+    duration: '8m 20s',
+    distanceKm: 4.2,
+    maxSpeedKph: 64,
+    outcome: 'Flagged',
+    technician: 'Apprentice / Tech 4',
+    note: 'Road test terminated early. Intermittent brake shudder flagged for mandatory rotor dial-indicator inspection.',
+  },
+];
+
+interface RoadTestContextValue {
   vehicle: RoadTestVehicle | null;
   armed: boolean;
   tripState: TripState;
   demoRunning: boolean;
-  routeIndex: number;
   speedKph: number;
   maxSpeedKph: number;
   elapsedSec: number;
   distanceKm: number;
   routePoints: RoutePoint[];
   fenceRadius: number;
-  permissionState: PermissionState;
-  tripRecords: TripRecord[];
-  allVehicles: RoadTestVehicle[];
-  setVehicle: (vehicle: RoadTestVehicle) => void;
-  armCustomVehicle: (custom: Partial<RoadTestVehicle>) => void;
+  tripRecords: RoadTestTripRecord[];
+  setVehicle: (vehicle: RoadTestVehicle | null) => void;
   setFenceRadius: (radius: number) => void;
   armVehicle: () => void;
   disarmVehicle: () => void;
   startDemoDrive: () => void;
   resetDemo: () => void;
-  enableNativeTracking: () => void;
-};
+  loadVehicleByROOrRego: (query: string) => boolean;
+}
 
 const RoadTestContext = createContext<RoadTestContextValue | null>(null);
 
 export function RoadTestProvider({ children }: { children: React.ReactNode }) {
-  const [allVehicles, setAllVehicles] = useState<RoadTestVehicle[]>(DEFAULT_VEHICLES);
-  const [vehicle, setVehicleState] = useState<RoadTestVehicle | null>(DEFAULT_VEHICLES[0]);
+  const [vehicle, setVehicle] = useState<RoadTestVehicle | null>(INITIAL_DEMO_VEHICLES[0]);
   const [armed, setArmed] = useState(true);
   const [tripState, setTripState] = useState<TripState>('inside');
   const [demoRunning, setDemoRunning] = useState(false);
-  const [routeIndex, setRouteIndex] = useState(1);
   const [speedKph, setSpeedKph] = useState(0);
   const [maxSpeedKph, setMaxSpeedKph] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [distanceKm, setDistanceKm] = useState(0);
-  const [fenceRadius, setFenceRadiusState] = useState(180);
-  const [permissionState, setPermissionState] = useState<PermissionState>('enabled');
-  const [tripRecords, setTripRecords] = useState<TripRecord[]>(INITIAL_TRIPS);
+  const [fenceRadius, setFenceRadius] = useState(180);
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([DEFAULT_DEMO_ROUTE[0]]);
+  const [tripRecords, setTripRecords] = useState<RoadTestTripRecord[]>(INITIAL_TRIP_RECORDS);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<any>(null);
   const activeIndexRef = useRef(1);
 
   const clearTimer = useCallback(() => {
@@ -52,17 +194,20 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
     timerRef.current = null;
   }, []);
 
-  useEffect(() => clearTimer, [clearTimer]);
-
-  const setFenceRadius = useCallback((radius: number) => {
-    setFenceRadiusState(Math.min(500, Math.max(100, radius)));
-  }, []);
+  useEffect(() => {
+    return () => clearTimer();
+  }, [clearTimer]);
 
   const armVehicle = useCallback(() => {
-    if (!vehicle) return;
     setArmed(true);
     setTripState('inside');
-  }, [vehicle]);
+    setSpeedKph(0);
+    setMaxSpeedKph(0);
+    setElapsedSec(0);
+    setDistanceKm(0);
+    setRoutePoints([DEFAULT_DEMO_ROUTE[0]]);
+    activeIndexRef.current = 1;
+  }, []);
 
   const disarmVehicle = useCallback(() => {
     clearTimer();
@@ -75,156 +220,118 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const resetDemo = useCallback(() => {
     clearTimer();
     setDemoRunning(false);
+    setArmed(true);
     setTripState('inside');
-    setRouteIndex(1);
-    activeIndexRef.current = 1;
     setSpeedKph(0);
     setMaxSpeedKph(0);
     setElapsedSec(0);
     setDistanceKm(0);
+    setRoutePoints([DEFAULT_DEMO_ROUTE[0]]);
+    activeIndexRef.current = 1;
   }, [clearTimer]);
 
   const startDemoDrive = useCallback(() => {
-    if (!vehicle) return;
+    if (!armed) setArmed(true);
     clearTimer();
-    setArmed(true);
     setDemoRunning(true);
     setTripState('outside');
-    setRouteIndex(2);
-    activeIndexRef.current = 2;
-    setSpeedKph(DEMO_ROUTE[1].speed);
-    setMaxSpeedKph(DEMO_ROUTE[1].speed);
-    setDistanceKm(DEMO_ROUTE[1].distance);
-    setElapsedSec(6);
+    setElapsedSec(0);
+    setDistanceKm(0);
+    setMaxSpeedKph(0);
+    setRoutePoints([DEFAULT_DEMO_ROUTE[0]]);
+    activeIndexRef.current = 1;
 
     timerRef.current = setInterval(() => {
-      const next = activeIndexRef.current + 1;
-      if (next >= DEMO_ROUTE.length) {
+      const idx = activeIndexRef.current;
+      const targetPoint = DEFAULT_DEMO_ROUTE[idx];
+
+      if (!targetPoint) {
+        // Complete trip
         clearTimer();
-        activeIndexRef.current = DEMO_ROUTE.length - 1;
-        setRouteIndex(DEMO_ROUTE.length);
+        setDemoRunning(false);
         setTripState('returned');
         setSpeedKph(0);
-        setDemoRunning(false);
 
-        // Record completed road test
-        const newRecord: TripRecord = {
-          id: `trip-${Date.now()}`,
-          vehicleId: vehicle.id,
-          vehicleLabel: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
-          registration: vehicle.registration,
-          repairOrder: vehicle.repairOrder,
-          dateLabel: 'Just now',
-          startTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          duration: `${Math.floor((DEMO_ROUTE.length * 4) / 60)}m ${(DEMO_ROUTE.length * 4) % 60}s`,
-          distanceKm: DEMO_ROUTE[DEMO_ROUTE.length - 1].distance,
-          maxSpeedKph: Math.max(...DEMO_ROUTE.map((p) => p.speed)),
-          avgSpeedKph: 48,
-          technician: 'Workshop Tech',
-          outcome: 'Completed',
-          note: `Road test evidence logged for ${vehicle.repairOrder}. Geofence departure and arrival auto-verified.`,
-        };
-        setTripRecords((prev) => [newRecord, ...prev]);
+        // Auto-save record
+        if (vehicle) {
+          const newRecord: RoadTestTripRecord = {
+            id: `trip-${Date.now()}`,
+            repairOrder: vehicle.repairOrder,
+            registration: vehicle.registration,
+            vehicleLabel: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+            dateLabel: 'Just now',
+            startTime: new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }),
+            duration: '12m 48s',
+            distanceKm: 6.8,
+            maxSpeedKph: 76,
+            outcome: 'Passed',
+            technician: 'Active Technician',
+            note: 'Automated road test verified via Booran geofence tracking. No boundary violations.',
+          };
+          setTripRecords((prev) => [newRecord, ...prev]);
+        }
         return;
       }
 
-      activeIndexRef.current = next;
-      setRouteIndex(next);
-      const point = DEMO_ROUTE[next - 1];
-      setSpeedKph(point.speed);
-      setMaxSpeedKph((current) => Math.max(current, point.speed));
-      setDistanceKm(point.distance);
+      setRoutePoints((prev) => [...prev, targetPoint]);
+      setSpeedKph(targetPoint.speed);
+      setMaxSpeedKph((prev) => Math.max(prev, targetPoint.speed));
       setElapsedSec((prev) => prev + 4);
-    }, 1100);
-  }, [clearTimer, vehicle]);
+      setDistanceKm((prev) => Number((prev + targetPoint.speed * 0.0011).toFixed(1)));
 
-  const armCustomVehicle = useCallback((custom: Partial<RoadTestVehicle>) => {
-    const newVeh: RoadTestVehicle = {
-      id: custom.id || `veh-${Date.now()}`,
-      registration: custom.registration || 'TEST-01',
-      customerNumber: custom.customerNumber || 'C-LOCAL',
-      customerName: custom.customerName || 'Booran Customer',
-      vin: custom.vin || 'VIN-UNKNOWN',
-      repairOrder: custom.repairOrder || 'RO-TEST',
-      year: custom.year || 2024,
-      make: custom.make || 'Toyota',
-      model: custom.model || 'Demo',
-      variant: custom.variant || 'Standard',
-      colour: custom.colour || 'Silver',
-      odometerKm: custom.odometerKm || 10000,
-      serviceAdvisor: custom.serviceAdvisor || 'Service Team',
-      concern: custom.concern || 'Road test requested for warranty diagnostics',
-    };
-    setAllVehicles((prev) => [newVeh, ...prev.filter((v) => v.registration !== newVeh.registration)]);
-    setVehicleState(newVeh);
-    setArmed(true);
-    setTripState('inside');
-    resetDemo();
-  }, [resetDemo]);
+      activeIndexRef.current += 1;
+    }, 850);
+  }, [armed, clearTimer, vehicle]);
 
-  const enableNativeTracking = useCallback(() => {
-    setPermissionState('enabled');
-  }, []);
+  const loadVehicleByROOrRego = useCallback((query: string) => {
+    const q = query.trim().toUpperCase();
+    const found = INITIAL_DEMO_VEHICLES.find(
+      (v) =>
+        v.repairOrder.toUpperCase().includes(q) ||
+        v.registration.toUpperCase().includes(q) ||
+        v.vin.toUpperCase().includes(q) ||
+        v.customerName.toUpperCase().includes(q)
+    );
+    if (found) {
+      setVehicle(found);
+      armVehicle();
+      return true;
+    }
+    return false;
+  }, [armVehicle]);
 
-  const routePoints = useMemo(() => DEMO_ROUTE.slice(0, Math.max(1, routeIndex)), [routeIndex]);
-
-  const value = useMemo(
-    () => ({
-      vehicle,
-      armed,
-      tripState,
-      demoRunning,
-      routeIndex,
-      speedKph,
-      maxSpeedKph,
-      elapsedSec,
-      distanceKm,
-      routePoints,
-      fenceRadius,
-      permissionState,
-      tripRecords,
-      allVehicles,
-      setVehicle: setVehicleState,
-      armCustomVehicle,
-      setFenceRadius,
-      armVehicle,
-      disarmVehicle,
-      startDemoDrive,
-      resetDemo,
-      enableNativeTracking,
-    }),
-    [
-      vehicle,
-      armed,
-      tripState,
-      demoRunning,
-      routeIndex,
-      speedKph,
-      maxSpeedKph,
-      elapsedSec,
-      distanceKm,
-      routePoints,
-      fenceRadius,
-      permissionState,
-      tripRecords,
-      allVehicles,
-      armCustomVehicle,
-      setFenceRadius,
-      armVehicle,
-      disarmVehicle,
-      startDemoDrive,
-      resetDemo,
-      enableNativeTracking,
-    ]
+  return (
+    <RoadTestContext.Provider
+      value={{
+        vehicle,
+        armed,
+        tripState,
+        demoRunning,
+        speedKph,
+        maxSpeedKph,
+        elapsedSec,
+        distanceKm,
+        routePoints,
+        fenceRadius,
+        tripRecords,
+        setVehicle,
+        setFenceRadius,
+        armVehicle,
+        disarmVehicle,
+        startDemoDrive,
+        resetDemo,
+        loadVehicleByROOrRego,
+      }}
+    >
+      {children}
+    </RoadTestContext.Provider>
   );
-
-  return <RoadTestContext.Provider value={value}>{children}</RoadTestContext.Provider>;
 }
 
-export function useRoadTest(): RoadTestContextValue {
-  const ctx = useContext(RoadTestContext);
-  if (!ctx) {
-    throw new Error('useRoadTest must be used within RoadTestProvider');
+export function useRoadTest() {
+  const context = useContext(RoadTestContext);
+  if (!context) {
+    throw new Error('useRoadTest must be used within a RoadTestProvider');
   }
-  return ctx;
+  return context;
 }
