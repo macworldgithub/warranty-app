@@ -65,8 +65,8 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
       rawImageUri.startsWith('data:')
       ? rawImageUri
       : rawImageUri.startsWith('/')
-      ? `${getBaseServerUrl().replace(/\/+$/, '')}${rawImageUri}`
-      : rawImageUri
+        ? `${getBaseServerUrl().replace(/\/+$/, '')}${rawImageUri}`
+        : rawImageUri
     : null;
 
   const isCaptured = !!evidence && !!rawImageUri;
@@ -77,14 +77,13 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
     Boolean(
       rawImageUri &&
       (rawImageUri.toLowerCase().endsWith('.mp4') ||
-       rawImageUri.toLowerCase().endsWith('.mov') ||
-       rawImageUri.toLowerCase().endsWith('.webm'))
+        rawImageUri.toLowerCase().endsWith('.mov') ||
+        rawImageUri.toLowerCase().endsWith('.webm'))
     );
 
   const formatCapturedAt = (value?: string) => {
-    if (!value) return 'Timestamp unavailable';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return 'Timestamp unavailable';
+    const d = value ? new Date(value) : new Date();
+    const parsed = Number.isNaN(d.getTime()) ? new Date() : d;
     return parsed.toLocaleString('en-AU', {
       day: '2-digit',
       month: 'short',
@@ -272,6 +271,12 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
                   style={styles.realThumbnail}
                   resizeMode="cover"
                 />
+                <View style={styles.timestampBadgeOverlay}>
+                  <Icon name="clock" size={8} color="#FFFFFF" />
+                  <Text style={styles.timestampBadgeText}>
+                    {formatCapturedAt(evidence?.capturedAt)}
+                  </Text>
+                </View>
                 <View style={styles.tapToViewOverlay}>
                   <Icon name="search" size={10} color="#FFFFFF" />
                 </View>
@@ -308,14 +313,12 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
                   </Text>
                 </View>
               ) : null}
-              {evidence?.capturedAt ? (
-                <View style={styles.metaRow}>
-                  <Icon name="clock" size={14} color={colors.accentCyan || '#06B6D4'} />
-                  <Text style={styles.metaText} numberOfLines={2}>
-                    Captured: {formatCapturedAt(evidence.capturedAt)}
-                  </Text>
-                </View>
-              ) : null}
+              <View style={styles.metaRow}>
+                <Icon name="clock" size={14} color={colors.accentCyan || '#06B6D4'} />
+                <Text style={styles.metaText} numberOfLines={2}>
+                  Captured: {formatCapturedAt(evidence?.capturedAt)}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -403,7 +406,9 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
           <View style={styles.previewModalHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.previewModalTitle}>{rule.name}</Text>
-              <Text style={styles.previewModalSub}>{evidence?.oemFileName || `RO #${roNumber}`}</Text>
+              <Text style={styles.previewModalSub}>
+                Captured: {formatCapturedAt(evidence?.capturedAt)} • {evidence?.oemFileName || `RO #${roNumber}`}
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.previewModalCloseBtn}
@@ -599,6 +604,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     borderRadius: 4,
     padding: 3,
+  },
+  timestampBadgeOverlay: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    right: 2,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  timestampBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 7.5,
+    fontWeight: typography.weights.bold,
   },
   mockThumbnail: {
     width: 84,

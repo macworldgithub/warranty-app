@@ -78,6 +78,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [birthYear, setBirthYear] = useState('');
   const [licenceSighted, setLicenceSighted] = useState(false);
   const [licencePhotoUri, setLicencePhotoUri] = useState<string>('');
+  const [licencePhotoTimestamp, setLicencePhotoTimestamp] = useState<string>('');
   const [showLicenceExpiryPicker, setShowLicenceExpiryPicker] = useState(false);
 
   // Step 2: Vehicle
@@ -111,6 +112,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [cleanlinessVerified, setCleanlinessVerified] = useState(false);
   const [existingDamageNotes, setExistingDamageNotes] = useState('');
   const [inspectionPhotos, setInspectionPhotos] = useState<{ [key: string]: string }>({});
+  const [inspectionPhotoTimestamps, setInspectionPhotoTimestamps] = useState<{ [key: string]: string }>({});
 
   // Step 4: Terms
   const [readAndAgreed, setReadAndAgreed] = useState(false);
@@ -203,6 +205,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             const res = await cameraService.capturePhoto('licence_front');
             if (res.success && res.fileUri) {
               setLicencePhotoUri(res.fileUri);
+              setLicencePhotoTimestamp(new Date().toISOString());
             }
           },
         },
@@ -212,6 +215,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             const res = await cameraService.pickFromGallery();
             if (res.success && res.fileUri) {
               setLicencePhotoUri(res.fileUri);
+              setLicencePhotoTimestamp(new Date().toISOString());
             }
           },
         },
@@ -231,7 +235,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           onPress: async () => {
             const res = await cameraService.capturePhoto(`loaner_${slotId}`);
             if (res.success && res.fileUri) {
+              const nowIso = new Date().toISOString();
               setInspectionPhotos((prev) => ({ ...prev, [slotId]: res.fileUri! }));
+              setInspectionPhotoTimestamps((prev) => ({ ...prev, [slotId]: nowIso }));
             }
           },
         },
@@ -240,7 +246,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           onPress: async () => {
             const res = await cameraService.pickFromGallery();
             if (res.success && res.fileUri) {
+              const nowIso = new Date().toISOString();
               setInspectionPhotos((prev) => ({ ...prev, [slotId]: res.fileUri! }));
+              setInspectionPhotoTimestamps((prev) => ({ ...prev, [slotId]: nowIso }));
             }
           },
         },
@@ -642,9 +650,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             >
               {licencePhotoUri ? (
                 <View style={styles.licencePreviewRow}>
-                  <Image source={{ uri: licencePhotoUri }} style={styles.licenceThumb} />
+                  <View style={{ position: 'relative' }}>
+                    <Image source={{ uri: licencePhotoUri }} style={styles.licenceThumb} />
+                  </View>
                   <View style={{ flex: 1, marginLeft: spacing.sm }}>
                     <Text style={styles.licenceCapturedText}>✓ Driver Licence Photo Attached</Text>
+                    <Text style={{ fontSize: 11, color: colors.accentCyan || '#06B6D4', fontWeight: '500', marginTop: 1 }}>
+                      Captured: {formatDateForInput(licencePhotoTimestamp ? new Date(licencePhotoTimestamp) : new Date())} {new Date(licencePhotoTimestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
                     <Text style={styles.licenceRetakeText}>Tap to retake photo</Text>
                   </View>
                   <Icon name="check-circle" size={20} color={colors.success} />
@@ -878,6 +891,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                     {photoUri ? (
                       <View style={styles.photoThumbWrap}>
                         <Image source={{ uri: photoUri }} style={styles.photoThumbImg} />
+                        <View style={{ position: 'absolute', top: 2, left: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          <Icon name="clock" size={8} color="#FFF" />
+                          <Text style={{ color: '#FFF', fontSize: 7, fontWeight: '700' }}>
+                            {new Date(inspectionPhotoTimestamps[slot.id] || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </View>
                         <View style={styles.photoCheckOverlay}>
                           <Icon name="check" size={14} color="#FFF" />
                         </View>

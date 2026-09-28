@@ -81,6 +81,18 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
     return raw;
   };
 
+  const formatCapturedAt = (value?: string) => {
+    const d = value ? new Date(value) : new Date();
+    const parsed = Number.isNaN(d.getTime()) ? new Date() : d;
+    return parsed.toLocaleString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   // Helper to open / play video evidence via system media player
   const handlePlayVideo = async (uri: string | null) => {
     if (!uri) {
@@ -439,11 +451,19 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
                         onPress={() => setSelectedEvidence(ev)}
                       >
                         {imgUri ? (
-                          <Image
-                            source={{ uri: imgUri }}
-                            style={styles.evidenceImagePreview}
-                            resizeMode="cover"
-                          />
+                          <>
+                            <Image
+                              source={{ uri: imgUri }}
+                              style={styles.evidenceImagePreview}
+                              resizeMode="cover"
+                            />
+                            <View style={{ position: 'absolute', top: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                              <Icon name="clock" size={9} color="#FFFFFF" />
+                              <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
+                                {formatCapturedAt(ev.capturedAt)}
+                              </Text>
+                            </View>
+                          </>
                         ) : (
                           <View style={styles.evidencePlaceholderBox}>
                             <Icon
@@ -788,7 +808,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
                 {selectedEvidence?.ruleName || selectedEvidence?.name || selectedEvidence?.ruleKey}
               </Text>
               <Text style={styles.lightboxSubtitle} numberOfLines={1}>
-                {selectedEvidence?.oemFileName || `RO #${currentCase.roNumber}`}
+                Captured: {formatCapturedAt(selectedEvidence?.capturedAt)} • {selectedEvidence?.oemFileName || `RO #${currentCase.roNumber}`}
               </Text>
             </View>
             <TouchableOpacity

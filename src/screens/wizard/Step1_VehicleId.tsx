@@ -65,6 +65,18 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
   // Only VIN text + odometer reading are required to proceed. Photos are optional captures.
   const isGatePassed = hasVinString && hasOdoReading;
 
+  const formatCapturedAt = (value?: string) => {
+    const d = value ? new Date(value) : new Date();
+    const parsed = Number.isNaN(d.getTime()) ? new Date() : d;
+    return parsed.toLocaleString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   // Handle VisionCamera Barcode Scanner trigger
   const handleLaunchScanner = () => {
     setIsScannerModalOpen(true);
@@ -214,6 +226,9 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             />
             <View style={{ flex: 1, justifyContent: 'center' }}>
               <Text style={styles.thumbnailTitle}>VIN Photo Captured</Text>
+              <Text style={{ fontSize: 11, color: colors.accentCyan || '#06B6D4', fontWeight: '500', marginTop: 2 }}>
+                Captured: {formatCapturedAt(vinEvidence?.capturedAt)}
+              </Text>
             </View>
             <TouchableOpacity
               activeOpacity={0.7}
@@ -353,6 +368,9 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             />
             <View style={{ flex: 1, justifyContent: 'center' }}>
               <Text style={styles.thumbnailTitle}>Odometer Photo</Text>
+              <Text style={{ fontSize: 11, color: colors.accentCyan || '#06B6D4', fontWeight: '500', marginTop: 2 }}>
+                Captured: {formatCapturedAt(odoEvidence?.capturedAt)}
+              </Text>
             </View>
             <Badge label="Attached" variant="success" size="sm" />
           </View>
@@ -403,6 +421,9 @@ export const Step1_VehicleId: React.FC<Step1Props> = ({ onNext, onPrev }) => {
             />
             <View style={{ flex: 1, justifyContent: 'center' }}>
               <Text style={styles.thumbnailTitle}>Front Photo</Text>
+              <Text style={{ fontSize: 11, color: colors.accentCyan || '#06B6D4', fontWeight: '500', marginTop: 2 }}>
+                Captured: {formatCapturedAt(frontEvidence?.capturedAt)}
+              </Text>
             </View>
             <Badge label="Attached" variant="success" size="sm" />
           </View>
