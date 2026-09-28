@@ -152,6 +152,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   const [selectedSiteId, setSelectedSiteId] = useState(isTechnician ? technicianSiteId : 'all');
   const [activeTab, setActiveTab] = useState<'ALL' | 'AVAILABLE' | 'ACTIVE' | 'DUE_SOON' | 'OVERDUE'>('ALL');
+  const [purposeFilter, setPurposeFilter] = useState<'ALL' | 'SERVICE_LOANER' | 'TEST_DRIVE'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -166,6 +167,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   // Modals / Subscreens
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [wizardPurpose, setWizardPurpose] = useState<'SERVICE_LOANER' | 'TEST_DRIVE'>('SERVICE_LOANER');
   const [returnTarget, setReturnTarget] = useState<LoanAgreement | null>(null);
   const [pdfTarget, setPdfTarget] = useState<LoanAgreement | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<LoanAgreement | null>(null);
@@ -250,11 +252,31 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
     fetchLoanData();
   };
 
+  const openAgreementWizard = (purpose: 'SERVICE_LOANER' | 'TEST_DRIVE') => {
+    setWizardPurpose(purpose);
+    setIsWizardOpen(true);
+  };
+
+  const chooseAgreementPurpose = () => {
+    Alert.alert(
+      'Create Vehicle Agreement',
+      'Choose the agreement workflow to start.',
+      [
+        { text: 'Service Loaner', onPress: () => openAgreementWizard('SERVICE_LOANER') },
+        { text: 'Test Drive', onPress: () => openAgreementWizard('TEST_DRIVE') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   // Filter agreements by tab, search, and technician rooftop
   const filteredAgreements = agreements.filter((ag) => {
     // Rooftop filter (Technicians strictly locked to their site)
     const effectiveSiteId = isTechnician ? technicianSiteId : selectedSiteId;
     if (effectiveSiteId !== 'all' && ag.siteId !== effectiveSiteId) {
+      return false;
+    }
+    if (purposeFilter !== 'ALL' && ag.purpose !== purposeFilter) {
       return false;
     }
 
@@ -337,6 +359,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       <IssueLoanerWizardScreen
         initialRooftop={activeLabel}
         isRooftopLocked={isTechnician}
+        purpose={wizardPurpose}
         onBack={() => setIsWizardOpen(false)}
         onSuccess={(_newAgreement) => {
           setIsWizardOpen(false);
@@ -357,11 +380,11 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
         rightAction={
           <TouchableOpacity
             style={styles.issueTopBtn}
-            onPress={() => setIsWizardOpen(true)}
+            onPress={chooseAgreementPurpose}
             activeOpacity={0.85}
           >
             <Icon name="plus" size={16} color="#FFF" />
-            <Text style={styles.issueTopBtnText}>Issue</Text>
+            <Text style={styles.issueTopBtnText}>New</Text>
           </TouchableOpacity>
         }
       />
@@ -482,6 +505,27 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
         )}
       </View>
 
+      <View style={styles.purposeFilterRow}>
+        {[
+          { key: 'ALL', label: 'All Agreements' },
+          { key: 'SERVICE_LOANER', label: 'Service Loaners' },
+          { key: 'TEST_DRIVE', label: 'Test Drives' },
+        ].map((option) => {
+          const selected = purposeFilter === option.key;
+          return (
+            <TouchableOpacity
+              key={option.key}
+              style={[styles.purposeFilterBtn, selected && styles.purposeFilterBtnActive]}
+              onPress={() => setPurposeFilter(option.key as typeof purposeFilter)}
+            >
+              <Text style={[styles.purposeFilterText, selected && styles.purposeFilterTextActive]}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       {/* Tabs */}
       <View style={styles.tabRow}>
         {[
@@ -552,6 +596,11 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                       {item.vehicle?.year} {item.vehicle?.make} {item.vehicle?.model}
                     </Text>
                     <Text style={styles.cardAgreementNum}>{item.agreementNumber}</Text>
+                    <View style={styles.purposeBadge}>
+                      <Text style={styles.purposeBadgeText}>
+                        {item.purpose === 'TEST_DRIVE' ? 'Test Drive' : 'Service Loaner'}
+                      </Text>
+                    </View>
                   </View>
                   <TouchableOpacity
                     style={styles.cardRooftopBadge}
@@ -598,13 +647,70 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                     </Text>
                   </View>
 
-                  {item.inbound?.excessKm && item.inbound.excessKm > 0 ? (
-                    <View style={styles.excessBadge}>
-                      <Text style={styles.excessBadgeText}>
-                        Excess Charged: ${item.inbound.excessKmChargeAmount?.toFixed(2)} ({item.inbound.excessKm} km @ $0.50/km)
-                      </Text>
-                    </View>
-                  ) : null}
+                  {(() => {
+                    if (!item.inbound) return null;
+                    const fuelOut = item.outbound?.fuelLevelOutPercent ?? 100;
+                    const fuelIn = item.inbound.fuelLevelInPercent ?? fuelOut;
+                    const fuelShortage = Math.max(0, fuelOut - fuelIn);
+                    const fuelCharge = item.inbound.fuelChargeAmount !== undefined
+                      ? item.inbound.fuelChargeAmount
+                      : Number((fuelShortage * 1.50).toFixed(2));
+                    const excessKmCharge = item.inbound.excessKmChargeAmount ?? 0;
+                    const damageCharge = item.inbound.damageChargeAmount ?? 0;
+                    const incidentExcess = item.inbound.applicableExcessAmount ?? 0;
+                    const cleaningFee = item.inbound.cleaningFeeAmount ?? 0;
+                    const totalSettled = item.inbound.totalChargesDue !== undefined && item.inbound.totalChargesDue > 0
+                      ? item.inbound.totalChargesDue
+                      : Number((excessKmCharge + fuelCharge + damageCharge + incidentExcess + cleaningFee).toFixed(2));
+
+                    const depositHeld = item.inbound.securityDepositHeld ?? item.securityDepositHeld ?? 500;
+                    const netDue = item.inbound.netAmountDue !== undefined
+                      ? item.inbound.netAmountDue
+                      : Math.max(0, Number((totalSettled - depositHeld).toFixed(2)));
+                    const refundDue = item.inbound.depositRefundAmount !== undefined
+                      ? item.inbound.depositRefundAmount
+                      : Math.max(0, Number((depositHeld - totalSettled).toFixed(2)));
+
+                    if (item.status === 'RETURNED') {
+                      if (netDue > 0) {
+                        return (
+                          <View style={[styles.excessBadge, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+                            <Text style={[styles.excessBadgeText, { color: '#991B1B' }]}>
+                              Net Due: ${netDue.toFixed(2)} (Charges: ${totalSettled.toFixed(0)} - Deposit: ${depositHeld.toFixed(0)})
+                            </Text>
+                          </View>
+                        );
+                      }
+                      if (totalSettled > 0 && refundDue > 0) {
+                        return (
+                          <View style={[styles.excessBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                            <Text style={[styles.excessBadgeText, { color: '#92400E' }]}>
+                              Deposit Refund: ${refundDue.toFixed(2)} (Charges: ${totalSettled.toFixed(0)} deducted)
+                            </Text>
+                          </View>
+                        );
+                      }
+                      if (totalSettled === 0) {
+                        return (
+                          <View style={[styles.excessBadge, { backgroundColor: '#DCFCE7', borderColor: '#BBF7D0' }]}>
+                            <Text style={[styles.excessBadgeText, { color: '#166534' }]}>
+                              Nil Due • Full Deposit Refunded (${depositHeld.toFixed(0)})
+                            </Text>
+                          </View>
+                        );
+                      }
+                    }
+                    if (item.inbound.excessKm && item.inbound.excessKm > 0) {
+                      return (
+                        <View style={styles.excessBadge}>
+                          <Text style={styles.excessBadgeText}>
+                            Excess Charged: ${item.inbound.excessKmChargeAmount?.toFixed(2)} ({item.inbound.excessKm} km @ $0.50/km)
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
                 </View>
 
                 {/* Bottom Actions: Details, Edit, PDF, Check In, Delete */}
@@ -1030,6 +1136,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textPrimary,
   },
+  purposeFilterRow: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceElevated || '#F1F5F9',
+    gap: 3,
+  },
+  purposeFilterBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  purposeFilterBtnActive: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  purposeFilterText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  purposeFilterTextActive: {
+    color: colors.primary,
+  },
   tabRow: {
     flexDirection: 'row',
     paddingHorizontal: spacing.md,
@@ -1099,6 +1233,22 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: colors.textMuted,
     marginTop: 2,
+  },
+  purposeBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  purposeBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#1D4ED8',
+    textTransform: 'uppercase',
   },
   cardRooftopBadge: {
     flexDirection: 'row',

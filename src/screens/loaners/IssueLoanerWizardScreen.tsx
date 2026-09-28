@@ -21,13 +21,14 @@ import { cameraService } from '../../services/cameraService';
 import { loanAgreementsApi } from '../../api';
 import { LoanAgreement } from '../../types';
 import { useAuth } from '../../context/AuthContext';
-import { formatDateForInput } from '../../utils/date';
+import { formatDateForInput, pad } from '../../utils/date';
 
 interface IssueLoanerWizardScreenProps {
   onBack: () => void;
   onSuccess: (agreement: LoanAgreement) => void;
   initialRooftop?: string;
   isRooftopLocked?: boolean;
+  purpose?: 'SERVICE_LOANER' | 'TEST_DRIVE';
 }
 
 const ROOFTOPS = [
@@ -57,9 +58,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   onSuccess,
   initialRooftop = 'Cranbourne',
   isRooftopLocked = false,
+  purpose = 'SERVICE_LOANER',
 }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const isTestDrive = purpose === 'TEST_DRIVE';
+  const agreementLabel = isTestDrive ? 'Test Drive' : 'Service Loaner';
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -87,10 +91,19 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [showExpectedTimePicker, setShowExpectedTimePicker] = useState(false);
   const [expectedReturnDate, setExpectedReturnDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 1);
+    if (!isTestDrive) {
+      d.setDate(d.getDate() + 1);
+    }
     return formatDateForInput(d);
   });
-  const [expectedReturnTime, setExpectedReturnTime] = useState('17:00');
+  const [expectedReturnTime, setExpectedReturnTime] = useState(() => {
+    if (isTestDrive) {
+      const d = new Date();
+      d.setHours(d.getHours() + 1);
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    return '17:00';
+  });
 
   // Step 3: Outbound Condition
   const [odometerOut, setOdometerOut] = useState('');
@@ -309,7 +322,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
       const createPayload = {
         siteId: chosenRooftop.siteId,
         siteName: chosenRooftop.siteName,
-        purpose: 'SERVICE_LOANER' as const,
+        purpose: (isTestDrive ? 'TEST_DRIVE' : 'SERVICE_LOANER') as any,
         dueBackDateTime: dueBackDate.toISOString(),
         customer: {
           name: fullName.trim(),
@@ -372,7 +385,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           siteId: chosenRooftop.siteId,
           siteName: chosenRooftop.siteName,
           roNumber: `RO-${Math.floor(10000 + Math.random() * 90000)}`,
-          purpose: 'SERVICE_LOANER' as const,
+          purpose,
           status: 'ACTIVE' as const,
           customer: createPayload.customer,
           vehicle: createPayload.vehicle,
@@ -397,8 +410,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
       }
 
       Alert.alert(
-        'Agreement Issued & Activated!',
-        `Agreement ${signed.agreementNumber} is now Active.\nVehicle ${signed.vehicle.rego} has been checked out.`,
+        `${agreementLabel} Activated!`,
+        `Agreement ${signed.agreementNumber} is now Active.\nVehicle ${signed.vehicle.rego} has been checked out for the ${agreementLabel.toLowerCase()}.`,
         [
           {
             text: 'View in Operations',
@@ -421,8 +434,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           <Icon name="chevron-left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Issue Loan Agreement</Text>
-          <Text style={styles.headerSubtitle}>OmniSuiteAI • Digital Customer Loan Vehicle</Text>
+          <Text style={styles.headerTitle}>{isTestDrive ? 'Start Test Drive' : 'Issue Service Loaner'}</Text>
+          <Text style={styles.headerSubtitle}>OmniSuiteAI • Digital {agreementLabel} Agreement</Text>
         </View>
         <View style={styles.badgeStep}>
           <Text style={styles.badgeStepText}>Step {step}/5</Text>
@@ -1150,7 +1163,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             ) : (
               <>
                 <Icon name="check" size={20} color="#FFF" />
-                <Text style={styles.nextBtnText}>Activate Agreement</Text>
+                <Text style={styles.nextBtnText}>Activate {agreementLabel}</Text>
               </>
             )}
           </TouchableOpacity>

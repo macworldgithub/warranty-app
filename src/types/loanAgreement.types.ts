@@ -55,6 +55,14 @@ export interface LoanAgreementInbound {
   hasDamageIncident?: boolean;
   applicableExcessBand?: string;
   applicableExcessAmount?: number;
+  fuelShortagePercent?: number;
+  fuelChargeAmount?: number;
+  damageChargeAmount?: number;
+  cleaningFeeAmount?: number;
+  totalChargesDue?: number;
+  securityDepositHeld?: number;
+  depositRefundAmount?: number;
+  netAmountDue?: number;
 }
 
 export interface LoanAgreementSignatures {
@@ -91,6 +99,8 @@ export interface LoanAgreement {
   dailyKmCap: number;
   excessKmRate: number;
   basicInsuranceExcess: number;
+  securityDepositHeld?: number;
+  depositPaymentMethod?: string;
   outbound: LoanAgreementOutbound;
   inbound?: LoanAgreementInbound;
   signatures?: LoanAgreementSignatures;

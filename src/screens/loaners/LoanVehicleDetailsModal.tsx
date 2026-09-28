@@ -241,6 +241,115 @@ export const LoanVehicleDetailsModal: React.FC<LoanVehicleDetailsModalProps> = (
                 <Text style={styles.infoLabel}>Pre-existing Damage Notes:</Text>
                 <Text style={styles.infoVal}>{agreement.outbound?.damageNotes || 'Nil recorded'}</Text>
               </View>
+
+              {agreement.inbound && (() => {
+                const fuelOut = agreement.outbound?.fuelLevelOutPercent ?? 100;
+                const fuelIn = agreement.inbound.fuelLevelInPercent ?? fuelOut;
+                const fuelShortage = Math.max(0, fuelOut - fuelIn);
+                const fuelCharge = agreement.inbound.fuelChargeAmount !== undefined
+                  ? agreement.inbound.fuelChargeAmount
+                  : Number((fuelShortage * 1.50).toFixed(2));
+                const excessKmCharge = agreement.inbound.excessKmChargeAmount ?? 0;
+                const damageCharge = agreement.inbound.damageChargeAmount ?? 0;
+                const incidentExcess = agreement.inbound.applicableExcessAmount ?? 0;
+                const cleaningFee = agreement.inbound.cleaningFeeAmount ?? 0;
+                const totalSettled = agreement.inbound.totalChargesDue !== undefined && agreement.inbound.totalChargesDue > 0
+                  ? agreement.inbound.totalChargesDue
+                  : Number((excessKmCharge + fuelCharge + damageCharge + incidentExcess + cleaningFee).toFixed(2));
+
+                const depositHeld = agreement.inbound.securityDepositHeld ?? agreement.securityDepositHeld ?? 500;
+                const netDue = agreement.inbound.netAmountDue !== undefined
+                  ? agreement.inbound.netAmountDue
+                  : Math.max(0, Number((totalSettled - depositHeld).toFixed(2)));
+                const refundDue = agreement.inbound.depositRefundAmount !== undefined
+                  ? agreement.inbound.depositRefundAmount
+                  : Math.max(0, Number((depositHeld - totalSettled).toFixed(2)));
+
+                return (
+                  <View style={{ marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: '#E2E8F0' }}>
+                    <Text style={[styles.sectionTitle, { color: colors.primary, fontSize: 13, marginBottom: spacing.xs }]}>
+                      Inbound Check-In & Settlement Summary
+                    </Text>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Inbound Fuel Level:</Text>
+                      <Text style={styles.infoValBold}>
+                        {agreement.inbound.fuelLevelInPercent ?? '—'}%
+                        {fuelCharge > 0 ? ` (Refuel Fee: $${fuelCharge.toFixed(2)})` : ''}
+                      </Text>
+                    </View>
+                    {agreement.inbound.excessKm !== undefined && agreement.inbound.excessKm > 0 && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Excess Kilometres:</Text>
+                        <Text style={[styles.infoValBold, { color: '#DC2626' }]}>
+                          {agreement.inbound.excessKm} km (${excessKmCharge.toFixed(2)})
+                        </Text>
+                      </View>
+                    )}
+                    {damageCharge > 0 && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Damage / Repair Fee:</Text>
+                        <Text style={[styles.infoValBold, { color: '#DC2626' }]}>
+                          ${damageCharge.toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+                    {(agreement.inbound.hasDamageIncident || incidentExcess > 0) && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Insurance Excess:</Text>
+                        <Text style={[styles.infoValBold, { color: '#DC2626' }]}>
+                          ${incidentExcess.toFixed(2)} ({agreement.inbound.applicableExcessBand || 'Basic'})
+                        </Text>
+                      </View>
+                    )}
+                    {cleaningFee > 0 && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Detailing Fee:</Text>
+                        <Text style={[styles.infoValBold, { color: '#DC2626' }]}>
+                          ${cleaningFee.toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+                    {agreement.inbound.returnDamageNotes && (
+                      <View style={{ marginTop: 4, marginBottom: 4 }}>
+                        <Text style={styles.infoLabel}>Return Inspection Notes:</Text>
+                        <Text style={[styles.infoVal, { marginTop: 2, fontStyle: 'italic' }]}>
+                          {agreement.inbound.returnDamageNotes}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Financial Reconciliation Box */}
+                    <View style={{ marginTop: 8, backgroundColor: '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Total Incurred Charges:</Text>
+                        <Text style={styles.infoValBold}>${totalSettled.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.infoRow}>
+                        <Text style={[styles.infoLabel, { color: '#059669' }]}>Less Security Deposit Held:</Text>
+                        <Text style={[styles.infoValBold, { color: '#059669' }]}>-${depositHeld.toFixed(2)}</Text>
+                      </View>
+                      <View style={[styles.infoRow, { marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#CBD5E1' }]}>
+                        {netDue > 0 ? (
+                          <>
+                            <Text style={[styles.infoLabel, { color: '#991B1B', fontWeight: 'bold' }]}>Net Amount Paid by Borrower:</Text>
+                            <Text style={[styles.infoValBold, { color: '#DC2626', fontSize: 14 }]}>${netDue.toFixed(2)}</Text>
+                          </>
+                        ) : refundDue > 0 ? (
+                          <>
+                            <Text style={[styles.infoLabel, { color: '#166534', fontWeight: 'bold' }]}>Deposit Refund Due / Released:</Text>
+                            <Text style={[styles.infoValBold, { color: '#16A34A', fontSize: 14 }]}>${refundDue.toFixed(2)}</Text>
+                          </>
+                        ) : (
+                          <>
+                            <Text style={[styles.infoLabel, { color: '#334155', fontWeight: 'bold' }]}>Settlement Status:</Text>
+                            <Text style={[styles.infoValBold, { color: '#334155', fontSize: 13 }]}>Balanced ($0.00)</Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })()}
             </View>
           </ScrollView>
 
