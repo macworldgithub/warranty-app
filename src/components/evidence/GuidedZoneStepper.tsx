@@ -135,6 +135,18 @@ export const GuidedZoneStepper: React.FC<GuidedZoneStepperProps> = ({
   };
 
   // Helper to resolve full image URI
+  const formatCapturedAt = (value?: string) => {
+    const d = value ? new Date(value) : new Date();
+    const parsed = Number.isNaN(d.getTime()) ? new Date() : d;
+    return parsed.toLocaleString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const resolveUri = (ev?: EvidenceItem): string | null => {
     if (!ev) return null;
     const raw = ev.storageUrl || ev.fileUri || ev.serverUrl || ev.thumbnailUrl;
@@ -313,6 +325,12 @@ export const GuidedZoneStepper: React.FC<GuidedZoneStepperProps> = ({
                 style={styles.previewImage}
                 resizeMode="cover"
               />
+              <View style={styles.timestampPillOverlay}>
+                <Icon name="clock" size={8} color="#FFFFFF" />
+                <Text style={styles.timestampPillText}>
+                  {formatCapturedAt(currentEvidence?.capturedAt)}
+                </Text>
+              </View>
               <View style={styles.zoomPill}>
                 <Icon name="search" size={11} color="#FFFFFF" />
                 <Text style={styles.zoomPillText}>Inspect</Text>
@@ -327,6 +345,12 @@ export const GuidedZoneStepper: React.FC<GuidedZoneStepperProps> = ({
               <Text style={styles.fileNameText} numberOfLines={1}>
                 {currentEvidence?.oemFileName || `${currentZone.name}.jpg`}
               </Text>
+              <View style={styles.timestampMetaRow}>
+                <Icon name="clock" size={12} color="#0284C7" />
+                <Text style={styles.timestampMetaText}>
+                  {formatCapturedAt(currentEvidence?.capturedAt)}
+                </Text>
+              </View>
               <TouchableOpacity
                 style={styles.retakeBtn}
                 onPress={() => handleCapture(false)}
@@ -381,7 +405,7 @@ export const GuidedZoneStepper: React.FC<GuidedZoneStepperProps> = ({
             <View style={{ flex: 1 }}>
               <Text style={styles.lightboxTitle}>{currentZone.name} Photo</Text>
               <Text style={styles.lightboxSub}>
-                Zone {selectedZoneIndex + 1} of {GUIDED_CAPTURE_ZONES.length}
+                Captured: {formatCapturedAt(currentEvidence?.capturedAt)} • Zone {selectedZoneIndex + 1} of {GUIDED_CAPTURE_ZONES.length}
               </Text>
             </View>
             <TouchableOpacity
@@ -566,6 +590,24 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  timestampPillOverlay: {
+    position: 'absolute',
+    top: 3,
+    left: 3,
+    right: 3,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  timestampPillText: {
+    color: '#FFFFFF',
+    fontSize: 7.5,
+    fontWeight: typography.weights.bold,
+  },
   zoomPill: {
     position: 'absolute',
     bottom: 3,
@@ -586,6 +628,17 @@ const styles = StyleSheet.create({
   capturedMetaColumn: {
     flex: 1,
     gap: 4,
+  },
+  timestampMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 1,
+  },
+  timestampMetaText: {
+    fontSize: typography.sizes.xs - 1,
+    color: '#0284C7',
+    fontWeight: typography.weights.medium,
   },
   statusPassRow: {
     flexDirection: 'row',

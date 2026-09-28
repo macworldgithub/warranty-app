@@ -36,7 +36,7 @@ interface DrumColumnProps {
 }
 
 const DrumColumn: React.FC<DrumColumnProps> = ({ items, selectedIndex, onSelect, flex = 1 }) => {
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<any>(null);
   const isDragging = useRef(false);
   const lastIndex = useRef(selectedIndex);
 
