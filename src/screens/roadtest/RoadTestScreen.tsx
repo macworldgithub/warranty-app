@@ -305,6 +305,7 @@ export function RoadTestScreen({
   const [rosterFilter, setRosterFilter] = useState<'ALL' | 'ON_SITE' | 'OFF_SITE'>('ALL');
 
   const loadRoster = useCallback(async () => {
+    if (!isAdmin) return;
     setLoadingRoster(true);
     try {
       const siteToQuery = selectedRosterSiteId || 'all';
@@ -325,18 +326,20 @@ export function RoadTestScreen({
     } finally {
       setLoadingRoster(false);
     }
-  }, [selectedRosterSiteId]);
+  }, [isAdmin, selectedRosterSiteId]);
 
   useEffect(() => {
-    loadRoster();
-  }, [loadRoster]);
+    if (isAdmin) {
+      loadRoster();
+    }
+  }, [isAdmin, loadRoster]);
 
   useEffect(() => {
-    if (activeSubTab === 'settings') {
+    if (isAdmin && activeSubTab === 'settings') {
       const interval = setInterval(loadRoster, 4000);
       return () => clearInterval(interval);
     }
-  }, [activeSubTab, loadRoster]);
+  }, [isAdmin, activeSubTab, loadRoster]);
 
   // Real-time integration: dynamically merge logged-in technician's live telemetry
   const liveTechnicianList = useMemo(() => {
@@ -457,8 +460,11 @@ export function RoadTestScreen({
           onPress={() => setActiveSubTab('live')}
           style={[styles.subTabItem, activeSubTab === 'live' && styles.subTabItemActive]}
         >
-          <Navigation size={14} color={activeSubTab === 'live' ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.subTabText, activeSubTab === 'live' && styles.subTabTextActive]}>
+          <Navigation size={13} color={activeSubTab === 'live' ? colors.primary : colors.textSecondary} />
+          <Text
+            numberOfLines={1}
+            style={[styles.subTabText, activeSubTab === 'live' && styles.subTabTextActive]}
+          >
             Live Drive
           </Text>
         </TouchableOpacity>
@@ -468,9 +474,12 @@ export function RoadTestScreen({
           onPress={() => setActiveSubTab('history')}
           style={[styles.subTabItem, activeSubTab === 'history' && styles.subTabItemActive]}
         >
-          <Clock size={14} color={activeSubTab === 'history' ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.subTabText, activeSubTab === 'history' && styles.subTabTextActive]}>
-            Trip History ({tripRecords.length})
+          <Clock size={13} color={activeSubTab === 'history' ? colors.primary : colors.textSecondary} />
+          <Text
+            numberOfLines={1}
+            style={[styles.subTabText, activeSubTab === 'history' && styles.subTabTextActive]}
+          >
+            Trips ({tripRecords.length})
           </Text>
         </TouchableOpacity>
 
@@ -479,9 +488,12 @@ export function RoadTestScreen({
           onPress={() => setActiveSubTab('settings')}
           style={[styles.subTabItem, activeSubTab === 'settings' && styles.subTabItemActive]}
         >
-          <Sliders size={14} color={activeSubTab === 'settings' ? colors.primary : colors.textSecondary} />
-          <Text style={[styles.subTabText, activeSubTab === 'settings' && styles.subTabTextActive]}>
-            Staff & Geofence
+          <Sliders size={13} color={activeSubTab === 'settings' ? colors.primary : colors.textSecondary} />
+          <Text
+            numberOfLines={1}
+            style={[styles.subTabText, activeSubTab === 'settings' && styles.subTabTextActive]}
+          >
+            {isAdmin ? 'Staff Roster' : 'Geofence'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -906,9 +918,15 @@ export function RoadTestScreen({
             {/* Live Presence Status Card */}
             <View style={styles.settingsSectionCard}>
               <View style={styles.settingsHeaderRow}>
-                <View>
+                <View style={styles.settingsHeaderLeft}>
                   <Text style={styles.settingsKicker}>MY GEOFENCE PRESENCE</Text>
-                  <Text style={styles.settingsTitle}>{siteName}</Text>
+                  <Text
+                    style={styles.settingsTitle}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {siteName}
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -986,11 +1004,17 @@ export function RoadTestScreen({
             {/* Workshop Boundary Policy Card */}
             <View style={styles.settingsSectionCard}>
               <View style={styles.settingsHeaderRow}>
-                <View>
+                <View style={styles.settingsHeaderLeft}>
                   <Text style={styles.settingsKicker}>
                     {isAdmin ? 'ADMIN CONTROL • BOUNDARY POLICY' : 'WORKSHOP BOUNDARY POLICY'}
                   </Text>
-                  <Text style={styles.settingsTitle}>Site Geofence Radius</Text>
+                  <Text
+                    style={styles.settingsTitle}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    Site Geofence Radius
+                  </Text>
                 </View>
                 <View style={styles.radiusPill}>
                   <Text style={styles.radiusPillText}>{effectiveRadius} m</Text>
@@ -1048,12 +1072,19 @@ export function RoadTestScreen({
               )}
             </View>
 
-            {/* Live Dealership Rooftop Staff Roster (Visible to All Staff & Admins) */}
-            <View style={styles.settingsSectionCard}>
+            {/* Live Dealership Rooftop Staff Roster (Visible to Admins Only - Hidden from Technician Portal) */}
+            {isAdmin && (
+              <View style={styles.settingsSectionCard}>
               <View style={styles.settingsHeaderRow}>
-                <View>
+                <View style={styles.settingsHeaderLeft}>
                   <Text style={styles.settingsKicker}>ALL TECHNICIANS PRESENCE</Text>
-                  <Text style={styles.settingsTitle}>Dealership Staff Roster</Text>
+                  <Text
+                    style={styles.settingsTitle}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    Dealership Staff Roster
+                  </Text>
                 </View>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -1323,6 +1354,7 @@ export function RoadTestScreen({
                 )}
               </View>
             </View>
+          )}
 
             <View style={styles.privacyCard}>
               <Shield size={20} color={colors.primary} />
@@ -1536,29 +1568,30 @@ const styles = StyleSheet.create({
   subTabBar: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 8,
+    gap: 6,
   },
   subTabItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
     borderRadius: 8,
     backgroundColor: '#F8FAFC',
   },
   subTabItemActive: {
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: 'rgba(215, 25, 32, 0.2)',
+    borderColor: 'rgba(215, 25, 32, 0.25)',
   },
   subTabText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#64748B',
   },
@@ -2098,6 +2131,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
+  },
+  settingsHeaderLeft: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   settingsKicker: {
     fontSize: 8,
@@ -2106,10 +2145,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   settingsTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     color: '#0F172A',
     marginTop: 1,
+    lineHeight: 18,
   },
   radiusPill: {
     backgroundColor: '#FEF2F2',
@@ -2118,6 +2158,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(215, 25, 32, 0.2)',
+    flexShrink: 0,
   },
   radiusPillText: {
     fontSize: 11,
@@ -2202,8 +2243,9 @@ const styles = StyleSheet.create({
   presenceStatusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
+    flexShrink: 0,
+    gap: 5,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
   },
@@ -2218,7 +2260,7 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
   },
   presenceStatusPillText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
@@ -2345,6 +2387,8 @@ const styles = StyleSheet.create({
   },
   techInfo: {
     flex: 1,
+    minWidth: 0,
+    marginRight: 6,
   },
   techName: {
     fontSize: 11.5,
