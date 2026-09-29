@@ -8,9 +8,16 @@ let GeolocationModule: any = null;
 let isNativeGeolocationAvailable = false;
 
 try {
+  const hasNativeBridge = Boolean(
+    NativeModules.RNCGeolocation ||
+    NativeModules.Geolocation ||
+    (NativeModules as any).RNCommunityGeolocation ||
+    (globalThis as any).navigator?.geolocation
+  );
+
   const pkg = require('@react-native-community/geolocation');
   const geo = pkg?.default || pkg;
-  if (geo && typeof geo.getCurrentPosition === 'function') {
+  if (geo && typeof geo.getCurrentPosition === 'function' && (Platform.OS === 'android' || hasNativeBridge)) {
     GeolocationModule = geo;
     isNativeGeolocationAvailable = true;
     try {
@@ -20,6 +27,9 @@ try {
         locationProvider: 'auto',
       });
     } catch (_cfgErr) {}
+  } else if ((globalThis as any).navigator?.geolocation) {
+    GeolocationModule = (globalThis as any).navigator.geolocation;
+    isNativeGeolocationAvailable = true;
   }
 } catch (_e) {
   isNativeGeolocationAvailable = false;
@@ -103,7 +113,20 @@ export const OFF_SITE_LOCATION = {
 async function askLocationPermission(): Promise<boolean> {
   if (Platform.OS === 'ios') {
     if (isNativeGeolocationAvailable && GeolocationModule?.requestAuthorization) {
-      GeolocationModule.requestAuthorization();
+      return new Promise<boolean>((resolve) => {
+        try {
+          GeolocationModule.requestAuthorization(
+            () => resolve(true),
+            (err: any) => {
+              console.warn('iOS location authorization error:', err);
+              resolve(true);
+            }
+          );
+          setTimeout(() => resolve(true), 2000);
+        } catch (_e) {
+          resolve(true);
+        }
+      });
     }
     return true;
   }
@@ -298,7 +321,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               );
             } catch (_err2) {}
           },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+          { enableHighAccuracy: Platform.OS === 'android', timeout: 15000, maximumAge: 15000 }
         );
       } catch (_posErr) {
         console.warn('getCurrentPosition error:', _posErr);
@@ -418,10 +441,11 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
           },
           {
-            enableHighAccuracy: useHighAccuracy,
-            distanceFilter: 0, // Ensure continuous real-time updates even when stationary
-            interval: 2500,
-            fastestInterval: 1200,
+            enableHighAccuracy: Platform.OS === 'android' ? useHighAccuracy : false,
+            distanceFilter: Platform.OS === 'ios' ? 1 : 0,
+            timeout: 25000,
+            maximumAge: 10000,
+            ...(Platform.OS === 'android' ? { interval: 2500, fastestInterval: 1200 } : {}),
           }
         );
       } catch (_wErr) {
