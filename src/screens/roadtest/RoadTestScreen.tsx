@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,6 +10,7 @@ import {
   FlatList,
   Switch,
   Platform,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -23,7 +24,6 @@ import {
   Play,
   RotateCcw,
   Shield,
-  Radio,
   FileText,
   Key,
   ChevronDown,
@@ -32,11 +32,170 @@ import {
   Check,
   Flag,
   Navigation,
+  Bell,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
 import { useRoadTest, RoadTestTripRecord } from '../../context/RoadTestContext';
+import { useGeofence } from '../../context/GeofenceContext';
 import { RoadTestRouteMap } from '../../components/roadtest/RoadTestRouteMap';
+import { Header } from '../../components/common/Header';
+import { NotificationModal } from '../../components/notifications/NotificationModal';
+import {
+  notificationsService,
+  AppNotificationPayload,
+} from '../../services/notifications.service';
+import { mobileGeofenceService } from '../../services/geofence.service';
+
+export interface TechRosterItem {
+  technicianId: string;
+  technicianName: string;
+  email: string;
+  siteId?: string;
+  siteName?: string;
+  status: 'ON_SITE' | 'OFF_SITE';
+  distanceMeters: number;
+  speedKmh?: number;
+  currentActivity?: string;
+  activeRoNumber?: string;
+  lastPingAt?: string;
+}
+
+export const ROOFTOP_FILTER_OPTIONS = [
+  { id: 'all', label: 'All Rooftops' },
+  { id: 'site_cranbourne_byd', label: 'BYD Cranbourne' },
+  { id: 'site_dandenong_hyundai', label: 'Hyundai Dandenong' },
+  { id: 'site_cheltenham_kia', label: 'Kia Cheltenham' },
+  { id: 'site_cranbourne_mg', label: 'MG Cranbourne' },
+  { id: 'site_berwick_chery', label: 'Chery Berwick' },
+  { id: 'site_south_melbourne_byd', label: 'BYD S. Melbourne' },
+];
+
+const FALLBACK_STAFF_ROSTER: TechRosterItem[] = [
+  {
+    technicianId: 'usr_tech_1',
+    technicianName: 'Marcus Vance',
+    email: 'marcus.v@booran.com.au',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'OFF_SITE',
+    distanceMeters: 1850,
+    speedKmh: 48,
+    currentActivity: 'ROAD_TEST',
+    activeRoNumber: 'RO-48291',
+    lastPingAt: new Date(Date.now() - 45000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_4',
+    technicianName: 'Jake Smith',
+    email: 'technician@booran.com.au',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'OFF_SITE',
+    distanceMeters: 1329,
+    speedKmh: 58,
+    currentActivity: 'ROAD_TEST',
+    activeRoNumber: 'CR-53542',
+    lastPingAt: new Date(Date.now() - 35000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_6',
+    technicianName: 'Abdul Ahad',
+    email: 'abdulahadnauman10@gmail.com',
+    siteId: 'site_dandenong_multi',
+    siteName: 'Booran Dandenong Multi-Franchise',
+    status: 'OFF_SITE',
+    distanceMeters: 15568,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 60000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_2',
+    technicianName: 'Sarah Jenkins',
+    email: 'sarah.j@booran.com.au',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'ON_SITE',
+    distanceMeters: 42,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 15000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_3',
+    technicianName: 'David Chen',
+    email: 'david.c@booran.com.au',
+    siteId: 'site_dandenong_hyundai',
+    siteName: 'Booran Hyundai Dandenong',
+    status: 'ON_SITE',
+    distanceMeters: 28,
+    speedKmh: 0,
+    currentActivity: 'INSPECTION',
+    activeRoNumber: 'RO-48319',
+    lastPingAt: new Date(Date.now() - 80000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_8',
+    technicianName: 'Shaun Sumaru',
+    email: 'shaun.sumaru@gmail.com',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'ON_SITE',
+    distanceMeters: 15,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 110000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_9',
+    technicianName: 'Talha Tariq',
+    email: 'devs@omnisuiteai.com',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'ON_SITE',
+    distanceMeters: 29,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 140000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_5',
+    technicianName: 'Aaron Miller',
+    email: 'aaron.m@booran.com.au',
+    siteId: 'site_cheltenham_kia',
+    siteName: 'Booran Kia Cheltenham',
+    status: 'ON_SITE',
+    distanceMeters: 32,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 40000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_7',
+    technicianName: 'Ahmed Fahim',
+    email: 'm.ahmed.fahim02@gmail.com',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'ON_SITE',
+    distanceMeters: 41,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 95000).toISOString(),
+  },
+  {
+    technicianId: 'usr_tech_10',
+    technicianName: 'John Doe',
+    email: 'johndoe@booran.com.au',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    status: 'ON_SITE',
+    distanceMeters: 24,
+    speedKmh: 0,
+    currentActivity: 'WORKSHOP',
+    lastPingAt: new Date(Date.now() - 170000).toISOString(),
+  },
+];
 
 interface RoadTestScreenProps {
   onOpenTickets: () => void;
@@ -62,30 +221,187 @@ export function RoadTestScreen({
     armed,
     tripState,
     demoRunning,
+    isLiveDrive,
     speedKph,
     maxSpeedKph,
     elapsedSec,
     distanceKm,
     routePoints,
     fenceRadius,
-    tripRecords,
     setFenceRadius,
+    tripRecords,
     armVehicle,
     disarmVehicle,
     startDemoDrive,
     resetDemo,
+    startLiveDrive,
+    finishLiveDrive,
+    recordLivePoint,
     loadVehicleByROOrRego,
   } = useRoadTest();
+
+  const {
+    presenceStatus,
+    insideGeofence,
+    distanceMeters,
+    siteName,
+    radiusMeters,
+    currentActivity,
+    activeRoNumber,
+    lastPingAt,
+    setPresenceActivity,
+    updateSiteRadius,
+    hasLocationPermission,
+    requestLocationAccess,
+    gpsMode,
+    switchToLiveMode,
+    liveCoords,
+  } = useGeofence();
+  const isOnSite = presenceStatus === 'ON_SITE';
+  const effectiveRadius = radiusMeters || fenceRadius || 200;
+
+  // Stream real-time live GPS coordinates into the road test recorder
+  useEffect(() => {
+    if (isLiveDrive && liveCoords) {
+      recordLivePoint(
+        liveCoords.latitude,
+        liveCoords.longitude,
+        liveCoords.speedKmh ?? 0,
+        insideGeofence
+      );
+    }
+  }, [isLiveDrive, liveCoords, insideGeofence, recordLivePoint]);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.25,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
 
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('live');
   const [searchQuery, setSearchQuery] = useState('RO-48291');
   const [expandedTripId, setExpandedTripId] = useState<string | null>(tripRecords[0]?.id || null);
   const [filterType, setFilterType] = useState<'all' | 'flagged' | 'week'>('all');
 
-  // Automation Settings
-  const [notifEnabled, setNotifEnabled] = useState(true);
-  const [historyEnabled, setHistoryEnabled] = useState(true);
-  const [speedAlertsEnabled, setSpeedAlertsEnabled] = useState(false);
+  // Dealership Staff Roster State
+  const [selectedRosterSiteId, setSelectedRosterSiteId] = useState<string>('all');
+  const [roster, setRoster] = useState<TechRosterItem[]>(FALLBACK_STAFF_ROSTER);
+  const [loadingRoster, setLoadingRoster] = useState<boolean>(false);
+  const [rosterFilter, setRosterFilter] = useState<'ALL' | 'ON_SITE' | 'OFF_SITE'>('ALL');
+
+  const loadRoster = useCallback(async () => {
+    setLoadingRoster(true);
+    try {
+      const siteToQuery = selectedRosterSiteId || 'all';
+      const res: any = await mobileGeofenceService.getSiteRoster(siteToQuery);
+      if (res && Array.isArray(res.roster)) {
+        // Dealership Staff Roster is strictly for technicians
+        const techniciansOnly = res.roster.filter(
+          (t: TechRosterItem) =>
+            !t.email?.toLowerCase().includes('hammadak05') &&
+            !t.technicianName?.toLowerCase().includes('admin')
+        );
+        if (techniciansOnly.length > 0) {
+          setRoster(techniciansOnly);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load live staff roster:', e);
+    } finally {
+      setLoadingRoster(false);
+    }
+  }, [selectedRosterSiteId]);
+
+  useEffect(() => {
+    loadRoster();
+  }, [loadRoster]);
+
+  useEffect(() => {
+    if (activeSubTab === 'settings') {
+      const interval = setInterval(loadRoster, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [activeSubTab, loadRoster]);
+
+  // Real-time integration: dynamically merge logged-in technician's live telemetry
+  const liveTechnicianList = useMemo(() => {
+    const baseList = roster.filter(
+      (r) =>
+        !r.email?.toLowerCase().includes('hammadak05') &&
+        !r.technicianName?.toLowerCase().includes('admin')
+    );
+
+    return baseList.map((t) => {
+      const isCurrentUser =
+        user &&
+        (t.technicianId === user.id ||
+          t.email?.toLowerCase() === user.email?.toLowerCase() ||
+          t.technicianName?.toLowerCase() === user.name?.toLowerCase());
+
+      if (isCurrentUser) {
+        return {
+          ...t,
+          status: presenceStatus,
+          distanceMeters: distanceMeters,
+          currentActivity: currentActivity,
+          activeRoNumber: activeRoNumber || t.activeRoNumber,
+          speedKmh: isLiveDrive ? (speedKph || 0) : (presenceStatus === 'OFF_SITE' ? (speedKph || 48) : 0),
+          lastPingAt: lastPingAt ? lastPingAt.toISOString() : t.lastPingAt,
+        };
+      }
+      return t;
+    });
+  }, [roster, user, presenceStatus, distanceMeters, currentActivity, activeRoNumber, isLiveDrive, speedKph, lastPingAt]);
+
+  const siteFilteredRoster = useMemo(() => {
+    if (!selectedRosterSiteId || selectedRosterSiteId === 'all') {
+      return liveTechnicianList;
+    }
+    return liveTechnicianList.filter(
+      (r) => r.siteId === selectedRosterSiteId || !r.siteId
+    );
+  }, [liveTechnicianList, selectedRosterSiteId]);
+
+  const rosterOnSiteCount = siteFilteredRoster.filter((r) => r.status === 'ON_SITE').length;
+  const rosterOffSiteCount = siteFilteredRoster.filter((r) => r.status === 'OFF_SITE').length;
+
+  const filteredRoster = useMemo(() => {
+    return siteFilteredRoster.filter((r) => {
+      if (rosterFilter === 'ON_SITE') return r.status === 'ON_SITE';
+      if (rosterFilter === 'OFF_SITE') return r.status === 'OFF_SITE';
+      return true;
+    });
+  }, [siteFilteredRoster, rosterFilter]);
+
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  useEffect(() => {
+    setUnreadNotifCount(notificationsService.getUnreadCount());
+    const unsubscribe = notificationsService.onNotification(() => {
+      setUnreadNotifCount(notificationsService.getUnreadCount());
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleNotificationSelect = (_notif: AppNotificationPayload) => {
+    onOpenTickets();
+  };
 
   const formatClock = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -111,26 +427,28 @@ export function RoadTestScreen({
   });
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* 1. Header Bar */}
-      <View style={styles.header}>
-        <View style={styles.brandGroup}>
-          <View style={styles.brandIconWrap}>
-            <Gauge size={20} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.brandName}>BOORAN MOTORS</Text>
-            <Text style={styles.brandSub}>WARRANTY ROAD TEST</Text>
-          </View>
-        </View>
-
-        <View style={styles.liveIndicator}>
-          <View style={[styles.pulseDot, { backgroundColor: statusInfo.color }]} />
-          <Text style={[styles.liveIndicatorText, { color: statusInfo.color }]}>
-            {tripState === 'outside' ? 'LIVE TRACKING' : 'STANDBY'}
-          </Text>
-        </View>
-      </View>
+    <View style={styles.screen}>
+      {/* Clean App Header: Logo left, Notification Bell right */}
+      <Header
+        showBrandLogo
+        rightAction={
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              setShowNotifModal(true);
+            }}
+            style={styles.bellBtn}
+            accessibilityLabel="Warranty Alerts"
+          >
+            <Bell size={20} color="#FFFFFF" />
+            {unreadNotifCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadNotifCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       {/* 2. Sub-Tabs Bar */}
       <View style={styles.subTabBar}>
@@ -163,7 +481,7 @@ export function RoadTestScreen({
         >
           <Sliders size={14} color={activeSubTab === 'settings' ? colors.primary : colors.textSecondary} />
           <Text style={[styles.subTabText, activeSubTab === 'settings' && styles.subTabTextActive]}>
-            Geofence
+            Staff & Geofence
           </Text>
         </TouchableOpacity>
       </View>
@@ -260,18 +578,18 @@ export function RoadTestScreen({
 
                 {/* Geofence Boundary Status */}
                 <View style={styles.fenceRow}>
-                  <View style={styles.fenceIcon}>
-                    <MapPin size={16} color={colors.success} />
+                  <View style={[styles.fenceIcon, !isOnSite && styles.fenceIconOffSite]}>
+                    <MapPin size={16} color={isOnSite ? colors.success : '#F59E0B'} />
                   </View>
                   <View style={styles.fenceTextWrap}>
                     <Text style={styles.fenceTitle}>
-                      {armed ? 'Automatic Road-Test Geofence Armed' : 'Geofence Standby'}
+                      {isOnSite ? 'Technician ON-SITE (Inside Workshop)' : 'Technician OFF-SITE (Outside Boundary)'}
                     </Text>
                     <Text style={styles.fenceSub}>
-                      Booran Motors Service • {fenceRadius}m departure boundary
+                      {siteName} • ~{distanceMeters}m from center (Boundary: {effectiveRadius}m)
                     </Text>
                   </View>
-                  <View style={[styles.fenceStatusDot, armed && styles.fenceStatusDotActive]} />
+                  <View style={[styles.fenceStatusDot, isOnSite ? styles.fenceStatusDotActive : styles.fenceStatusDotOffSite]} />
                 </View>
               </View>
             ) : null}
@@ -386,11 +704,34 @@ export function RoadTestScreen({
             <TouchableOpacity
               activeOpacity={0.85}
               disabled={demoRunning}
-              onPress={tripState === 'returned' ? resetDemo : startDemoDrive}
-              style={[styles.primaryActionBtn, demoRunning && styles.primaryActionBtnDisabled]}
+              onPress={() => {
+                if (tripState === 'returned') {
+                  setPresenceActivity('WORKSHOP');
+                  resetDemo();
+                } else if (isLiveDrive) {
+                  setPresenceActivity('WORKSHOP');
+                  finishLiveDrive();
+                } else if (armed) {
+                  setPresenceActivity('ROAD_TEST', vehicle?.repairOrder);
+                  if (gpsMode === 'LIVE') {
+                    startLiveDrive();
+                  } else {
+                    startDemoDrive();
+                  }
+                } else {
+                  armVehicle();
+                }
+              }}
+              style={[
+                styles.primaryActionBtn,
+                demoRunning && styles.primaryActionBtnDisabled,
+                isLiveDrive && { backgroundColor: '#DC2626' },
+              ]}
             >
               {tripState === 'returned' ? (
                 <RotateCcw size={20} color="#FFFFFF" />
+              ) : isLiveDrive ? (
+                <CheckCircle2 size={20} color="#FFFFFF" />
               ) : (
                 <Play size={20} color="#FFFFFF" />
               )}
@@ -399,16 +740,44 @@ export function RoadTestScreen({
                   ? 'SIMULATING ROAD TEST DRIVE...'
                   : tripState === 'returned'
                   ? 'RESET ROAD TEST'
+                  : isLiveDrive
+                  ? 'FINISH LIVE ROAD TEST (OR RETURN TO DEALERSHIP)'
                   : armed
-                  ? 'START ROAD TEST DRIVE'
+                  ? gpsMode === 'LIVE'
+                    ? 'START LIVE GPS ROAD TEST'
+                    : 'START ROAD TEST DRIVE'
                   : 'ARM VEHICLE'}
               </Text>
             </TouchableOpacity>
 
-            {armed && !demoRunning && tripState === 'inside' ? (
-              <TouchableOpacity activeOpacity={0.7} onPress={disarmVehicle} style={styles.disarmBtn}>
-                <Text style={styles.disarmBtnText}>Disarm tracking</Text>
-              </TouchableOpacity>
+            {armed && !isLiveDrive && !demoRunning && tripState !== 'returned' ? (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                {gpsMode === 'LIVE' ? (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setPresenceActivity('ROAD_TEST', vehicle?.repairOrder);
+                      startDemoDrive();
+                    }}
+                    style={[styles.disarmBtn, { flex: 1, backgroundColor: '#F1F5F9' }]}
+                  >
+                    <Text style={[styles.disarmBtnText, { color: '#475569' }]}>⚡ Run Demo Simulation</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {tripState === 'inside' ? (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setPresenceActivity('WORKSHOP');
+                      disarmVehicle();
+                    }}
+                    style={[styles.disarmBtn, { flex: 1 }]}
+                  >
+                    <Text style={styles.disarmBtnText}>Disarm tracking</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             ) : null}
           </>
         )}
@@ -534,87 +903,424 @@ export function RoadTestScreen({
 
         {activeSubTab === 'settings' && (
           <View style={styles.settingsContainer}>
+            {/* Live Presence Status Card */}
             <View style={styles.settingsSectionCard}>
               <View style={styles.settingsHeaderRow}>
                 <View>
-                  <Text style={styles.settingsKicker}>WORKSHOP BOUNDARY</Text>
-                  <Text style={styles.settingsTitle}>Geofence Radius</Text>
+                  <Text style={styles.settingsKicker}>MY GEOFENCE PRESENCE</Text>
+                  <Text style={styles.settingsTitle}>{siteName}</Text>
                 </View>
-                <View style={styles.radiusPill}>
-                  <Text style={styles.radiusPillText}>{fenceRadius} m</Text>
+                <View
+                  style={[
+                    styles.presenceStatusPill,
+                    isOnSite ? styles.presenceStatusPillOnSite : styles.presenceStatusPillOffSite,
+                  ]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.pulseDot,
+                      { backgroundColor: isOnSite ? '#10B981' : '#F59E0B', opacity: pulseAnim },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.presenceStatusPillText,
+                      { color: isOnSite ? '#065F46' : '#92400E' },
+                    ]}
+                  >
+                    {isOnSite ? 'ON-SITE' : 'OFF-SITE'}
+                  </Text>
                 </View>
               </View>
 
               <Text style={styles.settingsHelperText}>
-                Telemetry tracking begins immediately when the vehicle leaves this radius and stops
-                upon returning. Recommended standard is 180 m.
+                {isOnSite
+                  ? `Technician detected within dealership perimeter (~${distanceMeters}m from center). Ready for workshop repairs.`
+                  : `Technician outside dealership perimeter (~${(distanceMeters / 1000).toFixed(2)} km away). Active road-test or off-site.`}
               </Text>
 
-              <View style={styles.radiusButtonsRow}>
-                {[120, 180, 250, 400].map((rad) => (
-                  <TouchableOpacity
-                    key={rad}
-                    activeOpacity={0.7}
-                    onPress={() => setFenceRadius(rad)}
-                    style={[
-                      styles.radiusBtn,
-                      fenceRadius === rad && styles.radiusBtnActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.radiusBtnText,
-                        fenceRadius === rad && styles.radiusBtnTextActive,
-                      ]}
-                    >
-                      {rad}m
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.presenceMetaRow}>
+                <View style={styles.presenceMetaItem}>
+                  <Text style={styles.presenceMetaLabel}>CURRENT DISTANCE</Text>
+                  <Text style={styles.presenceMetaValue}>
+                    {isOnSite ? `~${distanceMeters} m` : `${(distanceMeters / 1000).toFixed(2)} km`}
+                  </Text>
+                </View>
+                <View style={styles.presenceMetaItem}>
+                  <Text style={styles.presenceMetaLabel}>ROOFTOP RADIUS</Text>
+                  <Text style={styles.presenceMetaValue}>{effectiveRadius} m</Text>
+                </View>
+                <View style={styles.presenceMetaItem}>
+                  <Text style={styles.presenceMetaLabel}>GPS SOURCE</Text>
+                  <Text style={[styles.presenceMetaValue, { color: gpsMode === 'LIVE' ? '#10B981' : '#F59E0B' }]}>
+                    {gpsMode === 'LIVE' ? '🟢 LIVE GPS' : 'SIMULATED'}
+                  </Text>
+                </View>
               </View>
+
+              {!hasLocationPermission && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={requestLocationAccess}
+                  style={[styles.simToggleBtn, { backgroundColor: '#1E40AF', marginBottom: 8 }]}
+                >
+                  <Text style={styles.simToggleBtnText}>
+                    📍 GRANT DEVICE LOCATION PERMISSION
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {gpsMode === 'SIMULATED' && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={switchToLiveMode}
+                  style={[styles.simToggleBtn, { backgroundColor: '#059669' }]}
+                >
+                  <Text style={styles.simToggleBtnText}>
+                    SWITCH TO LIVE GPS TRACKING
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
+            {/* Workshop Boundary Policy Card */}
             <View style={styles.settingsSectionCard}>
-              <Text style={styles.settingsKicker}>AUTOMATION PREFERENCES</Text>
-              <Text style={styles.settingsTitle}>Recording Rules</Text>
-
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelWrap}>
-                  <Text style={styles.switchTitle}>Return Notifications</Text>
-                  <Text style={styles.switchSub}>Alert when a road-test record is saved</Text>
+              <View style={styles.settingsHeaderRow}>
+                <View>
+                  <Text style={styles.settingsKicker}>
+                    {isAdmin ? 'ADMIN CONTROL • BOUNDARY POLICY' : 'WORKSHOP BOUNDARY POLICY'}
+                  </Text>
+                  <Text style={styles.settingsTitle}>Site Geofence Radius</Text>
                 </View>
-                <Switch
-                  value={notifEnabled}
-                  onValueChange={setNotifEnabled}
-                  trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={notifEnabled ? colors.primary : '#FFFFFF'}
-                />
+                <View style={styles.radiusPill}>
+                  <Text style={styles.radiusPillText}>{effectiveRadius} m</Text>
+                </View>
               </View>
 
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelWrap}>
-                  <Text style={styles.switchTitle}>Auto-Attach to Repair Order</Text>
-                  <Text style={styles.switchSub}>Store route & telemetry directly with warranty evidence</Text>
+              <Text style={styles.settingsHelperText}>
+                Telemetry and road test tracking begins automatically when the vehicle exits this boundary and stops upon returning.
+              </Text>
+
+              {isAdmin ? (
+                <View style={styles.adminEditorContainer}>
+                  <View style={styles.adminBadgeRow}>
+                    <Shield size={14} color={colors.primary} />
+                    <Text style={styles.adminBadgeText}>
+                      Admin Access ({user?.email}) • Tap to Adjust:
+                    </Text>
+                  </View>
+                  <View style={styles.radiusButtonsRow}>
+                    {[100, 150, 200, 250, 350, 500].map((rad) => (
+                      <TouchableOpacity
+                        key={rad}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setFenceRadius(rad);
+                          updateSiteRadius(rad);
+                        }}
+                        style={[
+                          styles.radiusBtn,
+                          effectiveRadius === rad && styles.radiusBtnActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.radiusBtnText,
+                            effectiveRadius === rad && styles.radiusBtnTextActive,
+                          ]}
+                        >
+                          {rad}m
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.adminSyncHint}>
+                    ✓ Updates {siteName} & synchronizes across all staff in real-time.
+                  </Text>
                 </View>
-                <Switch
-                  value={historyEnabled}
-                  onValueChange={setHistoryEnabled}
-                  trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={historyEnabled ? colors.primary : '#FFFFFF'}
-                />
+              ) : (
+                <View style={styles.adminLockedBanner}>
+                  <Shield size={14} color="#64748B" />
+                  <Text style={styles.adminLockedText}>
+                    Managed by Group Admins. Configured centrally across all rooftops.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Live Dealership Rooftop Staff Roster (Visible to All Staff & Admins) */}
+            <View style={styles.settingsSectionCard}>
+              <View style={styles.settingsHeaderRow}>
+                <View>
+                  <Text style={styles.settingsKicker}>ALL TECHNICIANS PRESENCE</Text>
+                  <Text style={styles.settingsTitle}>Dealership Staff Roster</Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={loadRoster}
+                  style={styles.refreshRosterBtn}
+                >
+                  <RotateCcw size={12} color={colors.primary} />
+                  <Text style={styles.refreshRosterBtnText}>
+                    {loadingRoster ? 'Loading...' : 'Refresh'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              <View style={[styles.switchRow, { borderBottomWidth: 0 }]}>
-                <View style={styles.switchLabelWrap}>
-                  <Text style={styles.switchTitle}>Speed Threshold Flagging</Text>
-                  <Text style={styles.switchSub}>Flag test drives that exceed statutory limits</Text>
+              {/* Summary KPI Cards matching Web */}
+              <View style={styles.rosterKpiRow}>
+                <View style={styles.rosterKpiCard}>
+                  <Text style={styles.rosterKpiLabel}>TOTAL TRACKED</Text>
+                  <View style={styles.rosterKpiValRow}>
+                    <Text style={styles.rosterKpiVal}>{siteFilteredRoster.length}</Text>
+                    <Text style={styles.rosterKpiSub}>techs</Text>
+                  </View>
                 </View>
-                <Switch
-                  value={speedAlertsEnabled}
-                  onValueChange={setSpeedAlertsEnabled}
-                  trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={speedAlertsEnabled ? colors.primary : '#FFFFFF'}
-                />
+
+                <View style={[styles.rosterKpiCard, styles.rosterKpiCardOnSite]}>
+                  <View style={styles.rosterKpiLabelRow}>
+                    <Text style={[styles.rosterKpiLabel, { color: '#065F46' }]}>ON-SITE</Text>
+                    <View style={[styles.pulseDot, { backgroundColor: '#10B981', width: 6, height: 6 }]} />
+                  </View>
+                  <View style={styles.rosterKpiValRow}>
+                    <Text style={[styles.rosterKpiVal, { color: '#059669' }]}>{rosterOnSiteCount}</Text>
+                    <Text style={[styles.rosterKpiSub, { color: '#047857' }]}>in bay</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.rosterKpiCard, styles.rosterKpiCardOffSite]}>
+                  <View style={styles.rosterKpiLabelRow}>
+                    <Text style={[styles.rosterKpiLabel, { color: '#92400E' }]}>OFF-SITE</Text>
+                    <Animated.View
+                      style={[
+                        styles.pulseDot,
+                        { backgroundColor: '#F59E0B', width: 6, height: 6, opacity: pulseAnim },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.rosterKpiValRow}>
+                    <Text style={[styles.rosterKpiVal, { color: '#D97706' }]}>{rosterOffSiteCount}</Text>
+                    <Text style={[styles.rosterKpiSub, { color: '#B45309' }]}>active test</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Rooftop Scoping Selector */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rooftopScroll}>
+                {ROOFTOP_FILTER_OPTIONS.map((siteOpt) => {
+                  const isSelected = selectedRosterSiteId === siteOpt.id;
+                  return (
+                    <TouchableOpacity
+                      key={siteOpt.id}
+                      activeOpacity={0.7}
+                      onPress={() => setSelectedRosterSiteId(siteOpt.id)}
+                      style={[styles.rooftopPill, isSelected && styles.rooftopPillActive]}
+                    >
+                      <Text style={[styles.rooftopPillText, isSelected && styles.rooftopPillTextActive]}>
+                        {siteOpt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Status Filter Pills */}
+              <View style={styles.rosterFilterRow}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setRosterFilter('ALL')}
+                  style={[styles.rosterFilterPill, rosterFilter === 'ALL' && styles.rosterFilterPillActive]}
+                >
+                  <Text style={[styles.rosterFilterText, rosterFilter === 'ALL' && styles.rosterFilterTextActive]}>
+                    All ({siteFilteredRoster.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setRosterFilter('ON_SITE')}
+                  style={[styles.rosterFilterPill, rosterFilter === 'ON_SITE' && styles.rosterFilterPillActive]}
+                >
+                  <View style={[styles.pulseDot, { backgroundColor: '#10B981', width: 6, height: 6 }]} />
+                  <Text style={[styles.rosterFilterText, rosterFilter === 'ON_SITE' && styles.rosterFilterTextActive]}>
+                    On-Site ({rosterOnSiteCount})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setRosterFilter('OFF_SITE')}
+                  style={[styles.rosterFilterPill, rosterFilter === 'OFF_SITE' && styles.rosterFilterPillActive]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.pulseDot,
+                      { backgroundColor: '#F59E0B', width: 6, height: 6, opacity: pulseAnim },
+                    ]}
+                  />
+                  <Text style={[styles.rosterFilterText, rosterFilter === 'OFF_SITE' && styles.rosterFilterTextActive]}>
+                    Off-Site ({rosterOffSiteCount})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Technicians List with Rich Telemetry Matching Web */}
+              <View style={styles.rosterListWrap}>
+                {filteredRoster.length === 0 ? (
+                  <Text style={styles.emptyRosterText}>No technicians matching this filter.</Text>
+                ) : (
+                  filteredRoster.map((tech) => {
+                    const techIsOnSite = tech.status === 'ON_SITE';
+                    const isCurrentUser =
+                      user &&
+                      (tech.technicianId === user.id ||
+                        tech.email?.toLowerCase() === user.email?.toLowerCase() ||
+                        tech.technicianName?.toLowerCase() === user.name?.toLowerCase());
+
+                    const lastPingFormatted = tech.lastPingAt
+                      ? new Date(tech.lastPingAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Just now';
+
+                    return (
+                      <View
+                        key={tech.technicianId}
+                        style={[
+                          styles.techRosterCard,
+                          !techIsOnSite && styles.techRosterCardOffSite,
+                        ]}
+                      >
+                        <View style={styles.techRosterTop}>
+                          <View
+                            style={[
+                              styles.techAvatar,
+                              !techIsOnSite && styles.techAvatarOffSite,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.techAvatarText,
+                                !techIsOnSite && styles.techAvatarTextOffSite,
+                              ]}
+                            >
+                              {tech.technicianName.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.techInfo}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={styles.techName}>{tech.technicianName}</Text>
+                              {isCurrentUser && (
+                                <View style={styles.youBadge}>
+                                  <Text style={styles.youBadgeText}>YOU</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.techEmail}>{tech.email}</Text>
+                            {tech.siteName ? (
+                              <Text style={styles.techSiteName}>{tech.siteName}</Text>
+                            ) : null}
+                          </View>
+                          <View
+                            style={[
+                              styles.presenceStatusPill,
+                              techIsOnSite
+                                ? styles.presenceStatusPillOnSite
+                                : styles.presenceStatusPillOffSite,
+                            ]}
+                          >
+                            <Animated.View
+                              style={[
+                                styles.pulseDot,
+                                {
+                                  backgroundColor: techIsOnSite ? '#10B981' : '#F59E0B',
+                                  opacity: pulseAnim,
+                                },
+                              ]}
+                            />
+                            <Text
+                              style={[
+                                styles.presenceStatusPillText,
+                                { color: techIsOnSite ? '#065F46' : '#92400E' },
+                              ]}
+                            >
+                              {techIsOnSite ? 'ON-SITE' : 'OFF-SITE'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.techMetaRow}>
+                          <View style={styles.techMetaCol}>
+                            <Text style={styles.techMetaLabel}>PROXIMITY</Text>
+                            <Text
+                              style={[
+                                styles.techMetaVal,
+                                !techIsOnSite && { color: '#B45309', fontWeight: '800' },
+                              ]}
+                            >
+                              {techIsOnSite
+                                ? `~${tech.distanceMeters || 18}m (Inside Bay)`
+                                : `~${((tech.distanceMeters || 1850) / 1000).toFixed(2)} km (Outside)`}
+                            </Text>
+                          </View>
+                          <View style={styles.techMetaCol}>
+                            <Text style={styles.techMetaLabel}>ACTIVITY</Text>
+                            <View
+                              style={[
+                                styles.activityBadge,
+                                tech.currentActivity === 'ROAD_TEST'
+                                  ? styles.activityBadgeRoadTest
+                                  : tech.currentActivity === 'INSPECTION'
+                                  ? styles.activityBadgeInspection
+                                  : styles.activityBadgeWorkshop,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.activityBadgeText,
+                                  tech.currentActivity === 'ROAD_TEST'
+                                    ? styles.activityBadgeTextRoadTest
+                                    : tech.currentActivity === 'INSPECTION'
+                                    ? styles.activityBadgeTextInspection
+                                    : styles.activityBadgeTextWorkshop,
+                                ]}
+                              >
+                                {tech.currentActivity || 'WORKSHOP'}
+                              </Text>
+                            </View>
+                          </View>
+                          {tech.activeRoNumber ? (
+                            <View style={styles.techMetaCol}>
+                              <Text style={styles.techMetaLabel}>ACTIVE RO</Text>
+                              <Text
+                                style={[
+                                  styles.techMetaVal,
+                                  { color: colors.primary, fontWeight: '900' },
+                                ]}
+                              >
+                                {tech.activeRoNumber}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <View style={styles.techMetaCol}>
+                            <Text style={styles.techMetaLabel}>SPEED</Text>
+                            <Text
+                              style={[
+                                styles.techMetaVal,
+                                (tech.speedKmh ?? 0) > 0 && { color: '#0F172A', fontWeight: '900' },
+                              ]}
+                            >
+                              {(tech.speedKmh ?? 0) > 0 ? `${tech.speedKmh} km/h` : '0 km/h'}
+                            </Text>
+                          </View>
+                          <View style={styles.techMetaCol}>
+                            <Text style={styles.techMetaLabel}>LAST PING</Text>
+                            <Text style={styles.techMetaVal}>{lastPingFormatted}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
               </View>
             </View>
 
@@ -713,11 +1419,52 @@ export function RoadTestScreen({
           </>
         )}
       </View>
+
+      <NotificationModal
+        visible={showNotifModal}
+        onClose={() => setShowNotifModal(false)}
+        onSelectNotification={handleNotificationSelect}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  bellBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    position: 'relative',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  bellBadgeText: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+  },
   screen: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -765,6 +1512,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
+  },
+  liveIndicatorOnSite: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  liveIndicatorOffSite: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
   pulseDot: {
     width: 8,
@@ -987,6 +1744,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  fenceIconOffSite: {
+    backgroundColor: '#FEF3C7',
+  },
   fenceTextWrap: {
     flex: 1,
   },
@@ -1008,6 +1768,9 @@ const styles = StyleSheet.create({
   },
   fenceStatusDotActive: {
     backgroundColor: colors.success,
+  },
+  fenceStatusDotOffSite: {
+    backgroundColor: '#F59E0B',
   },
   mapWrap: {
     marginBottom: 12,
@@ -1367,13 +2130,37 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 14,
   },
+  adminEditorContainer: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  adminBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  adminBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 0.4,
+  },
+  adminSyncHint: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: colors.success,
+    marginTop: 8,
+  },
   radiusButtonsRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   radiusBtn: {
-    flex: 1,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: '#F1F5F9',
     borderRadius: 8,
@@ -1393,27 +2180,339 @@ const styles = StyleSheet.create({
   radiusBtnTextActive: {
     color: '#FFFFFF',
   },
-  switchRow: {
+  adminLockedBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    marginTop: 12,
   },
-  switchLabelWrap: {
+  adminLockedText: {
     flex: 1,
-    paddingRight: 10,
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
+    lineHeight: 14,
   },
-  switchTitle: {
+  presenceStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  presenceStatusPillOnSite: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  presenceStatusPillOffSite: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  presenceStatusPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  presenceMetaRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    marginTop: 10,
+    gap: 8,
+  },
+  presenceMetaItem: {
+    flex: 1,
+  },
+  presenceMetaLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.6,
+  },
+  presenceMetaValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  simToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  simToggleBtnText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  refreshRosterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(215, 25, 32, 0.2)',
+  },
+  refreshRosterBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  rosterFilterRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  rosterFilterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  rosterFilterPillActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  rosterFilterText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  rosterFilterTextActive: {
+    color: '#FFFFFF',
+  },
+  rosterListWrap: {
+    marginTop: 6,
+    gap: 8,
+  },
+  emptyRosterText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    paddingVertical: 12,
+  },
+  techRosterCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  techRosterTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  techAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  techAvatarText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  techInfo: {
+    flex: 1,
+  },
+  techName: {
     fontSize: 11.5,
     fontWeight: '800',
     color: '#0F172A',
   },
-  switchSub: {
-    fontSize: 9,
+  techEmail: {
+    fontSize: 9.5,
     color: '#64748B',
     marginTop: 1,
+  },
+  techMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    gap: 12,
+  },
+  techMetaCol: {
+    flex: 1,
+  },
+  techMetaLabel: {
+    fontSize: 7.5,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+  },
+  techMetaVal: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginTop: 1,
+  },
+  rosterKpiRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 10,
+  },
+  rosterKpiCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  rosterKpiCardOnSite: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  rosterKpiCardOffSite: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  rosterKpiLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  rosterKpiLabel: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  rosterKpiValRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  rosterKpiVal: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  rosterKpiSub: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  rooftopScroll: {
+    marginBottom: 10,
+  },
+  rooftopPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 6,
+  },
+  rooftopPillActive: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  rooftopPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  rooftopPillTextActive: {
+    color: '#FFFFFF',
+  },
+  techRosterCardOffSite: {
+    backgroundColor: '#FFFDF5',
+    borderColor: '#FDE68A',
+  },
+  techAvatarOffSite: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  techAvatarTextOffSite: {
+    color: '#B45309',
+  },
+  techSiteName: {
+    fontSize: 9,
+    color: '#94A3B8',
+    marginTop: 1,
+    fontWeight: '600',
+  },
+  youBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  youBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#1D4ED8',
+  },
+  activityBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  activityBadgeWorkshop: {
+    backgroundColor: '#F1F5F9',
+  },
+  activityBadgeRoadTest: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 0.5,
+    borderColor: '#FCA5A5',
+  },
+  activityBadgeInspection: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 0.5,
+    borderColor: '#BFDBFE',
+  },
+  activityBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  activityBadgeTextWorkshop: {
+    color: '#475569',
+  },
+  activityBadgeTextRoadTest: {
+    color: '#DC2626',
+  },
+  activityBadgeTextInspection: {
+    color: '#2563EB',
   },
   privacyCard: {
     flexDirection: 'row',

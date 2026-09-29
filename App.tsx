@@ -43,6 +43,7 @@ import {
 import { casesApi } from './src/api';
 import { RoadTestScreen } from './src/screens/roadtest/RoadTestScreen';
 import { RoadTestProvider } from './src/context/RoadTestContext';
+import { GeofenceProvider } from './src/context/GeofenceContext';
 import { WarrantyCase } from './src/types';
 
 type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'LOANERS' | 'ROAD_TEST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
@@ -542,11 +543,13 @@ export default function App() {
       />
       <NetworkProvider>
         <AuthProvider>
-          <CaseWizardProvider>
-            <RoadTestProvider>
-              <MainNavigator />
-            </RoadTestProvider>
-          </CaseWizardProvider>
+          <GeofenceProvider>
+            <CaseWizardProvider>
+              <RoadTestProvider>
+                <MainNavigator />
+              </RoadTestProvider>
+            </CaseWizardProvider>
+          </GeofenceProvider>
         </AuthProvider>
       </NetworkProvider>
     </SafeAreaProvider>

@@ -38,7 +38,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is required by the workshop warranty application to scan VIN plates, barcodes, odometers, and defect evidence.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>Location access is required to determine technician geofence presence and log test-drive routes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access allows selecting existing workshop warranty evidence photos and diagnostic screenshots.</string>
 	<key>RCTNewArchEnabled</key>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -7,6 +7,7 @@ import { spacing } from '../../theme/spacing';
 import { Icon } from './Icon';
 import { Badge } from './Badge';
 import { useNetwork } from '../../context/NetworkContext';
+import { useGeofence } from '../../context/GeofenceContext';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
@@ -19,6 +20,7 @@ interface HeaderProps {
   rightAction?: React.ReactNode;
   showOfflineIndicator?: boolean;
   showBrandLogo?: boolean;
+  showPresenceBadge?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,10 +32,48 @@ export const Header: React.FC<HeaderProps> = ({
   rightAction,
   showOfflineIndicator = true,
   showBrandLogo = false,
+  showPresenceBadge = true,
 }) => {
   const insets = useSafeAreaInsets();
   const { isOnline, pendingCount } = useNetwork();
+  const {
+    presenceStatus,
+    distanceMeters,
+    siteName,
+    radiusMeters,
+    currentActivity,
+    activeRoNumber,
+    lastPingAt,
+    liveCoords,
+    hasLocationPermission,
+    gpsMode,
+    requestLocationAccess,
+    switchToLiveMode,
+  } = useGeofence();
 
+  const [showPresenceModal, setShowPresenceModal] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.25,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+    return () => pulseLoop.stop();
+  }, [pulseAnim]);
+
+  const isOnSite = presenceStatus === 'ON_SITE';
   const hasTitleContent = Boolean(title || subtitle);
 
   return (
@@ -80,6 +120,34 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         <View style={styles.rightArea}>
+          {/* Blinking Geofence Presence Badge */}
+          {showPresenceBadge && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowPresenceModal(true)}
+              style={[
+                styles.presenceBadge,
+                isOnSite ? styles.presenceBadgeOnSite : styles.presenceBadgeOffSite,
+              ]}
+            >
+              <Animated.View
+                style={[
+                  styles.presenceDot,
+                  isOnSite ? styles.presenceDotOnSite : styles.presenceDotOffSite,
+                  { opacity: pulseAnim },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.presenceText,
+                  isOnSite ? styles.presenceTextOnSite : styles.presenceTextOffSite,
+                ]}
+              >
+                {isOnSite ? 'ON-SITE' : 'OFF-SITE'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {roNumber && (
             <Badge
               label={roNumber}
@@ -109,6 +177,127 @@ export const Header: React.FC<HeaderProps> = ({
           {rightAction}
         </View>
       </View>
+
+      {/* Geofence Status Modal */}
+      <Modal
+        visible={showPresenceModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPresenceModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.modalOverlay}
+          onPress={() => setShowPresenceModal(false)}
+        >
+          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTitleRow}>
+                <View
+                  style={[
+                    styles.modalStatusPill,
+                    isOnSite ? styles.modalStatusPillOnSite : styles.modalStatusPillOffSite,
+                  ]}
+                >
+                  <Animated.View
+                    style={[
+                      styles.presenceDot,
+                      isOnSite ? styles.presenceDotOnSite : styles.presenceDotOffSite,
+                      { opacity: pulseAnim },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.modalStatusText,
+                      isOnSite ? styles.modalStatusTextOnSite : styles.modalStatusTextOffSite,
+                    ]}
+                  >
+                    {isOnSite ? 'ON-SITE (WORKSHOP)' : 'OFF-SITE (ROAD TEST / ROVING)'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowPresenceModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalSiteTitle}>{siteName}</Text>
+              <Text style={styles.modalSiteSub}>
+                {isOnSite
+                  ? `Inside ${radiusMeters}m workshop perimeter • ~${distanceMeters}m from center`
+                  : `Outside workshop boundary • ~${(distanceMeters / 1000).toFixed(1)} km from center`}
+              </Text>
+
+              <View style={styles.modalInfoTable}>
+                <View style={styles.modalInfoRow}>
+                  <Text style={styles.modalInfoLabel}>GPS Telemetry Mode</Text>
+                  <Text style={[styles.modalInfoValue, { color: gpsMode === 'LIVE' ? colors.success : colors.warning, fontWeight: '700' }]}>
+                    {gpsMode === 'LIVE' ? '🟢 LIVE GPS' : '🟠 SIMULATED'}
+                  </Text>
+                </View>
+                {gpsMode === 'LIVE' && (
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Live Device Fix</Text>
+                    <Text style={styles.modalInfoValue}>
+                      {liveCoords
+                        ? `${liveCoords.latitude.toFixed(4)}, ${liveCoords.longitude.toFixed(4)}`
+                        : hasLocationPermission
+                        ? 'Acquiring GPS fix...'
+                        : 'Permission required'}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.modalInfoRow}>
+                  <Text style={styles.modalInfoLabel}>Current Activity</Text>
+                  <Text style={styles.modalInfoValue}>{currentActivity}</Text>
+                </View>
+                {activeRoNumber ? (
+                  <View style={styles.modalInfoRow}>
+                    <Text style={styles.modalInfoLabel}>Active Repair Order</Text>
+                    <Text style={[styles.modalInfoValue, { color: colors.primary }]}>
+                      {activeRoNumber}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.modalInfoRow}>
+                  <Text style={styles.modalInfoLabel}>Site Perimeter Policy</Text>
+                  <Text style={styles.modalInfoValue}>{radiusMeters} meters (Admin set)</Text>
+                </View>
+                <View style={[styles.modalInfoRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.modalInfoLabel}>Last Telemetry Sync</Text>
+                  <Text style={styles.modalInfoValue}>
+                    {lastPingAt ? lastPingAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Active'}
+                  </Text>
+                </View>
+              </View>
+
+              {!hasLocationPermission && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={requestLocationAccess}
+                  style={[styles.modalToggleBtn, { backgroundColor: colors.primary, marginBottom: spacing.sm }]}
+                >
+                  <Text style={styles.modalToggleBtnText}>📍 Grant Live Location Permission</Text>
+                </TouchableOpacity>
+              )}
+
+              {gpsMode === 'SIMULATED' && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={switchToLiveMode}
+                  style={[styles.modalToggleBtn, { backgroundColor: colors.success, marginBottom: spacing.sm }]}
+                >
+                  <Text style={styles.modalToggleBtnText}>Switch to Live GPS Mode</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -191,5 +380,164 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  presenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 5,
+  },
+  presenceBadgeOnSite: {
+    backgroundColor: 'rgba(16, 185, 129, 0.22)',
+    borderColor: 'rgba(52, 211, 153, 0.65)',
+  },
+  presenceBadgeOffSite: {
+    backgroundColor: 'rgba(245, 158, 11, 0.28)',
+    borderColor: 'rgba(251, 191, 36, 0.75)',
+  },
+  presenceDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  presenceDotOnSite: {
+    backgroundColor: '#34D399',
+  },
+  presenceDotOffSite: {
+    backgroundColor: '#FBBF24',
+  },
+  presenceText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  presenceTextOnSite: {
+    color: '#ECFDF5',
+  },
+  presenceTextOffSite: {
+    color: '#FEF3C7',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  modalStatusPillOnSite: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  modalStatusPillOffSite: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  modalStatusText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  modalStatusTextOnSite: {
+    color: '#065F46',
+  },
+  modalStatusTextOffSite: {
+    color: '#92400E',
+  },
+  modalCloseBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCloseText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '700',
+  },
+  modalBody: {
+    gap: 12,
+  },
+  modalSiteTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalSiteSub: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  modalInfoTable: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  modalInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalInfoLabel: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  modalInfoValue: {
+    fontSize: 11.5,
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  modalToggleBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  modalToggleBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
 });

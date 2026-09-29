@@ -333,20 +333,20 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                       </View>
                     </TouchableOpacity>
 
-                    {/* 2. In Progress / Drafts */}
+                    {/* 2. Awaiting */}
                     <TouchableOpacity
                       activeOpacity={0.8}
-                      onPress={() => setActiveTab('drafts')}
-                      style={[styles.kpiCard, activeTab === 'drafts' && styles.kpiCardActive]}
+                      onPress={() => setActiveTab('awaiting')}
+                      style={[styles.kpiCard, activeTab === 'awaiting' && styles.kpiCardActive]}
                     >
                       <View style={[styles.kpiIconBox, { backgroundColor: '#FEF3C7' }]}>
                         <Clock size={18} color={colors.warning} />
                       </View>
                       <View style={styles.kpiTextBox}>
                         <Text style={[styles.kpiValue, { color: colors.warning }]}>
-                          {inProgressCount}
+                          {awaitingCount}
                         </Text>
-                        <Text style={styles.kpiLabel}>In Progress</Text>
+                        <Text style={styles.kpiLabel}>Awaiting</Text>
                       </View>
                     </TouchableOpacity>
                   </View>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
+import { calculateDistanceMeters } from './GeofenceContext';
 
 export type TripState = 'inside' | 'outside' | 'returned';
 
@@ -21,6 +22,8 @@ export interface RoutePoint {
   x: number;
   y: number;
   speed: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface RoadTestTripRecord {
@@ -155,6 +158,7 @@ interface RoadTestContextValue {
   armed: boolean;
   tripState: TripState;
   demoRunning: boolean;
+  isLiveDrive: boolean;
   speedKph: number;
   maxSpeedKph: number;
   elapsedSec: number;
@@ -168,6 +172,9 @@ interface RoadTestContextValue {
   disarmVehicle: () => void;
   startDemoDrive: () => void;
   resetDemo: () => void;
+  startLiveDrive: () => void;
+  finishLiveDrive: () => void;
+  recordLivePoint: (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => void;
   loadVehicleByROOrRego: (query: string) => boolean;
 }
 
@@ -178,6 +185,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const [armed, setArmed] = useState(true);
   const [tripState, setTripState] = useState<TripState>('inside');
   const [demoRunning, setDemoRunning] = useState(false);
+  const [isLiveDrive, setIsLiveDrive] = useState(false);
   const [speedKph, setSpeedKph] = useState(0);
   const [maxSpeedKph, setMaxSpeedKph] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -187,11 +195,38 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const [tripRecords, setTripRecords] = useState<RoadTestTripRecord[]>(INITIAL_TRIP_RECORDS);
 
   const timerRef = useRef<any>(null);
+  const liveTimerRef = useRef<any>(null);
   const activeIndexRef = useRef(1);
+  const lastPointRef = useRef<{ lat: number; lng: number } | null>(null);
+  const wasOutsideRef = useRef<boolean>(false);
+
+  // References to state to prevent stale closures in finishLiveDrive
+  const elapsedSecRef = useRef(0);
+  const distanceKmRef = useRef(0);
+  const maxSpeedKphRef = useRef(0);
+  const vehicleRef = useRef<RoadTestVehicle | null>(vehicle);
+
+  useEffect(() => {
+    elapsedSecRef.current = elapsedSec;
+  }, [elapsedSec]);
+
+  useEffect(() => {
+    distanceKmRef.current = distanceKm;
+  }, [distanceKm]);
+
+  useEffect(() => {
+    maxSpeedKphRef.current = maxSpeedKph;
+  }, [maxSpeedKph]);
+
+  useEffect(() => {
+    vehicleRef.current = vehicle;
+  }, [vehicle]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
+    if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+    liveTimerRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -207,11 +242,14 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
     setDistanceKm(0);
     setRoutePoints([DEFAULT_DEMO_ROUTE[0]]);
     activeIndexRef.current = 1;
+    lastPointRef.current = null;
+    wasOutsideRef.current = false;
   }, []);
 
   const disarmVehicle = useCallback(() => {
     clearTimer();
     setDemoRunning(false);
+    setIsLiveDrive(false);
     setArmed(false);
     setTripState('inside');
     setSpeedKph(0);
@@ -220,6 +258,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const resetDemo = useCallback(() => {
     clearTimer();
     setDemoRunning(false);
+    setIsLiveDrive(false);
     setArmed(true);
     setTripState('inside');
     setSpeedKph(0);
@@ -228,11 +267,110 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
     setDistanceKm(0);
     setRoutePoints([DEFAULT_DEMO_ROUTE[0]]);
     activeIndexRef.current = 1;
+    lastPointRef.current = null;
+    wasOutsideRef.current = false;
   }, [clearTimer]);
+
+  const finishLiveDrive = useCallback(() => {
+    if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+    liveTimerRef.current = null;
+    setIsLiveDrive(false);
+    setTripState('returned');
+    setSpeedKph(0);
+
+    const v = vehicleRef.current;
+    if (v) {
+      const minutes = Math.floor(elapsedSecRef.current / 60);
+      const seconds = elapsedSecRef.current % 60;
+      const durationStr = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+      const currentDist = distanceKmRef.current;
+      const currentMax = maxSpeedKphRef.current;
+
+      const newRecord: RoadTestTripRecord = {
+        id: `trip-${Date.now()}`,
+        repairOrder: v.repairOrder,
+        registration: v.registration,
+        vehicleLabel: `${v.year} ${v.make} ${v.model}`,
+        dateLabel: 'Just now',
+        startTime: new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }),
+        duration: durationStr || '1m 15s',
+        distanceKm: Number(currentDist.toFixed(2)) || 0.1,
+        maxSpeedKph: Math.round(currentMax) || 0,
+        outcome: currentMax > 105 ? 'Flagged' : 'Passed',
+        technician: 'Active Technician (Live GPS)',
+        note: `Live GPS road test completed. Logged ${currentDist.toFixed(1)} km, Max Speed: ${Math.round(currentMax)} km/h. Dealer perimeter return auto-verified.`,
+      };
+      setTripRecords((prev) => [newRecord, ...prev]);
+    }
+  }, []);
+
+  const startLiveDrive = useCallback(() => {
+    clearTimer();
+    setDemoRunning(false);
+    setIsLiveDrive(true);
+    setArmed(true);
+    setTripState('inside');
+    setElapsedSec(0);
+    setDistanceKm(0);
+    setSpeedKph(0);
+    setMaxSpeedKph(0);
+    setRoutePoints([{ x: 18, y: 68, speed: 0 }]);
+    lastPointRef.current = null;
+    wasOutsideRef.current = false;
+
+    liveTimerRef.current = setInterval(() => {
+      setElapsedSec((prev) => prev + 1);
+    }, 1000);
+  }, [clearTimer]);
+
+  const recordLivePoint = useCallback(
+    (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => {
+      const currentSpeed = speedKmh !== undefined && speedKmh > 0 ? Math.round(speedKmh) : 0;
+      setSpeedKph(currentSpeed);
+      setMaxSpeedKph((prev) => Math.max(prev, currentSpeed));
+
+      if (lastPointRef.current) {
+        const incMeters = calculateDistanceMeters(
+          lastPointRef.current.lat,
+          lastPointRef.current.lng,
+          lat,
+          lng,
+        );
+        if (incMeters >= 3 && incMeters <= 500) {
+          setDistanceKm((prev) => Number((prev + incMeters / 1000).toFixed(2)));
+        }
+      }
+      lastPointRef.current = { lat, lng };
+
+      // Project real (lat, lng) to SVG map coordinates (0-100) centered around Cranbourne (18, 68)
+      const siteLat = -38.0992;
+      const siteLng = 145.2813;
+      const dx = (lng - siteLng) * 111320 * Math.cos((siteLat * Math.PI) / 180);
+      const dy = (lat - siteLat) * 111320;
+      const svgX = Math.max(2, Math.min(98, 18 + dx / 15.38));
+      const svgY = Math.max(2, Math.min(98, 68 - dy / 15.38));
+
+      setRoutePoints((prev) => {
+        const next = [...prev, { x: svgX, y: svgY, speed: currentSpeed, latitude: lat, longitude: lng }];
+        return next.length > 200 ? next.slice(next.length - 200) : next;
+      });
+
+      // Real-time Geofence Boundary Transition:
+      if (isInsideFence === false) {
+        wasOutsideRef.current = true;
+        setTripState('outside');
+      } else if (isInsideFence === true && wasOutsideRef.current) {
+        // Automatic Return: Technician drove back inside dealership perimeter
+        finishLiveDrive();
+      }
+    },
+    [finishLiveDrive],
+  );
 
   const startDemoDrive = useCallback(() => {
     if (!armed) setArmed(true);
     clearTimer();
+    setIsLiveDrive(false);
     setDemoRunning(true);
     setTripState('outside');
     setElapsedSec(0);
@@ -246,13 +384,11 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
       const targetPoint = DEFAULT_DEMO_ROUTE[idx];
 
       if (!targetPoint) {
-        // Complete trip
         clearTimer();
         setDemoRunning(false);
         setTripState('returned');
         setSpeedKph(0);
 
-        // Auto-save record
         if (vehicle) {
           const newRecord: RoadTestTripRecord = {
             id: `trip-${Date.now()}`,
@@ -265,7 +401,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
             distanceKm: 6.8,
             maxSpeedKph: 76,
             outcome: 'Passed',
-            technician: 'Active Technician',
+            technician: 'Active Technician (Simulation)',
             note: 'Automated road test verified via Booran geofence tracking. No boundary violations.',
           };
           setTripRecords((prev) => [newRecord, ...prev]);
@@ -307,6 +443,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
         armed,
         tripState,
         demoRunning,
+        isLiveDrive,
         speedKph,
         maxSpeedKph,
         elapsedSec,
@@ -320,6 +457,9 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
         disarmVehicle,
         startDemoDrive,
         resetDemo,
+        startLiveDrive,
+        finishLiveDrive,
+        recordLivePoint,
         loadVehicleByROOrRego,
       }}
     >

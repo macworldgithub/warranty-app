@@ -30,6 +30,7 @@ import {
   AlertCircle,
   Lock,
   Key,
+  Bell,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -37,6 +38,11 @@ import { spacing } from '../../theme/spacing';
 import { Header } from '../../components/common/Header';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
+import { NotificationModal } from '../../components/notifications/NotificationModal';
+import {
+  notificationsService,
+  AppNotificationPayload,
+} from '../../services/notifications.service';
 import { useAuth } from '../../context/AuthContext';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { casesApi } from '../../api/cases.api';
@@ -278,10 +284,51 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     return name.slice(0, 2).toUpperCase();
   };
   const awaitingCount = cases.filter(c => c.status === 'Awaiting Review').length;
+  const flaggedCount = cases.filter(c => c.status === 'Flagged').length;
+
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  useEffect(() => {
+    setUnreadNotifCount(notificationsService.getUnreadCount());
+    const unsubscribe = notificationsService.onNotification(() => {
+      setUnreadNotifCount(notificationsService.getUnreadCount());
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleNotificationSelect = (notif: AppNotificationPayload) => {
+    const targetCase = notif.caseItem || cases.find((c) => c.id === notif.caseId);
+    if (targetCase) {
+      onOpenCase(targetCase);
+    } else {
+      onOpenTickets('all');
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <Header title="Booran Vehicles" />
+      {/* Clean App Header: Logo left, Notification Bell right */}
+      <Header
+        showBrandLogo
+        rightAction={
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => {
+              setShowNotifModal(true);
+            }}
+            style={styles.bellBtn}
+            accessibilityLabel="Warranty Alerts"
+          >
+            <Bell size={20} color="#FFFFFF" />
+            {(unreadNotifCount > 0 || flaggedCount > 0) && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <FlatList
         data={filteredVehicles}
@@ -1013,11 +1060,52 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
           </>
         )}
       </View>
+
+      <NotificationModal
+        visible={showNotifModal}
+        onClose={() => setShowNotifModal(false)}
+        onSelectNotification={handleNotificationSelect}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  bellBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    position: 'relative',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  bellBadgeText: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '900',
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
