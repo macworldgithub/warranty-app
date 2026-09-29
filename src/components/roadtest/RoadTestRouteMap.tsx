@@ -78,9 +78,19 @@ export function RoadTestRouteMap({
   fenceRadius: propFenceRadius,
 }: RoadTestRouteMapProps) {
   const geofence = useGeofence();
-  const workshopLat = propSiteLat ?? -38.0992;
-  const workshopLng = propSiteLng ?? 145.2813;
-  const workshopName = propSiteName ?? geofence.siteName ?? 'Booran BYD Cranbourne';
+  const workshopLat =
+    propSiteLat ??
+    geofence.customWorkshop?.lat ??
+    (geofence.liveCoords && geofence.liveCoords.latitude > 0 ? geofence.liveCoords.latitude : -38.0992);
+  const workshopLng =
+    propSiteLng ??
+    geofence.customWorkshop?.lng ??
+    (geofence.liveCoords && geofence.liveCoords.latitude > 0 ? geofence.liveCoords.longitude : 145.2813);
+  const workshopName =
+    propSiteName ??
+    geofence.customWorkshop?.name ??
+    geofence.siteName ??
+    'Booran BYD Cranbourne';
   const radiusM = propFenceRadius ?? geofence.radiusMeters ?? 200;
 
   const [containerSize, setContainerSize] = useState({ width: 360, height: compact ? 120 : 255 });

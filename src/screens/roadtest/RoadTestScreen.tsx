@@ -309,6 +309,9 @@ export function RoadTestScreen({
     gpsMode,
     switchToLiveMode,
     liveCoords,
+    customWorkshop,
+    anchorWorkshopToLocation,
+    resetWorkshopToDealership,
   } = useGeofence();
   const isOnSite = presenceStatus === 'ON_SITE';
   const effectiveRadius = radiusMeters || fenceRadius || 200;
@@ -1394,6 +1397,45 @@ export function RoadTestScreen({
                 >
                   <Text style={styles.simToggleBtnText}>
                     SWITCH TO LIVE GPS TRACKING
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (liveCoords) {
+                    anchorWorkshopToLocation(liveCoords.latitude, liveCoords.longitude, 'Pakistan Test Workshop');
+                    Alert.alert(
+                      'Workshop Anchored to Pakistan',
+                      `Geofence boundary pinned to your exact GPS location (${liveCoords.latitude.toFixed(4)}°N, ${liveCoords.longitude.toFixed(4)}°E) in Pakistan.`
+                    );
+                  } else {
+                    anchorWorkshopToLocation(31.5204, 74.3587, 'Pakistan Workshop (Lahore)');
+                    Alert.alert(
+                      'Pakistan Preset Active',
+                      'Workshop boundary anchored to Lahore (31.5204°N, 74.3587°E) for testing.'
+                    );
+                  }
+                }}
+                style={[styles.simToggleBtn, { backgroundColor: '#0284C7', marginTop: 8 }]}
+              >
+                <Text style={styles.simToggleBtnText}>
+                  🇵🇰 ANCHOR WORKSHOP HERE (PAKISTAN TEST)
+                </Text>
+              </TouchableOpacity>
+
+              {customWorkshop && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    resetWorkshopToDealership();
+                    Alert.alert('Reset to Australia', 'Workshop boundary restored to Booran Cranbourne, Australia.');
+                  }}
+                  style={[styles.simToggleBtn, { backgroundColor: '#64748B', marginTop: 8 }]}
+                >
+                  <Text style={styles.simToggleBtnText}>
+                    🇦🇺 RESET TO CRANBOURNE (AUSTRALIA)
                   </Text>
                 </TouchableOpacity>
               )}

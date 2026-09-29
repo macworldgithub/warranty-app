@@ -67,6 +67,9 @@ export interface GeofenceContextType {
   liveCoords: LiveGpsCoords | null;
   hasLocationPermission: boolean;
   gpsMode: 'LIVE' | 'SIMULATED';
+  customWorkshop: { lat: number; lng: number; name: string } | null;
+  anchorWorkshopToLocation: (lat: number, lng: number, name?: string) => void;
+  resetWorkshopToDealership: () => void;
   pingNow: (override?: Partial<PingTelemetryDto>) => Promise<void>;
   setPresenceActivity: (activity: 'WORKSHOP' | 'ROAD_TEST' | 'INSPECTION' | 'IDLE', ro?: string) => void;
   toggleSimulatedPresence: () => void;
@@ -81,6 +84,14 @@ const GeofenceContext = createContext<GeofenceContextType | undefined>(undefined
 export const SITE_CRANBOURNE = {
   lat: -38.0992,
   lng: 145.2813,
+  name: 'Booran BYD Cranbourne',
+};
+
+// Preset for testing in Pakistan (e.g. Lahore hub)
+export const SITE_PAKISTAN = {
+  lat: 31.5204,
+  lng: 74.3587,
+  name: 'Pakistan Workshop & Test Track',
 };
 
 // Location ~1.8km away outside the 200m perimeter
@@ -130,6 +141,10 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [lastPingAt, setLastPingAt] = useState<Date | null>(new Date());
   const [isPinging, setIsPinging] = useState<boolean>(false);
 
+  // Custom workshop anchor for local/Pakistan testing
+  const [customWorkshop, setCustomWorkshop] = useState<{ lat: number; lng: number; name: string } | null>(null);
+  const customWorkshopRef = useRef<{ lat: number; lng: number; name: string } | null>(null);
+
   // Live GPS state
   const [gpsMode, setGpsMode] = useState<'LIVE' | 'SIMULATED'>('LIVE');
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean>(false);
@@ -140,6 +155,22 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const gpsModeRef = useRef<'LIVE' | 'SIMULATED'>('LIVE');
   const simulatedCoordsRef = useRef<{ lat: number; lng: number }>(OFF_SITE_LOCATION);
   const isPingingRef = useRef<boolean>(false);
+
+  const anchorWorkshopToLocation = useCallback((lat: number, lng: number, name?: string) => {
+    const loc = { lat, lng, name: name || 'Local Testing Workshop' };
+    customWorkshopRef.current = loc;
+    setCustomWorkshop(loc);
+    setSiteName(loc.name);
+    setDistanceMeters(0);
+    setInsideGeofence(true);
+    setPresenceStatus('ON_SITE');
+  }, []);
+
+  const resetWorkshopToDealership = useCallback(() => {
+    customWorkshopRef.current = null;
+    setCustomWorkshop(null);
+    setSiteName('Booran BYD Cranbourne');
+  }, []);
 
   useEffect(() => {
     gpsModeRef.current = gpsMode;
@@ -225,7 +256,20 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         liveCoordsRef.current = c;
         setLiveCoords(c);
 
-        const realDist = calculateDistanceMeters(c.latitude, c.longitude, SITE_CRANBOURNE.lat, SITE_CRANBOURNE.lng);
+        let refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
+        let refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
+
+        // Auto-anchor workshop to user's location if testing in Pakistan / outside Australia
+        if (customWorkshopRef.current === null && c.latitude > 0) {
+          const autoLoc = { lat: c.latitude, lng: c.longitude, name: 'Local Pakistan Workshop' };
+          customWorkshopRef.current = autoLoc;
+          setCustomWorkshop(autoLoc);
+          setSiteName(autoLoc.name);
+          refLat = c.latitude;
+          refLng = c.longitude;
+        }
+
+        const realDist = calculateDistanceMeters(c.latitude, c.longitude, refLat, refLng);
         const isInside = realDist <= radiusMeters;
         setDistanceMeters(realDist);
         setInsideGeofence(isInside);
@@ -341,7 +385,19 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setLiveCoords(c);
 
             if (gpsModeRef.current === 'LIVE') {
-              const liveDist = calculateDistanceMeters(c.latitude, c.longitude, SITE_CRANBOURNE.lat, SITE_CRANBOURNE.lng);
+              let refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
+              let refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
+
+              if (customWorkshopRef.current === null && c.latitude > 0) {
+                const autoLoc = { lat: c.latitude, lng: c.longitude, name: 'Local Pakistan Workshop' };
+                customWorkshopRef.current = autoLoc;
+                setCustomWorkshop(autoLoc);
+                setSiteName(autoLoc.name);
+                refLat = c.latitude;
+                refLng = c.longitude;
+              }
+
+              const liveDist = calculateDistanceMeters(c.latitude, c.longitude, refLat, refLng);
               const isInside = liveDist <= radiusMeters;
               setDistanceMeters(liveDist);
               setInsideGeofence(isInside);
@@ -421,6 +477,9 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         liveCoords,
         hasLocationPermission,
         gpsMode,
+        customWorkshop,
+        anchorWorkshopToLocation,
+        resetWorkshopToDealership,
         pingNow,
         setPresenceActivity,
         toggleSimulatedPresence,
