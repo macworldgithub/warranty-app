@@ -1,193 +1,646 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Line, Path, Polyline } from 'react-native-svg';
-import { Wrench } from 'lucide-react-native';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  TouchableOpacity,
+  PanResponder,
+  GestureResponderEvent,
+  PanResponderGestureState,
+  LayoutChangeEvent,
+} from 'react-native';
+import Svg, { Circle, Polyline, G, Defs, LinearGradient, Stop, Line } from 'react-native-svg';
+import {
+  Wrench,
+  Navigation,
+  Crosshair,
+  Plus,
+  Minus,
+  MapPin,
+  Route,
+  CheckCircle2,
+} from 'lucide-react-native';
 import { colors } from '../../theme/colors';
-import { RoutePoint, DEFAULT_DEMO_ROUTE, TripState } from '../../context/RoadTestContext';
+import { RoutePoint, TripState, DEFAULT_DEMO_ROUTE } from '../../context/RoadTestContext';
+import { useGeofence } from '../../context/GeofenceContext';
 
 interface RoadTestRouteMapProps {
   points: RoutePoint[];
   state: TripState;
   compact?: boolean;
+  siteLat?: number;
+  siteLng?: number;
+  siteName?: string;
+  fenceRadius?: number;
 }
 
-const plannedPoints = DEFAULT_DEMO_ROUTE.map((point) => `${point.x},${point.y}`).join(' ');
+// Slippy Map Web Mercator calculations (EPSG:3857) - 100% Free OpenStreetMap
+function lon2tile(lon: number, zoom: number): number {
+  return ((lon + 180) / 360) * Math.pow(2, zoom);
+}
 
-export function RoadTestRouteMap({ points, state, compact = false }: RoadTestRouteMapProps) {
-  const travelledPoints = points.map((point) => `${point.x},${point.y}`).join(' ');
-  const current = points[points.length - 1] ?? DEFAULT_DEMO_ROUTE[0];
+function lat2tile(lat: number, zoom: number): number {
+  const rad = (lat * Math.PI) / 180;
+  return (
+    ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) *
+    Math.pow(2, zoom)
+  );
+}
+
+function getMetersPerPixel(lat: number, zoom: number): number {
+  return (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
+}
+
+function normalizePoint(p: RoutePoint, defaultSiteLat: number, defaultSiteLng: number): {
+  lat: number;
+  lng: number;
+  speed: number;
+} {
+  if (p.latitude !== undefined && p.longitude !== undefined) {
+    return { lat: p.latitude, lng: p.longitude, speed: p.speed ?? 0 };
+  }
+  // Inverse projection from legacy SVG coordinates (18, 68) around dealership center
+  const dx = (p.x - 18) * 15.38;
+  const dy = (68 - p.y) * 15.38;
+  const lng = defaultSiteLng + dx / (111320 * Math.cos((defaultSiteLat * Math.PI) / 180));
+  const lat = defaultSiteLat + dy / 111320;
+  return { lat, lng, speed: p.speed ?? 0 };
+}
+
+export function RoadTestRouteMap({
+  points,
+  state,
+  compact = false,
+  siteLat: propSiteLat,
+  siteLng: propSiteLng,
+  siteName: propSiteName,
+  fenceRadius: propFenceRadius,
+}: RoadTestRouteMapProps) {
+  const geofence = useGeofence();
+  const workshopLat = propSiteLat ?? -38.0992;
+  const workshopLng = propSiteLng ?? 145.2813;
+  const workshopName = propSiteName ?? geofence.siteName ?? 'Booran BYD Cranbourne';
+  const radiusM = propFenceRadius ?? geofence.radiusMeters ?? 200;
+
+  const [containerSize, setContainerSize] = useState({ width: 360, height: compact ? 120 : 255 });
+  const [zoom, setZoom] = useState<number>(compact ? 15 : 16);
+  const [viewMode, setViewMode] = useState<'follow' | 'fullTrack'>(
+    compact || state === 'returned' ? 'fullTrack' : 'follow'
+  );
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panStartRef = useRef({ x: 0, y: 0 });
+
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      setContainerSize({ width, height });
+    }
+  }, []);
+
+  // Normalize all route points to real geographic latitude and longitude
+  const normalizedPoints = useMemo(() => {
+    const list = points && points.length > 0 ? points : [DEFAULT_DEMO_ROUTE[0]];
+    return list.map((p) => normalizePoint(p, workshopLat, workshopLng));
+  }, [points, workshopLat, workshopLng]);
+
+  const startPoint = normalizedPoints[0] ?? {
+    lat: workshopLat,
+    lng: workshopLng,
+    speed: 0,
+  };
+
+  const currentPoint = normalizedPoints[normalizedPoints.length - 1] ?? startPoint;
+
+  // Bounding box calculation to fit the full tracked test drive circuit
+  const bounds = useMemo(() => {
+    if (!normalizedPoints || normalizedPoints.length === 0) {
+      return {
+        centerLat: workshopLat,
+        centerLng: workshopLng,
+        optimalZoom: 16,
+      };
+    }
+
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+
+    for (const p of normalizedPoints) {
+      if (p.lat < minLat) minLat = p.lat;
+      if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lng < minLng) minLng = p.lng;
+      if (p.lng > maxLng) maxLng = p.lng;
+    }
+
+    // Include workshop in the circuit bounds
+    minLat = Math.min(minLat, workshopLat);
+    maxLat = Math.max(maxLat, workshopLat);
+    minLng = Math.min(minLng, workshopLng);
+    maxLng = Math.max(maxLng, workshopLng);
+
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+
+    const latSpan = Math.max(0.003, (maxLat - minLat) * 1.35);
+    const lngSpan = Math.max(0.003, (maxLng - minLng) * 1.35);
+
+    const zoomX = Math.log2((containerSize.width * 360) / (lngSpan * 256));
+    const zoomY = Math.log2((containerSize.height * 180) / (latSpan * 256));
+
+    const optimalZoom = Math.max(13, Math.min(17, Math.floor(Math.min(zoomX, zoomY))));
+
+    return {
+      centerLat,
+      centerLng,
+      optimalZoom,
+    };
+  }, [normalizedPoints, workshopLat, workshopLng, containerSize]);
+
+  // When trip finishes or compact card loads, switch automatically to full tracked track
+  useEffect(() => {
+    if (state === 'returned' || compact) {
+      setViewMode('fullTrack');
+      setZoom(bounds.optimalZoom);
+      setPan({ x: 0, y: 0 });
+    }
+  }, [state, compact, bounds.optimalZoom]);
+
+  // Dynamic center coordinate: follows vehicle or frames the entire track
+  const effectiveCenterLat =
+    viewMode === 'fullTrack' || compact ? bounds.centerLat : currentPoint.lat;
+  const effectiveCenterLng =
+    viewMode === 'fullTrack' || compact ? bounds.centerLng : currentPoint.lng;
+  const effectiveZoom =
+    viewMode === 'fullTrack' || compact ? bounds.optimalZoom : zoom;
+
+  // Pan gesture responder for freely dragging the map
+  const panResponder = useMemo(() => {
+    if (compact) return null;
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_e, gestureState) =>
+        Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3,
+      onPanResponderGrant: () => {
+        panStartRef.current = { x: pan.x, y: pan.y };
+      },
+      onPanResponderMove: (_e: GestureResponderEvent, gestureState: PanResponderGestureState) => {
+        setPan({
+          x: panStartRef.current.x + gestureState.dx,
+          y: panStartRef.current.y + gestureState.dy,
+        });
+      },
+    });
+  }, [compact, pan]);
+
+  // Project any lat/lng to container pixel coordinates with current pan and zoom
+  const projectToPixel = useCallback(
+    (lat: number, lng: number) => {
+      const cTileX = lon2tile(effectiveCenterLng, effectiveZoom);
+      const cTileY = lat2tile(effectiveCenterLat, effectiveZoom);
+      const pTileX = lon2tile(lng, effectiveZoom);
+      const pTileY = lat2tile(lat, effectiveZoom);
+
+      const x = containerSize.width / 2 + (pTileX - cTileX) * 256 + pan.x;
+      const y = containerSize.height / 2 + (pTileY - cTileY) * 256 + pan.y;
+      return { x, y };
+    },
+    [effectiveCenterLat, effectiveCenterLng, effectiveZoom, containerSize, pan]
+  );
+
+  // Compute OpenStreetMap raster tiles covering the viewport (100% Free OSM)
+  const tiles = useMemo(() => {
+    const cTileX = lon2tile(effectiveCenterLng, effectiveZoom);
+    const cTileY = lat2tile(effectiveCenterLat, effectiveZoom);
+
+    const minX = Math.floor(cTileX - (containerSize.width / 2 + pan.x) / 256) - 1;
+    const maxX = Math.ceil(cTileX + (containerSize.width / 2 - pan.x) / 256) + 1;
+    const minY = Math.floor(cTileY - (containerSize.height / 2 + pan.y) / 256) - 1;
+    const maxY = Math.ceil(cTileY + (containerSize.height / 2 - pan.y) / 256) + 1;
+
+    const result: Array<{ key: string; url: string; left: number; top: number }> = [];
+
+    for (let tx = minX; tx <= maxX; tx++) {
+      for (let ty = minY; ty <= maxY; ty++) {
+        const left = containerSize.width / 2 + (tx - cTileX) * 256 + pan.x;
+        const top = containerSize.height / 2 + (ty - cTileY) * 256 + pan.y;
+
+        const subdomains = ['a', 'b', 'c'];
+        const sub = subdomains[Math.abs(tx + ty) % subdomains.length];
+        const url = `https://${sub}.tile.openstreetmap.org/${effectiveZoom}/${tx}/${ty}.png`;
+
+        result.push({
+          key: `${effectiveZoom}-${tx}-${ty}-osm`,
+          url,
+          left,
+          top,
+        });
+      }
+    }
+    return result;
+  }, [effectiveCenterLat, effectiveCenterLng, effectiveZoom, containerSize, pan]);
+
+  // Full tracked polyline connecting all recorded test drive points
+  const travelledPolylinePoints = useMemo(() => {
+    return normalizedPoints
+      .map((p) => {
+        const px = projectToPixel(p.lat, p.lng);
+        return `${px.x.toFixed(1)},${px.y.toFixed(1)}`;
+      })
+      .join(' ');
+  }, [normalizedPoints, projectToPixel]);
+
+  // Workshop & Geofence projections
+  const workshopPixel = projectToPixel(workshopLat, workshopLng);
+  const startPixel = projectToPixel(startPoint.lat, startPoint.lng);
+  const vehiclePixel = projectToPixel(currentPoint.lat, currentPoint.lng);
+  const metersPerPixel = getMetersPerPixel(workshopLat, effectiveZoom);
+  const fenceRadiusPixels = radiusM / metersPerPixel;
+
+  const handleZoomIn = () => {
+    setZoom((z) => Math.min(18, z + 1));
+    setViewMode('follow');
+  };
+
+  const handleZoomOut = () => {
+    setZoom((z) => Math.max(13, z - 1));
+    setViewMode('follow');
+  };
+
+  const handleRecenterCar = () => {
+    setViewMode('follow');
+    setPan({ x: 0, y: 0 });
+    setZoom(16);
+  };
+
+  const handleFitFullTrack = () => {
+    setViewMode('fullTrack');
+    setPan({ x: 0, y: 0 });
+    setZoom(bounds.optimalZoom);
+  };
+
+  const isVehicleOutside = state === 'outside';
+  const isTripReturned = state === 'returned';
 
   return (
-    <View style={[styles.container, compact && styles.compact]}>
-      <Svg viewBox="0 0 100 100" style={styles.svg} preserveAspectRatio="none">
-        {/* Road Background Curves */}
-        <Path d="M-10 25 C18 20 27 32 45 27 S77 16 110 23" stroke="#FFFFFF" strokeWidth="8" fill="none" />
-        <Path d="M-10 25 C18 20 27 32 45 27 S77 16 110 23" stroke="#CBD5E1" strokeWidth="0.8" fill="none" />
+    <View
+      style={[styles.container, compact && styles.compact]}
+      onLayout={onLayout}
+      {...(panResponder ? panResponder.panHandlers : {})}
+    >
+      {/* 1. Real OpenStreetMap Tiles (Only OSM View) */}
+      <View style={StyleSheet.absoluteFill}>
+        {tiles.map((tile) => (
+          <Image
+            key={tile.key}
+            source={{
+              uri: tile.url,
+              headers: { 'User-Agent': 'BooranWarrantyApp/1.0 (dealership road test telemetry)' },
+            }}
+            style={[
+              styles.tileImage,
+              {
+                left: tile.left,
+                top: tile.top,
+              },
+            ]}
+            fadeDuration={100}
+            resizeMode="cover"
+          />
+        ))}
+      </View>
 
-        <Path d="M8 92 C17 71 39 62 50 41 S70 8 89 -8" stroke="#FFFFFF" strokeWidth="10" fill="none" />
-        <Path d="M8 92 C17 71 39 62 50 41 S70 8 89 -8" stroke="#CBD5E1" strokeWidth="0.8" fill="none" />
+      {/* 2. SVG Overlays: Full Track Polyline, Workshop Geofence, Start & Vehicle Markers */}
+      <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <LinearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#DC2626" stopOpacity="1" />
+            <Stop offset="100%" stopColor="#D71920" stopOpacity="1" />
+          </LinearGradient>
+        </Defs>
 
-        <Path d="M-8 58 C18 52 29 54 48 67 S84 88 110 80" stroke="#FFFFFF" strokeWidth="7" fill="none" />
-        <Path d="M-8 58 C18 52 29 54 48 67 S84 88 110 80" stroke="#CBD5E1" strokeWidth="0.8" fill="none" />
-
-        <Line x1="23" y1="-5" x2="31" y2="105" stroke="#FFFFFF" strokeWidth="5" />
-        <Line x1="74" y1="-5" x2="68" y2="105" stroke="#FFFFFF" strokeWidth="6" />
-
-        {/* Booran Geofence Radius Circle */}
+        {/* Workshop Geofence Radius Boundary Circle (Real meters scaled to map) */}
         <Circle
-          cx="18"
-          cy="68"
-          r="13"
+          cx={workshopPixel.x}
+          cy={workshopPixel.y}
+          r={Math.max(12, fenceRadiusPixels)}
           fill="#D71920"
           fillOpacity={0.12}
           stroke="#D71920"
-          strokeWidth="1.3"
-          strokeDasharray="3 2"
+          strokeWidth={1.8}
+          strokeDasharray="4 3"
         />
 
-        {/* Workshop Center Pin */}
-        <Circle cx="18" cy="68" r="3.8" fill="#D71920" stroke="#FFFFFF" strokeWidth="1.4" />
-
-        {/* Planned Route (Dashed) */}
-        <Polyline
-          points={plannedPoints}
-          fill="none"
-          stroke="#94A3B8"
-          strokeWidth="2"
-          strokeDasharray="2 2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        {/* Travelled Route (Solid Booran Red) */}
-        {travelledPoints ? (
-          <Polyline
-            points={travelledPoints}
-            fill="none"
-            stroke="#D71920"
-            strokeWidth="3.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {/* Workshop Dealership Pin Marker */}
+        <G>
+          <Circle
+            cx={workshopPixel.x}
+            cy={workshopPixel.y}
+            r={10}
+            fill="#D71920"
+            fillOpacity={0.25}
           />
+          <Circle
+            cx={workshopPixel.x}
+            cy={workshopPixel.y}
+            r={5}
+            fill="#D71920"
+            stroke="#FFFFFF"
+            strokeWidth={1.8}
+          />
+        </G>
+
+        {/* Full Tracked Test Drive Track (Solid Booran Red with White Outer Contrast Glow) */}
+        {travelledPolylinePoints ? (
+          <G>
+            {/* White outline for high contrast over OSM streets */}
+            <Polyline
+              points={travelledPolylinePoints}
+              fill="none"
+              stroke="#FFFFFF"
+              strokeWidth={5.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Core Booran Red Test Drive Track */}
+            <Polyline
+              points={travelledPolylinePoints}
+              fill="none"
+              stroke="url(#routeGradient)"
+              strokeWidth={4.0}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </G>
         ) : null}
 
-        {/* Current Vehicle Position */}
-        <Circle
-          cx={current.x}
-          cy={current.y}
-          r="4.5"
-          fill={state === 'returned' ? colors.success : '#D71920'}
-          stroke="#FFFFFF"
-          strokeWidth="2"
-        />
+        {/* Start Point Marker (Green Flag/Circle) */}
+        {normalizedPoints.length > 1 && (
+          <G>
+            <Circle
+              cx={startPixel.x}
+              cy={startPixel.y}
+              r={7}
+              fill="#059669"
+              stroke="#FFFFFF"
+              strokeWidth={1.8}
+            />
+            <Circle
+              cx={startPixel.x}
+              cy={startPixel.y}
+              r={2.5}
+              fill="#FFFFFF"
+            />
+          </G>
+        )}
+
+        {/* Current Vehicle Position Marker */}
+        <G>
+          {/* Pulsing telemetry beacon */}
+          <Circle
+            cx={vehiclePixel.x}
+            cy={vehiclePixel.y}
+            r={13}
+            fill={isTripReturned ? colors.success : colors.primary}
+            fillOpacity={0.22}
+          />
+          {/* Solid core vehicle dot */}
+          <Circle
+            cx={vehiclePixel.x}
+            cy={vehiclePixel.y}
+            r={6.5}
+            fill={isTripReturned ? colors.success : '#D71920'}
+            stroke="#FFFFFF"
+            strokeWidth={2}
+          />
+        </G>
       </Svg>
 
-      {/* Workshop Overlay Badge */}
-      <View style={styles.workshopLabel}>
-        <View style={styles.labelIcon}>
-          <Wrench size={11} color="#FFFFFF" />
+      {/* Floating Speed & Status Badge above Current Vehicle Position (non-compact) */}
+      {!compact && (
+        <View
+          style={[
+            styles.vehicleLabelWrap,
+            {
+              left: Math.max(10, Math.min(containerSize.width - 95, vehiclePixel.x - 42)),
+              top: Math.max(10, Math.min(containerSize.height - 40, vehiclePixel.y - 34)),
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={[styles.vehicleSpeedPill, isVehicleOutside && styles.vehicleSpeedPillActive]}>
+            <Navigation size={10} color="#FFFFFF" style={{ transform: [{ rotate: '45deg' }] }} />
+            <Text style={styles.vehicleSpeedText}>
+              {isTripReturned
+                ? 'RETURNED'
+                : currentPoint.speed > 0
+                ? `${currentPoint.speed} km/h`
+                : 'ARMED CAR'}
+            </Text>
+          </View>
         </View>
-        <View>
-          <Text style={styles.labelTitle}>BOORAN MOTORS</Text>
-          <Text style={styles.labelSub}>SERVICE CENTRE</Text>
-        </View>
-      </View>
+      )}
 
-      {/* Live State Badge */}
-      {!compact ? (
+      {/* Top Left: OpenStreetMap Provider Badge */}
+      {!compact && (
+        <View style={styles.osmBadge}>
+          <Text style={styles.osmBadgeText}>🗺️ OpenStreetMap</Text>
+        </View>
+      )}
+
+      {/* Top Right: Status Badge Pill */}
+      {!compact && (
         <View style={styles.mapBadge}>
           <View
             style={[
               styles.badgeDot,
-              state === 'outside' ? styles.activeDot : styles.safeDot,
+              isVehicleOutside ? styles.activeDot : isTripReturned ? styles.returnedDot : styles.safeDot,
             ]}
           />
           <Text style={styles.badgeText}>
-            {state === 'outside'
+            {isVehicleOutside
               ? 'TRACKING LIVE'
-              : state === 'returned'
+              : isTripReturned
               ? 'TRIP COMPLETE'
               : 'INSIDE GEOFENCE'}
           </Text>
         </View>
-      ) : null}
+      )}
+
+      {/* Bottom Right: Interactive Map Controls (Zoom In, Zoom Out, Fit Full Track, Recenter) */}
+      {!compact && (
+        <View style={styles.controlsCol}>
+          {/* Fit Full Track Button */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={handleFitFullTrack}
+            style={[styles.controlBtn, viewMode === 'fullTrack' && styles.controlBtnActive]}
+            accessibilityLabel="Show Full Track"
+          >
+            <Route size={16} color={viewMode === 'fullTrack' ? colors.primary : '#0F172A'} />
+          </TouchableOpacity>
+
+          {/* Recenter on Moving Car Button */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={handleRecenterCar}
+            style={[styles.controlBtn, viewMode === 'follow' && styles.controlBtnActive]}
+            accessibilityLabel="Follow Car"
+          >
+            <Crosshair size={16} color={viewMode === 'follow' ? colors.primary : '#0F172A'} />
+          </TouchableOpacity>
+
+          {/* Zoom In */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={handleZoomIn}
+            style={styles.controlBtn}
+            accessibilityLabel="Zoom In"
+          >
+            <Plus size={16} color="#0F172A" />
+          </TouchableOpacity>
+
+          {/* Zoom Out */}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            onPress={handleZoomOut}
+            style={styles.controlBtn}
+            accessibilityLabel="Zoom Out"
+          >
+            <Minus size={16} color="#0F172A" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Bottom Left: Dealership Workshop Pill & Tracked Path Summary */}
+      <View style={styles.bottomMetaWrap} pointerEvents="none">
+        <View style={styles.workshopLabel}>
+          <View style={styles.labelIcon}>
+            <Wrench size={10} color="#FFFFFF" />
+          </View>
+          <View>
+            <Text style={styles.labelTitle} numberOfLines={1}>
+              {workshopName.toUpperCase()}
+            </Text>
+            <Text style={styles.labelSub}>
+              {fenceRadiusPixels > 0 ? `PERIMETER RADIUS: ${radiusM}M` : 'WORKSHOP CENTRE'}
+            </Text>
+          </View>
+        </View>
+
+        {!compact && (
+          <View style={styles.coordsRow}>
+            <View style={styles.coordsPill}>
+              <MapPin size={9} color="#DC2626" />
+              <Text style={styles.coordsText}>
+                {normalizedPoints.length} GPS Pings • Track Visible
+              </Text>
+            </View>
+            <Text style={styles.osmAttribution}>© OpenStreetMap contributors</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    height: 250,
+    height: 255,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#E5E7EB',
+    borderWidth: 1.2,
+    borderColor: '#CBD5E1',
+    position: 'relative',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   compact: {
-    height: 118,
+    height: 120,
     borderRadius: 14,
+    borderWidth: 1,
   },
-  svg: {
+  tileImage: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    width: 256,
+    height: 256,
   },
-  workshopLabel: {
+  vehicleLabelWrap: {
     position: 'absolute',
-    left: 12,
-    bottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  vehicleSpeedPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    gap: 4,
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  labelIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
+  vehicleSpeedPillActive: {
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  labelTitle: {
-    color: '#0F172A',
-    fontSize: 7.5,
-    lineHeight: 10,
+  vehicleSpeedText: {
+    color: '#FFFFFF',
+    fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  labelSub: {
-    color: '#64748B',
-    fontSize: 6,
-    lineHeight: 8,
+  osmBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+    zIndex: 15,
+  },
+  osmBadgeText: {
+    fontSize: 9.5,
     fontWeight: '800',
-    letterSpacing: 0.6,
+    color: '#0F172A',
   },
   mapBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+    zIndex: 15,
   },
   badgeDot: {
     width: 7,
@@ -198,13 +651,112 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   safeDot: {
-    backgroundColor: colors.success,
+    backgroundColor: '#059669',
+  },
+  returnedDot: {
+    backgroundColor: '#2563EB',
   },
   badgeText: {
     color: '#0F172A',
-    fontSize: 8,
-    lineHeight: 10,
+    fontSize: 8.5,
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
+  },
+  controlsCol: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    gap: 6,
+    zIndex: 20,
+  },
+  controlBtn: {
+    width: 33,
+    height: 33,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  controlBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#FEF2F2',
+  },
+  bottomMetaWrap: {
+    position: 'absolute',
+    left: 10,
+    bottom: 10,
+    gap: 4,
+    maxWidth: '68%',
+    zIndex: 15,
+  },
+  workshopLabel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 9,
+    paddingVertical: 4,
+    paddingHorizontal: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  labelIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  labelTitle: {
+    color: '#0F172A',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  labelSub: {
+    color: '#64748B',
+    fontSize: 6.5,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  coordsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  coordsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 5,
+  },
+  coordsText: {
+    color: '#F8FAFC',
+    fontSize: 7.5,
+    fontWeight: '700',
+  },
+  osmAttribution: {
+    color: '#475569',
+    fontSize: 7,
+    fontWeight: '600',
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
   },
 });

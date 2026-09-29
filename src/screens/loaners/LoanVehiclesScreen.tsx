@@ -261,12 +261,11 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   const chooseAgreementPurpose = () => {
     Alert.alert(
-      'Vehicle Operations',
-      'Choose the workflow to start.',
+      'New Operation',
+      'Select workflow to start:',
       [
-        { text: 'Live Road Test Telemetry', onPress: () => onOpenRoadTest?.() },
-        { text: 'Customer Test Drive Agreement', onPress: () => openAgreementWizard('TEST_DRIVE') },
         { text: 'Service Loaner Agreement', onPress: () => openAgreementWizard('SERVICE_LOANER') },
+        { text: 'Test Drive', onPress: () => onOpenRoadTest?.() },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -906,23 +905,25 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
               <Text style={styles.bottomBarLabel}>Vehicles</Text>
             </TouchableOpacity>
 
-            {/* 3. Loaners (ACTIVE) */}
+            {/* 3. Red Primary Action Button (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onStartNewCase}
+              style={styles.bottomBarActionBtn}
+            >
+              <Icon name="plus" size={15} color="#FFFFFF" />
+              <Text style={styles.bottomBarActionText} numberOfLines={1}>
+                New Warranty Case
+              </Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners (ACTIVE) */}
             <TouchableOpacity
               activeOpacity={0.7}
               style={styles.bottomBarTab}
             >
               <Key size={20} color={colors.primary} />
               <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Loaners</Text>
-            </TouchableOpacity>
-
-            {/* 4. Test Drive (Replaces Awaiting) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Gauge size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Test Drive</Text>
             </TouchableOpacity>
 
             {/* 5. Profile */}
@@ -1466,5 +1467,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textSecondary,
     letterSpacing: -0.1,
+  },
+  bottomBarActionBtn: {
+    flex: 1,
+    maxWidth: 138,
+    height: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    borderRadius: 23,
+    gap: 5,
+    marginHorizontal: 3,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  bottomBarActionText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    textAlign: 'center',
   },
 });

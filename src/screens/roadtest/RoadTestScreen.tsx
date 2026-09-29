@@ -11,6 +11,8 @@ import {
   Switch,
   Platform,
   Animated,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -33,10 +35,22 @@ import {
   Flag,
   Navigation,
   Bell,
+  Edit3,
+  Trash2,
+  Plus,
+  X,
+  ArrowRightLeft,
+  Sparkles,
+  Filter,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
-import { useRoadTest, RoadTestTripRecord } from '../../context/RoadTestContext';
+import {
+  useRoadTest,
+  RoadTestTripRecord,
+  RoadTestVehicle,
+  INITIAL_DEMO_VEHICLES,
+} from '../../context/RoadTestContext';
 import { useGeofence } from '../../context/GeofenceContext';
 import { RoadTestRouteMap } from '../../components/roadtest/RoadTestRouteMap';
 import { Header } from '../../components/common/Header';
@@ -46,6 +60,8 @@ import {
   AppNotificationPayload,
 } from '../../services/notifications.service';
 import { mobileGeofenceService } from '../../services/geofence.service';
+import { casesApi } from '../../api/cases.api';
+import { rooftopVehiclesService } from '../../services/rooftopVehicles.service';
 
 export interface TechRosterItem {
   technicianId: string;
@@ -213,11 +229,14 @@ export function RoadTestScreen({
   onOpenProfile,
 }: RoadTestScreenProps) {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, activeSiteId } = useAuth();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
+  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+
 
   const {
     vehicle,
+    setVehicle,
     armed,
     tripState,
     demoRunning,
@@ -238,7 +257,41 @@ export function RoadTestScreen({
     finishLiveDrive,
     recordLivePoint,
     loadVehicleByROOrRego,
+    pendingCompletion,
+    saveDiagnosisAndComplete,
+    cancelPendingCompletion,
+    deleteTripRecord,
+    updateTripRecord,
+    createManualTripRecord,
   } = useRoadTest();
+
+  // Vehicle Picker Modal States & Data
+  const [showVehiclePickerModal, setShowVehiclePickerModal] = useState<boolean>(false);
+  const [vehiclePickerSearch, setVehiclePickerSearch] = useState<string>('');
+  const [vehiclePickerFilter, setVehiclePickerFilter] = useState<'all' | 'tickets' | 'fleet'>('all');
+  const [loadingVehicles, setLoadingVehicles] = useState<boolean>(false);
+  const [workshopVehicles, setWorkshopVehicles] = useState<RoadTestVehicle[]>(INITIAL_DEMO_VEHICLES);
+
+  const [diagOutcome, setDiagOutcome] = useState<'Passed' | 'Flagged'>('Passed');
+  const [diagNotes, setDiagNotes] = useState<string>('');
+  const [savingDiag, setSavingDiag] = useState<boolean>(false);
+
+  // Trip CRUD UI States
+  const [editingTripItem, setEditingTripItem] = useState<any | null>(null);
+  const [editTripOutcome, setEditTripOutcome] = useState<'Passed' | 'Flagged'>('Passed');
+  const [editTripNotes, setEditTripNotes] = useState<string>('');
+  const [showEditTripModal, setShowEditTripModal] = useState<boolean>(false);
+  const [savingTripEdit, setSavingTripEdit] = useState<boolean>(false);
+
+  const [showCreateTripModal, setShowCreateTripModal] = useState<boolean>(false);
+  const [createRoNumber, setCreateRoNumber] = useState<string>('RO-');
+  const [createRego, setCreateRego] = useState<string>('');
+  const [createVehicle, setCreateVehicle] = useState<string>('');
+  const [createTripOutcome, setCreateTripOutcome] = useState<'Passed' | 'Flagged'>('Passed');
+  const [createTripNotes, setCreateTripNotes] = useState<string>('');
+  const [createTripDist, setCreateTripDist] = useState<string>('5.5');
+  const [createTripSpeed, setCreateTripSpeed] = useState<string>('70');
+  const [savingCreateTrip, setSavingCreateTrip] = useState<boolean>(false);
 
   const {
     presenceStatus,
@@ -412,8 +465,181 @@ export function RoadTestScreen({
     return `${mins}m ${secs.toString().padStart(2, '0')}s`;
   };
 
+  const loadWorkshopVehicles = useCallback(async () => {
+    setLoadingVehicles(true);
+    try {
+      const cases = await casesApi.getCases().catch(() => []);
+      const targetSiteId = isAdmin ? 'all' : technicianSiteId;
+      const fleetVehicles = rooftopVehiclesService.getVehiclesForRooftop(targetSiteId, cases);
+
+      const mappedList: RoadTestVehicle[] = [];
+      const seenKeys = new Set<string>();
+
+      // 1. Live warranty cases from backend (scoped by rooftop for technicians)
+      const targetCases = isAdmin
+        ? cases
+        : cases.filter(
+          (c) =>
+            !c.siteId ||
+            c.siteId.toLowerCase() === technicianSiteId.toLowerCase()
+        );
+
+      for (const c of targetCases) {
+        const key = (c.roNumber || c.vin || c.id || '').trim().toUpperCase();
+        if (!key || seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        const shortVin = c.vin ? c.vin.slice(-3) : 'TST';
+        mappedList.push({
+          id: c.id || `case-${key}`,
+          registration: `VIC · ${shortVin}`,
+          repairOrder: (c.roNumber || (c.vin ? `RO-${c.vin.slice(-5)}` : 'RO-LIVE')).toUpperCase(),
+          customerName: c.technicianName ? `Assigned: ${c.technicianName}` : 'Customer Vehicle',
+          make: c.make || 'OEM',
+          model: c.model || 'Vehicle',
+          year: c.year || new Date().getFullYear(),
+          variant: c.powertrain || 'Standard',
+          colour: 'Factory OEM',
+          odometerKm: c.odometer || 15000,
+          vin: (c.vin || 'VIN-UNKNOWN').toUpperCase(),
+          concern: c.concernTitle || 'Warranty Road Test Diagnostic & Telemetry Verification',
+          status: c.status || 'Active Claim',
+          siteId: c.siteId || technicianSiteId,
+          siteName: c.siteName || 'Booran Workshop',
+        });
+      }
+
+      // 2. Dealership rooftop fleet vehicles (already scoped by targetSiteId above)
+      for (const f of fleetVehicles) {
+        const key = (f.roNumber || f.vin || f.rego || '').trim().toUpperCase();
+        if (!key || seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        mappedList.push({
+          id: f.id,
+          registration: f.rego.toUpperCase(),
+          repairOrder: (f.roNumber || `RO-${f.id.slice(-5)}`).toUpperCase(),
+          customerName: f.latestCase?.technicianName ? `Tech: ${f.latestCase.technicianName}` : 'Dealership Fleet',
+          make: f.make,
+          model: f.model,
+          year: f.year,
+          variant: f.powertrain || 'Workshop Fleet',
+          colour: f.color || 'Standard',
+          odometerKm: f.odometer || 12000,
+          vin: f.vin.toUpperCase(),
+          concern: f.concernTitle || 'Scheduled workshop assessment & road test',
+          status: f.warrantyStatus || 'Under Warranty',
+          siteId: f.siteId || technicianSiteId,
+          siteName: f.siteName || 'Booran Dealership',
+        });
+      }
+
+      // 3. Fallback initial demo vehicles (scoped to rooftop for technicians)
+      const targetDemo = isAdmin
+        ? INITIAL_DEMO_VEHICLES
+        : INITIAL_DEMO_VEHICLES.filter(
+          (d) =>
+            !d.siteId ||
+            d.siteId.toLowerCase() === technicianSiteId.toLowerCase()
+        );
+
+      for (const d of targetDemo) {
+        const key = (d.repairOrder || d.registration).trim().toUpperCase();
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          mappedList.push({
+            ...d,
+            status: 'Ready for Test',
+            siteId: d.siteId || technicianSiteId,
+            siteName: d.siteName || 'Booran Workshop',
+          });
+        }
+      }
+
+      setWorkshopVehicles(mappedList);
+
+      // Auto-select first matching vehicle if current vehicle does not belong to this rooftop
+      if (!isAdmin && mappedList.length > 0) {
+        if (!vehicle || (vehicle.siteId && vehicle.siteId.toLowerCase() !== technicianSiteId.toLowerCase())) {
+          setVehicle(mappedList[0]);
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading workshop vehicles for road test:', e);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  }, [isAdmin, technicianSiteId, setVehicle]);
+
+  useEffect(() => {
+    loadWorkshopVehicles();
+  }, [loadWorkshopVehicles]);
+
+  const filteredWorkshopVehicles = useMemo(() => {
+    let list = workshopVehicles;
+
+    if (vehiclePickerFilter === 'tickets') {
+      list = list.filter(
+        (v) =>
+          v.status === 'Active Claim' ||
+          v.status === 'Draft' ||
+          v.status === 'Awaiting Review' ||
+          v.status === 'Flagged' ||
+          v.repairOrder.startsWith('RO-') ||
+          v.repairOrder.startsWith('CR-')
+      );
+    } else if (vehiclePickerFilter === 'fleet') {
+      list = list.filter(
+        (v) =>
+          v.status === 'Under Warranty' ||
+          v.status === 'Inspection Required' ||
+          v.status === 'Ready for Test' ||
+          v.customerName.includes('Fleet')
+      );
+    }
+
+    if (vehiclePickerSearch.trim()) {
+      const q = vehiclePickerSearch.trim().toUpperCase();
+      list = list.filter(
+        (v) =>
+          v.registration.toUpperCase().includes(q) ||
+          v.repairOrder.toUpperCase().includes(q) ||
+          v.make.toUpperCase().includes(q) ||
+          v.model.toUpperCase().includes(q) ||
+          v.vin.toUpperCase().includes(q) ||
+          v.customerName.toUpperCase().includes(q) ||
+          v.concern.toUpperCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [workshopVehicles, vehiclePickerFilter, vehiclePickerSearch]);
+
+  const handleSelectVehicle = (selected: RoadTestVehicle) => {
+    setVehicle(selected);
+    armVehicle();
+    setSearchQuery(selected.repairOrder || selected.registration);
+    setShowVehiclePickerModal(false);
+  };
+
   const handleSearch = () => {
     Keyboard.dismiss();
+    const q = searchQuery.trim().toUpperCase();
+    if (!q) return;
+
+    const found = workshopVehicles.find(
+      (v) =>
+        v.repairOrder.toUpperCase().includes(q) ||
+        v.registration.toUpperCase().includes(q) ||
+        v.vin.toUpperCase().includes(q) ||
+        v.customerName.toUpperCase().includes(q) ||
+        `${v.make} ${v.model}`.toUpperCase().includes(q)
+    );
+    if (found) {
+      handleSelectVehicle(found);
+      return;
+    }
+
     loadVehicleByROOrRego(searchQuery);
   };
 
@@ -421,10 +647,21 @@ export function RoadTestScreen({
     tripState === 'outside'
       ? { label: 'ROAD TEST IN PROGRESS', title: 'Vehicle outside workshop zone', color: colors.primary }
       : tripState === 'returned'
-      ? { label: 'ROAD TEST SAVED', title: 'Vehicle returned automatically', color: colors.success }
-      : { label: 'VEHICLE ARMED', title: 'Ready inside workshop boundary', color: colors.accentCyan };
+        ? { label: 'ROAD TEST SAVED', title: 'Vehicle returned automatically', color: colors.success }
+        : { label: 'VEHICLE ARMED', title: 'Ready inside workshop boundary', color: colors.accentCyan };
 
-  const filteredTrips = tripRecords.filter((t) => {
+  // Rooftop-scoped trips: technicians see only their rooftop's trips; admins see all
+  const rooftopFilteredTrips = useMemo(() => {
+    if (isAdmin) {
+      return tripRecords;
+    }
+    return tripRecords.filter((t) => {
+      if (!t.siteId) return true;
+      return t.siteId.toLowerCase() === technicianSiteId.toLowerCase();
+    });
+  }, [tripRecords, isAdmin, technicianSiteId]);
+
+  const filteredTrips = rooftopFilteredTrips.filter((t) => {
     if (filterType === 'flagged') return t.outcome === 'Flagged';
     return true;
   });
@@ -479,7 +716,7 @@ export function RoadTestScreen({
             numberOfLines={1}
             style={[styles.subTabText, activeSubTab === 'history' && styles.subTabTextActive]}
           >
-            Trips ({tripRecords.length})
+            Trips ({rooftopFilteredTrips.length})
           </Text>
         </TouchableOpacity>
 
@@ -506,8 +743,38 @@ export function RoadTestScreen({
       >
         {activeSubTab === 'live' && (
           <>
-            {/* Search Lookup Bar */}
+            {/* Search Lookup Bar & Select Car Action */}
             <View style={styles.searchCard}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowVehiclePickerModal(true)}
+                style={styles.selectCarBarBtn}
+              >
+                <View style={styles.selectCarIconBadge}>
+                  <Car size={18} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.selectCarBarTitle} numberOfLines={1}>
+                    {vehicle
+                      ? `${vehicle.year} ${vehicle.make} ${vehicle.model}`
+                      : 'Select Car for Road Test'}
+                  </Text>
+                  <Text style={styles.selectCarBarSub} numberOfLines={1}>
+                    {vehicle
+                      ? `Plate: ${vehicle.registration} • RO: ${vehicle.repairOrder}`
+                      : isAdmin
+                        ? `Choose from ${workshopVehicles.length} cars across all dealerships`
+                        : `Choose from ${workshopVehicles.length} cars at ${siteName || 'your workshop'}`}
+                  </Text>
+                </View>
+                <View style={styles.selectCarActionPill}>
+                  <Text style={styles.selectCarActionPillText}>
+                    {vehicle ? 'Change Car' : 'Select Car'}
+                  </Text>
+                  <ChevronDown size={14} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+
               <View style={styles.searchRow}>
                 <View style={styles.inputWrap}>
                   <Search size={18} color={colors.textMuted} />
@@ -527,20 +794,31 @@ export function RoadTestScreen({
               </View>
 
               <View style={styles.quickChipsRow}>
-                <Text style={styles.chipsLabel}>QUICK DEMO:</Text>
-                {['RO-48291', 'BWM 882', 'VIC 901'].map((code) => (
-                  <TouchableOpacity
-                    key={code}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setSearchQuery(code);
-                      loadVehicleByROOrRego(code);
-                    }}
-                    style={styles.chipBtn}
-                  >
-                    <Text style={styles.chipBtnText}>{code}</Text>
-                  </TouchableOpacity>
-                ))}
+                <Text style={styles.chipsLabel}>QUICK SELECT:</Text>
+                {workshopVehicles.slice(0, 3).map((vItem) => {
+                  const isCur = vehicle?.id === vItem.id || vehicle?.repairOrder === vItem.repairOrder;
+                  return (
+                    <TouchableOpacity
+                      key={vItem.id}
+                      activeOpacity={0.7}
+                      onPress={() => handleSelectVehicle(vItem)}
+                      style={[styles.chipBtn, isCur && styles.chipBtnActive]}
+                    >
+                      <Text style={[styles.chipBtnText, isCur && styles.chipBtnTextActive]}>
+                        {vItem.repairOrder || vItem.registration}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => setShowVehiclePickerModal(true)}
+                  style={[styles.chipBtn, styles.chipBtnBrowseAll]}
+                >
+                  <Text style={styles.chipBtnBrowseAllText}>
+                    Browse All ({workshopVehicles.length})
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -559,8 +837,18 @@ export function RoadTestScreen({
                       {vehicle.variant} • {vehicle.colour}
                     </Text>
                   </View>
-                  <View style={styles.regoPlate}>
-                    <Text style={styles.regoText}>{vehicle.registration}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={styles.regoPlate}>
+                      <Text style={styles.regoText}>{vehicle.registration}</Text>
+                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.75}
+                      onPress={() => setShowVehiclePickerModal(true)}
+                      style={styles.switchCarBtn}
+                    >
+                      <ArrowRightLeft size={13} color={colors.primary} />
+                      <Text style={styles.switchCarBtnText}>Change</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -604,11 +892,35 @@ export function RoadTestScreen({
                   <View style={[styles.fenceStatusDot, isOnSite ? styles.fenceStatusDotActive : styles.fenceStatusDotOffSite]} />
                 </View>
               </View>
-            ) : null}
+            ) : (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowVehiclePickerModal(true)}
+                style={styles.emptyVehicleCard}
+              >
+                <View style={styles.emptyVehicleIconWrap}>
+                  <Car size={30} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.emptyVehicleTitle}>No Vehicle Selected</Text>
+                  <Text style={styles.emptyVehicleSub}>
+                    Tap here to select an active repair order or workshop car to begin road test
+                  </Text>
+                </View>
+                <View style={styles.emptyVehicleBtn}>
+                  <Text style={styles.emptyVehicleBtnText}>Select Car</Text>
+                </View>
+              </TouchableOpacity>
+            )}
 
-            {/* Live SVG Route Map */}
+            {/* Live Real OpenStreetMap Route Map */}
             <View style={styles.mapWrap}>
-              <RoadTestRouteMap points={routePoints} state={tripState} />
+              <RoadTestRouteMap
+                points={routePoints}
+                state={tripState}
+                siteName={siteName}
+                fenceRadius={effectiveRadius}
+              />
             </View>
 
             {/* Speedometer & Telemetry Dashboard */}
@@ -751,14 +1063,14 @@ export function RoadTestScreen({
                 {demoRunning
                   ? 'SIMULATING ROAD TEST DRIVE...'
                   : tripState === 'returned'
-                  ? 'RESET ROAD TEST'
-                  : isLiveDrive
-                  ? 'FINISH LIVE ROAD TEST (OR RETURN TO DEALERSHIP)'
-                  : armed
-                  ? gpsMode === 'LIVE'
-                    ? 'START LIVE GPS ROAD TEST'
-                    : 'START ROAD TEST DRIVE'
-                  : 'ARM VEHICLE'}
+                    ? 'RESET ROAD TEST'
+                    : isLiveDrive
+                      ? 'FINISH LIVE ROAD TEST (OR RETURN TO DEALERSHIP)'
+                      : armed
+                        ? gpsMode === 'LIVE'
+                          ? 'START LIVE GPS ROAD TEST'
+                          : 'START ROAD TEST DRIVE'
+                        : 'ARM VEHICLE'}
               </Text>
             </TouchableOpacity>
 
@@ -773,7 +1085,6 @@ export function RoadTestScreen({
                     }}
                     style={[styles.disarmBtn, { flex: 1, backgroundColor: '#F1F5F9' }]}
                   >
-                    <Text style={[styles.disarmBtnText, { color: '#475569' }]}>⚡ Run Demo Simulation</Text>
                   </TouchableOpacity>
                 ) : null}
 
@@ -786,7 +1097,6 @@ export function RoadTestScreen({
                     }}
                     style={[styles.disarmBtn, { flex: 1 }]}
                   >
-                    <Text style={styles.disarmBtnText}>Disarm tracking</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -796,10 +1106,25 @@ export function RoadTestScreen({
 
         {activeSubTab === 'history' && (
           <View style={styles.historyContainer}>
+            {/* Rooftop Context Indicator */}
+            <View style={styles.historyRooftopBanner}>
+              <View style={styles.historyRooftopBadge}>
+                <MapPin size={13} color={colors.primary} />
+                <Text style={styles.historyRooftopText}>
+                  {isAdmin
+                    ? 'ADMIN NETWORK VIEW • ALL ROOFTOPS'
+                    : `ROOFTOP: ${(siteName || 'Booran Workshop').toUpperCase()}`}
+                </Text>
+              </View>
+              <Text style={styles.historyRooftopCount}>
+                {rooftopFilteredTrips.length} {rooftopFilteredTrips.length === 1 ? 'Trip' : 'Trips'} Logged
+              </Text>
+            </View>
+
             {/* KPI Summary Row */}
             <View style={styles.kpiRow}>
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiNumber}>{tripRecords.length}</Text>
+                <Text style={styles.kpiNumber}>{rooftopFilteredTrips.length}</Text>
                 <Text style={styles.kpiLabel}>TOTAL DRIVES</Text>
               </View>
               <View style={styles.kpiCard}>
@@ -837,7 +1162,36 @@ export function RoadTestScreen({
                   Flagged Only
                 </Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (vehicle) {
+                    setCreateRoNumber(vehicle.repairOrder || 'RO-');
+                    setCreateRego(vehicle.registration || '');
+                    setCreateVehicle(`${vehicle.year} ${vehicle.make} ${vehicle.model}`);
+                  }
+                  setShowCreateTripModal(true);
+                }}
+                style={[styles.filterPill, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}
+              >
+                <Text style={[styles.filterPillText, { color: colors.primary, fontWeight: '800' }]}>
+                  + Log Trip
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {filteredTrips.length === 0 && (
+              <View style={styles.emptyTripsCard}>
+                <Clock size={32} color={colors.textMuted} />
+                <Text style={styles.emptyTripsTitle}>No Road Tests Logged</Text>
+                <Text style={styles.emptyTripsSub}>
+                  {isAdmin
+                    ? 'No road test trips found across all dealerships.'
+                    : `No test drives logged for ${siteName || 'this rooftop'} yet.`}
+                </Text>
+              </View>
+            )}
 
             {/* Trip Cards List */}
             {filteredTrips.map((item) => {
@@ -898,12 +1252,56 @@ export function RoadTestScreen({
 
                   {isExpanded && (
                     <View style={styles.expandedTripSection}>
-                      <RoadTestRouteMap points={routePoints} state="returned" compact />
+                      <RoadTestRouteMap
+                        points={item.routePoints || routePoints}
+                        state="returned"
+                        compact
+                        siteName={item.siteName}
+                      />
                       <View style={styles.technicianNoteBox}>
                         <Text style={styles.technicianNoteLabel}>
                           TECHNICIAN NOTE ({item.technician})
                         </Text>
                         <Text style={styles.technicianNoteText}>{item.note}</Text>
+                      </View>
+
+                      {/* Trip Card Action Row: Edit & Delete */}
+                      <View style={styles.tripCardActionsRow}>
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setEditingTripItem(item);
+                            setEditTripOutcome(item.outcome === 'Flagged' ? 'Flagged' : 'Passed');
+                            setEditTripNotes(item.note || '');
+                            setShowEditTripModal(true);
+                          }}
+                          style={styles.tripEditBtn}
+                        >
+                          <Edit3 size={13} color="#2563EB" />
+                          <Text style={styles.tripEditBtnText}>Edit Findings</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            Alert.alert(
+                              'Delete Road Test Record',
+                              `Are you sure you want to delete test drive for ${item.repairOrder} (${item.registration})?`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                  text: 'Delete',
+                                  style: 'destructive',
+                                  onPress: () => deleteTripRecord(item.id),
+                                },
+                              ]
+                            );
+                          }}
+                          style={styles.tripDeleteBtn}
+                        >
+                          <Trash2 size={13} color="#DC2626" />
+                          <Text style={styles.tripDeleteBtnText}>Delete Trip</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   )}
@@ -1075,286 +1473,286 @@ export function RoadTestScreen({
             {/* Live Dealership Rooftop Staff Roster (Visible to Admins Only - Hidden from Technician Portal) */}
             {isAdmin && (
               <View style={styles.settingsSectionCard}>
-              <View style={styles.settingsHeaderRow}>
-                <View style={styles.settingsHeaderLeft}>
-                  <Text style={styles.settingsKicker}>ALL TECHNICIANS PRESENCE</Text>
-                  <Text
-                    style={styles.settingsTitle}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
+                <View style={styles.settingsHeaderRow}>
+                  <View style={styles.settingsHeaderLeft}>
+                    <Text style={styles.settingsKicker}>ALL TECHNICIANS PRESENCE</Text>
+                    <Text
+                      style={styles.settingsTitle}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      Dealership Staff Roster
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={loadRoster}
+                    style={styles.refreshRosterBtn}
                   >
-                    Dealership Staff Roster
-                  </Text>
+                    <RotateCcw size={12} color={colors.primary} />
+                    <Text style={styles.refreshRosterBtnText}>
+                      {loadingRoster ? 'Loading...' : 'Refresh'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={loadRoster}
-                  style={styles.refreshRosterBtn}
-                >
-                  <RotateCcw size={12} color={colors.primary} />
-                  <Text style={styles.refreshRosterBtnText}>
-                    {loadingRoster ? 'Loading...' : 'Refresh'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
 
-              {/* Summary KPI Cards matching Web */}
-              <View style={styles.rosterKpiRow}>
-                <View style={styles.rosterKpiCard}>
-                  <Text style={styles.rosterKpiLabel}>TOTAL TRACKED</Text>
-                  <View style={styles.rosterKpiValRow}>
-                    <Text style={styles.rosterKpiVal}>{siteFilteredRoster.length}</Text>
-                    <Text style={styles.rosterKpiSub}>techs</Text>
+                {/* Summary KPI Cards matching Web */}
+                <View style={styles.rosterKpiRow}>
+                  <View style={styles.rosterKpiCard}>
+                    <Text style={styles.rosterKpiLabel}>TOTAL TRACKED</Text>
+                    <View style={styles.rosterKpiValRow}>
+                      <Text style={styles.rosterKpiVal}>{siteFilteredRoster.length}</Text>
+                      <Text style={styles.rosterKpiSub}>techs</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.rosterKpiCard, styles.rosterKpiCardOnSite]}>
+                    <View style={styles.rosterKpiLabelRow}>
+                      <Text style={[styles.rosterKpiLabel, { color: '#065F46' }]}>ON-SITE</Text>
+                      <View style={[styles.pulseDot, { backgroundColor: '#10B981', width: 6, height: 6 }]} />
+                    </View>
+                    <View style={styles.rosterKpiValRow}>
+                      <Text style={[styles.rosterKpiVal, { color: '#059669' }]}>{rosterOnSiteCount}</Text>
+                      <Text style={[styles.rosterKpiSub, { color: '#047857' }]}>in bay</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.rosterKpiCard, styles.rosterKpiCardOffSite]}>
+                    <View style={styles.rosterKpiLabelRow}>
+                      <Text style={[styles.rosterKpiLabel, { color: '#92400E' }]}>OFF-SITE</Text>
+                      <Animated.View
+                        style={[
+                          styles.pulseDot,
+                          { backgroundColor: '#F59E0B', width: 6, height: 6, opacity: pulseAnim },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.rosterKpiValRow}>
+                      <Text style={[styles.rosterKpiVal, { color: '#D97706' }]}>{rosterOffSiteCount}</Text>
+                      <Text style={[styles.rosterKpiSub, { color: '#B45309' }]}>active test</Text>
+                    </View>
                   </View>
                 </View>
 
-                <View style={[styles.rosterKpiCard, styles.rosterKpiCardOnSite]}>
-                  <View style={styles.rosterKpiLabelRow}>
-                    <Text style={[styles.rosterKpiLabel, { color: '#065F46' }]}>ON-SITE</Text>
+                {/* Rooftop Scoping Selector */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rooftopScroll}>
+                  {ROOFTOP_FILTER_OPTIONS.map((siteOpt) => {
+                    const isSelected = selectedRosterSiteId === siteOpt.id;
+                    return (
+                      <TouchableOpacity
+                        key={siteOpt.id}
+                        activeOpacity={0.7}
+                        onPress={() => setSelectedRosterSiteId(siteOpt.id)}
+                        style={[styles.rooftopPill, isSelected && styles.rooftopPillActive]}
+                      >
+                        <Text style={[styles.rooftopPillText, isSelected && styles.rooftopPillTextActive]}>
+                          {siteOpt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Status Filter Pills */}
+                <View style={styles.rosterFilterRow}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setRosterFilter('ALL')}
+                    style={[styles.rosterFilterPill, rosterFilter === 'ALL' && styles.rosterFilterPillActive]}
+                  >
+                    <Text style={[styles.rosterFilterText, rosterFilter === 'ALL' && styles.rosterFilterTextActive]}>
+                      All ({siteFilteredRoster.length})
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setRosterFilter('ON_SITE')}
+                    style={[styles.rosterFilterPill, rosterFilter === 'ON_SITE' && styles.rosterFilterPillActive]}
+                  >
                     <View style={[styles.pulseDot, { backgroundColor: '#10B981', width: 6, height: 6 }]} />
-                  </View>
-                  <View style={styles.rosterKpiValRow}>
-                    <Text style={[styles.rosterKpiVal, { color: '#059669' }]}>{rosterOnSiteCount}</Text>
-                    <Text style={[styles.rosterKpiSub, { color: '#047857' }]}>in bay</Text>
-                  </View>
-                </View>
-
-                <View style={[styles.rosterKpiCard, styles.rosterKpiCardOffSite]}>
-                  <View style={styles.rosterKpiLabelRow}>
-                    <Text style={[styles.rosterKpiLabel, { color: '#92400E' }]}>OFF-SITE</Text>
+                    <Text style={[styles.rosterFilterText, rosterFilter === 'ON_SITE' && styles.rosterFilterTextActive]}>
+                      On-Site ({rosterOnSiteCount})
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setRosterFilter('OFF_SITE')}
+                    style={[styles.rosterFilterPill, rosterFilter === 'OFF_SITE' && styles.rosterFilterPillActive]}
+                  >
                     <Animated.View
                       style={[
                         styles.pulseDot,
                         { backgroundColor: '#F59E0B', width: 6, height: 6, opacity: pulseAnim },
                       ]}
                     />
-                  </View>
-                  <View style={styles.rosterKpiValRow}>
-                    <Text style={[styles.rosterKpiVal, { color: '#D97706' }]}>{rosterOffSiteCount}</Text>
-                    <Text style={[styles.rosterKpiSub, { color: '#B45309' }]}>active test</Text>
-                  </View>
+                    <Text style={[styles.rosterFilterText, rosterFilter === 'OFF_SITE' && styles.rosterFilterTextActive]}>
+                      Off-Site ({rosterOffSiteCount})
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              </View>
 
-              {/* Rooftop Scoping Selector */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.rooftopScroll}>
-                {ROOFTOP_FILTER_OPTIONS.map((siteOpt) => {
-                  const isSelected = selectedRosterSiteId === siteOpt.id;
-                  return (
-                    <TouchableOpacity
-                      key={siteOpt.id}
-                      activeOpacity={0.7}
-                      onPress={() => setSelectedRosterSiteId(siteOpt.id)}
-                      style={[styles.rooftopPill, isSelected && styles.rooftopPillActive]}
-                    >
-                      <Text style={[styles.rooftopPillText, isSelected && styles.rooftopPillTextActive]}>
-                        {siteOpt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                {/* Technicians List with Rich Telemetry Matching Web */}
+                <View style={styles.rosterListWrap}>
+                  {filteredRoster.length === 0 ? (
+                    <Text style={styles.emptyRosterText}>No technicians matching this filter.</Text>
+                  ) : (
+                    filteredRoster.map((tech) => {
+                      const techIsOnSite = tech.status === 'ON_SITE';
+                      const isCurrentUser =
+                        user &&
+                        (tech.technicianId === user.id ||
+                          tech.email?.toLowerCase() === user.email?.toLowerCase() ||
+                          tech.technicianName?.toLowerCase() === user.name?.toLowerCase());
 
-              {/* Status Filter Pills */}
-              <View style={styles.rosterFilterRow}>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setRosterFilter('ALL')}
-                  style={[styles.rosterFilterPill, rosterFilter === 'ALL' && styles.rosterFilterPillActive]}
-                >
-                  <Text style={[styles.rosterFilterText, rosterFilter === 'ALL' && styles.rosterFilterTextActive]}>
-                    All ({siteFilteredRoster.length})
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setRosterFilter('ON_SITE')}
-                  style={[styles.rosterFilterPill, rosterFilter === 'ON_SITE' && styles.rosterFilterPillActive]}
-                >
-                  <View style={[styles.pulseDot, { backgroundColor: '#10B981', width: 6, height: 6 }]} />
-                  <Text style={[styles.rosterFilterText, rosterFilter === 'ON_SITE' && styles.rosterFilterTextActive]}>
-                    On-Site ({rosterOnSiteCount})
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setRosterFilter('OFF_SITE')}
-                  style={[styles.rosterFilterPill, rosterFilter === 'OFF_SITE' && styles.rosterFilterPillActive]}
-                >
-                  <Animated.View
-                    style={[
-                      styles.pulseDot,
-                      { backgroundColor: '#F59E0B', width: 6, height: 6, opacity: pulseAnim },
-                    ]}
-                  />
-                  <Text style={[styles.rosterFilterText, rosterFilter === 'OFF_SITE' && styles.rosterFilterTextActive]}>
-                    Off-Site ({rosterOffSiteCount})
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Technicians List with Rich Telemetry Matching Web */}
-              <View style={styles.rosterListWrap}>
-                {filteredRoster.length === 0 ? (
-                  <Text style={styles.emptyRosterText}>No technicians matching this filter.</Text>
-                ) : (
-                  filteredRoster.map((tech) => {
-                    const techIsOnSite = tech.status === 'ON_SITE';
-                    const isCurrentUser =
-                      user &&
-                      (tech.technicianId === user.id ||
-                        tech.email?.toLowerCase() === user.email?.toLowerCase() ||
-                        tech.technicianName?.toLowerCase() === user.name?.toLowerCase());
-
-                    const lastPingFormatted = tech.lastPingAt
-                      ? new Date(tech.lastPingAt).toLocaleTimeString([], {
+                      const lastPingFormatted = tech.lastPingAt
+                        ? new Date(tech.lastPingAt).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
                         })
-                      : 'Just now';
+                        : 'Just now';
 
-                    return (
-                      <View
-                        key={tech.technicianId}
-                        style={[
-                          styles.techRosterCard,
-                          !techIsOnSite && styles.techRosterCardOffSite,
-                        ]}
-                      >
-                        <View style={styles.techRosterTop}>
-                          <View
-                            style={[
-                              styles.techAvatar,
-                              !techIsOnSite && styles.techAvatarOffSite,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.techAvatarText,
-                                !techIsOnSite && styles.techAvatarTextOffSite,
-                              ]}
-                            >
-                              {tech.technicianName.charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                          <View style={styles.techInfo}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={styles.techName}>{tech.technicianName}</Text>
-                              {isCurrentUser && (
-                                <View style={styles.youBadge}>
-                                  <Text style={styles.youBadgeText}>YOU</Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={styles.techEmail}>{tech.email}</Text>
-                            {tech.siteName ? (
-                              <Text style={styles.techSiteName}>{tech.siteName}</Text>
-                            ) : null}
-                          </View>
-                          <View
-                            style={[
-                              styles.presenceStatusPill,
-                              techIsOnSite
-                                ? styles.presenceStatusPillOnSite
-                                : styles.presenceStatusPillOffSite,
-                            ]}
-                          >
-                            <Animated.View
-                              style={[
-                                styles.pulseDot,
-                                {
-                                  backgroundColor: techIsOnSite ? '#10B981' : '#F59E0B',
-                                  opacity: pulseAnim,
-                                },
-                              ]}
-                            />
-                            <Text
-                              style={[
-                                styles.presenceStatusPillText,
-                                { color: techIsOnSite ? '#065F46' : '#92400E' },
-                              ]}
-                            >
-                              {techIsOnSite ? 'ON-SITE' : 'OFF-SITE'}
-                            </Text>
-                          </View>
-                        </View>
-
-                        <View style={styles.techMetaRow}>
-                          <View style={styles.techMetaCol}>
-                            <Text style={styles.techMetaLabel}>PROXIMITY</Text>
-                            <Text
-                              style={[
-                                styles.techMetaVal,
-                                !techIsOnSite && { color: '#B45309', fontWeight: '800' },
-                              ]}
-                            >
-                              {techIsOnSite
-                                ? `~${tech.distanceMeters || 18}m (Inside Bay)`
-                                : `~${((tech.distanceMeters || 1850) / 1000).toFixed(2)} km (Outside)`}
-                            </Text>
-                          </View>
-                          <View style={styles.techMetaCol}>
-                            <Text style={styles.techMetaLabel}>ACTIVITY</Text>
+                      return (
+                        <View
+                          key={tech.technicianId}
+                          style={[
+                            styles.techRosterCard,
+                            !techIsOnSite && styles.techRosterCardOffSite,
+                          ]}
+                        >
+                          <View style={styles.techRosterTop}>
                             <View
                               style={[
-                                styles.activityBadge,
-                                tech.currentActivity === 'ROAD_TEST'
-                                  ? styles.activityBadgeRoadTest
-                                  : tech.currentActivity === 'INSPECTION'
-                                  ? styles.activityBadgeInspection
-                                  : styles.activityBadgeWorkshop,
+                                styles.techAvatar,
+                                !techIsOnSite && styles.techAvatarOffSite,
                               ]}
                             >
                               <Text
                                 style={[
-                                  styles.activityBadgeText,
-                                  tech.currentActivity === 'ROAD_TEST'
-                                    ? styles.activityBadgeTextRoadTest
-                                    : tech.currentActivity === 'INSPECTION'
-                                    ? styles.activityBadgeTextInspection
-                                    : styles.activityBadgeTextWorkshop,
+                                  styles.techAvatarText,
+                                  !techIsOnSite && styles.techAvatarTextOffSite,
                                 ]}
                               >
-                                {tech.currentActivity || 'WORKSHOP'}
+                                {tech.technicianName.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                            <View style={styles.techInfo}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={styles.techName}>{tech.technicianName}</Text>
+                                {isCurrentUser && (
+                                  <View style={styles.youBadge}>
+                                    <Text style={styles.youBadgeText}>YOU</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.techEmail}>{tech.email}</Text>
+                              {tech.siteName ? (
+                                <Text style={styles.techSiteName}>{tech.siteName}</Text>
+                              ) : null}
+                            </View>
+                            <View
+                              style={[
+                                styles.presenceStatusPill,
+                                techIsOnSite
+                                  ? styles.presenceStatusPillOnSite
+                                  : styles.presenceStatusPillOffSite,
+                              ]}
+                            >
+                              <Animated.View
+                                style={[
+                                  styles.pulseDot,
+                                  {
+                                    backgroundColor: techIsOnSite ? '#10B981' : '#F59E0B',
+                                    opacity: pulseAnim,
+                                  },
+                                ]}
+                              />
+                              <Text
+                                style={[
+                                  styles.presenceStatusPillText,
+                                  { color: techIsOnSite ? '#065F46' : '#92400E' },
+                                ]}
+                              >
+                                {techIsOnSite ? 'ON-SITE' : 'OFF-SITE'}
                               </Text>
                             </View>
                           </View>
-                          {tech.activeRoNumber ? (
+
+                          <View style={styles.techMetaRow}>
                             <View style={styles.techMetaCol}>
-                              <Text style={styles.techMetaLabel}>ACTIVE RO</Text>
+                              <Text style={styles.techMetaLabel}>PROXIMITY</Text>
                               <Text
                                 style={[
                                   styles.techMetaVal,
-                                  { color: colors.primary, fontWeight: '900' },
+                                  !techIsOnSite && { color: '#B45309', fontWeight: '800' },
                                 ]}
                               >
-                                {tech.activeRoNumber}
+                                {techIsOnSite
+                                  ? `~${tech.distanceMeters || 18}m (Inside Bay)`
+                                  : `~${((tech.distanceMeters || 1850) / 1000).toFixed(2)} km (Outside)`}
                               </Text>
                             </View>
-                          ) : null}
-                          <View style={styles.techMetaCol}>
-                            <Text style={styles.techMetaLabel}>SPEED</Text>
-                            <Text
-                              style={[
-                                styles.techMetaVal,
-                                (tech.speedKmh ?? 0) > 0 && { color: '#0F172A', fontWeight: '900' },
-                              ]}
-                            >
-                              {(tech.speedKmh ?? 0) > 0 ? `${tech.speedKmh} km/h` : '0 km/h'}
-                            </Text>
-                          </View>
-                          <View style={styles.techMetaCol}>
-                            <Text style={styles.techMetaLabel}>LAST PING</Text>
-                            <Text style={styles.techMetaVal}>{lastPingFormatted}</Text>
+                            <View style={styles.techMetaCol}>
+                              <Text style={styles.techMetaLabel}>ACTIVITY</Text>
+                              <View
+                                style={[
+                                  styles.activityBadge,
+                                  tech.currentActivity === 'ROAD_TEST'
+                                    ? styles.activityBadgeRoadTest
+                                    : tech.currentActivity === 'INSPECTION'
+                                      ? styles.activityBadgeInspection
+                                      : styles.activityBadgeWorkshop,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.activityBadgeText,
+                                    tech.currentActivity === 'ROAD_TEST'
+                                      ? styles.activityBadgeTextRoadTest
+                                      : tech.currentActivity === 'INSPECTION'
+                                        ? styles.activityBadgeTextInspection
+                                        : styles.activityBadgeTextWorkshop,
+                                  ]}
+                                >
+                                  {tech.currentActivity || 'WORKSHOP'}
+                                </Text>
+                              </View>
+                            </View>
+                            {tech.activeRoNumber ? (
+                              <View style={styles.techMetaCol}>
+                                <Text style={styles.techMetaLabel}>ACTIVE RO</Text>
+                                <Text
+                                  style={[
+                                    styles.techMetaVal,
+                                    { color: colors.primary, fontWeight: '900' },
+                                  ]}
+                                >
+                                  {tech.activeRoNumber}
+                                </Text>
+                              </View>
+                            ) : null}
+                            <View style={styles.techMetaCol}>
+                              <Text style={styles.techMetaLabel}>SPEED</Text>
+                              <Text
+                                style={[
+                                  styles.techMetaVal,
+                                  (tech.speedKmh ?? 0) > 0 && { color: '#0F172A', fontWeight: '900' },
+                                ]}
+                              >
+                                {(tech.speedKmh ?? 0) > 0 ? `${tech.speedKmh} km/h` : '0 km/h'}
+                              </Text>
+                            </View>
+                            <View style={styles.techMetaCol}>
+                              <Text style={styles.techMetaLabel}>LAST PING</Text>
+                              <Text style={styles.techMetaVal}>{lastPingFormatted}</Text>
+                            </View>
                           </View>
                         </View>
-                      </View>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
             <View style={styles.privacyCard}>
               <Shield size={20} color={colors.primary} />
@@ -1457,6 +1855,647 @@ export function RoadTestScreen({
         onClose={() => setShowNotifModal(false)}
         onSelectNotification={handleNotificationSelect}
       />
+
+      {/* Post-Drive Diagnostic Findings & Outcome Modal */}
+      <Modal
+        visible={pendingCompletion}
+        transparent
+        animationType="slide"
+        onRequestClose={cancelPendingCompletion}
+      >
+        <View style={styles.diagModalOverlay}>
+          <View style={styles.diagModalContent}>
+            {/* Header */}
+            <View style={styles.diagModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.diagModalKicker}>ROAD TEST COMPLETED</Text>
+                <Text style={styles.diagModalTitle}>Diagnostic Outcome & Evidence</Text>
+              </View>
+              <TouchableOpacity onPress={cancelPendingCompletion} style={styles.diagModalCloseBtn}>
+                <Text style={styles.diagModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Vehicle & Trip Stats Summary */}
+            <View style={styles.diagVehicleSummary}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.diagVehicleTitle}>
+                  {vehicle?.year} {vehicle?.make} {vehicle?.model}
+                </Text>
+                <View style={styles.diagRegoPill}>
+                  <Text style={styles.diagRegoText}>{vehicle?.registration}</Text>
+                </View>
+              </View>
+              <Text style={styles.diagVehicleMeta}>
+                Repair Order: <Text style={{ fontWeight: 'bold', color: '#0F172A' }}>{vehicle?.repairOrder}</Text>
+              </Text>
+
+              <View style={styles.diagStatsRow}>
+                <View style={styles.diagStatCol}>
+                  <Text style={styles.diagStatLabel}>TIME</Text>
+                  <Text style={styles.diagStatVal}>{formatClock(elapsedSec)}</Text>
+                </View>
+                <View style={styles.diagStatCol}>
+                  <Text style={styles.diagStatLabel}>DISTANCE</Text>
+                  <Text style={styles.diagStatVal}>{distanceKm.toFixed(1)} km</Text>
+                </View>
+                <View style={styles.diagStatCol}>
+                  <Text style={styles.diagStatLabel}>TOP SPEED</Text>
+                  <Text style={styles.diagStatVal}>{maxSpeedKph} km/h</Text>
+                </View>
+                <View style={styles.diagStatCol}>
+                  <Text style={styles.diagStatLabel}>PERIMETER</Text>
+                  <Text style={[styles.diagStatVal, { color: colors.success }]}>Auto-Verified</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Outcome Selection: Passed vs Flagged */}
+            <Text style={styles.diagSectionLabel}>DIAGNOSTIC OUTCOME FOR WARRANTY</Text>
+            <View style={styles.diagOutcomeRow}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setDiagOutcome('Passed')}
+                style={[
+                  styles.diagOutcomeBtn,
+                  diagOutcome === 'Passed' && styles.diagOutcomeBtnPassedActive,
+                ]}
+              >
+                <CheckCircle2
+                  size={16}
+                  color={diagOutcome === 'Passed' ? '#059669' : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.diagOutcomeBtnText,
+                    diagOutcome === 'Passed' && styles.diagOutcomeBtnTextPassedActive,
+                  ]}
+                >
+                  Passed (No Fault)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setDiagOutcome('Flagged')}
+                style={[
+                  styles.diagOutcomeBtn,
+                  diagOutcome === 'Flagged' && styles.diagOutcomeBtnFlaggedActive,
+                ]}
+              >
+                <Flag
+                  size={16}
+                  color={diagOutcome === 'Flagged' ? '#DC2626' : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.diagOutcomeBtnText,
+                    diagOutcome === 'Flagged' && styles.diagOutcomeBtnTextFlaggedActive,
+                  ]}
+                >
+                  Flagged (Fault Found)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Diagnostic Chips */}
+            <Text style={styles.diagSectionLabel}>TECHNICIAN OBSERVATIONS & NOTES</Text>
+            <View style={styles.diagQuickChipsRow}>
+              {[
+                'Lockup clutch shudder confirmed',
+                'Suspension rattle duplicated',
+                'Road test passed - no noise',
+                'DTC cleared - adaptives reset',
+              ].map((chip) => (
+                <TouchableOpacity
+                  key={chip}
+                  activeOpacity={0.7}
+                  onPress={() => setDiagNotes(chip)}
+                  style={styles.diagQuickChip}
+                >
+                  <Text style={styles.diagQuickChipText}>{chip}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Notes TextInput */}
+            <TextInput
+              value={diagNotes}
+              onChangeText={setDiagNotes}
+              placeholder="Enter diagnostic findings, road conditions, speed, or observations..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+              style={styles.diagNotesInput}
+            />
+
+            {/* Submit Action */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={savingDiag}
+              onPress={async () => {
+                setSavingDiag(true);
+                try {
+                  await saveDiagnosisAndComplete({
+                    outcome: diagOutcome,
+                    notes: diagNotes,
+                  });
+                } finally {
+                  setSavingDiag(false);
+                }
+              }}
+              style={styles.diagSubmitBtn}
+            >
+              <Check size={18} color="#FFFFFF" />
+              <Text style={styles.diagSubmitBtnText}>
+                {savingDiag ? 'SAVING TEST DRIVE EVIDENCE...' : 'SAVE & SYNC ROAD TEST EVIDENCE'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Trip Findings & Outcome Modal */}
+      <Modal
+        visible={showEditTripModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditTripModal(false)}
+      >
+        <View style={styles.diagModalOverlay}>
+          <View style={styles.diagModalContent}>
+            <View style={styles.diagModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.diagModalKicker}>UPDATE EVIDENCE</Text>
+                <Text style={styles.diagModalTitle}>
+                  Edit Findings • {editingTripItem?.repairOrder}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowEditTripModal(false)} style={styles.diagModalCloseBtn}>
+                <Text style={styles.diagModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.diagSectionLabel}>DIAGNOSTIC OUTCOME</Text>
+            <View style={styles.diagOutcomeRow}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setEditTripOutcome('Passed')}
+                style={[
+                  styles.diagOutcomeBtn,
+                  editTripOutcome === 'Passed' && styles.diagOutcomeBtnPassedActive,
+                ]}
+              >
+                <Check
+                  size={16}
+                  color={editTripOutcome === 'Passed' ? '#059669' : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.diagOutcomeBtnText,
+                    editTripOutcome === 'Passed' && styles.diagOutcomeBtnTextPassedActive,
+                  ]}
+                >
+                  Passed (No Fault Found)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setEditTripOutcome('Flagged')}
+                style={[
+                  styles.diagOutcomeBtn,
+                  editTripOutcome === 'Flagged' && styles.diagOutcomeBtnFlaggedActive,
+                ]}
+              >
+                <Flag
+                  size={16}
+                  color={editTripOutcome === 'Flagged' ? '#DC2626' : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.diagOutcomeBtnText,
+                    editTripOutcome === 'Flagged' && styles.diagOutcomeBtnTextFlaggedActive,
+                  ]}
+                >
+                  Flagged (Fault Found)
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.diagSectionLabel}>OBSERVATIONS & TECHNICIAN FINDINGS</Text>
+            <TextInput
+              value={editTripNotes}
+              onChangeText={setEditTripNotes}
+              placeholder="Enter diagnostic findings, speed observations, or repair notes..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+              style={styles.diagNotesInput}
+            />
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={savingTripEdit}
+              onPress={async () => {
+                if (!editingTripItem) return;
+                setSavingTripEdit(true);
+                try {
+                  await updateTripRecord(editingTripItem.id, {
+                    outcome: editTripOutcome,
+                    note: editTripNotes,
+                  });
+                  setShowEditTripModal(false);
+                } finally {
+                  setSavingTripEdit(false);
+                }
+              }}
+              style={styles.diagSubmitBtn}
+            >
+              <Check size={18} color="#FFFFFF" />
+              <Text style={styles.diagSubmitBtnText}>
+                {savingTripEdit ? 'UPDATING TRIP...' : 'UPDATE TRIP EVIDENCE'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Manual Create Trip Modal */}
+      <Modal
+        visible={showCreateTripModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCreateTripModal(false)}
+      >
+        <View style={styles.diagModalOverlay}>
+          <View style={styles.diagModalContent}>
+            <View style={styles.diagModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.diagModalKicker}>MANUAL ENTRY</Text>
+                <Text style={styles.diagModalTitle}>Log Road Test Trip</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowCreateTripModal(false)} style={styles.diagModalCloseBtn}>
+                <Text style={styles.diagModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textSecondary, marginBottom: 3 }}>
+                  REPAIR ORDER *
+                </Text>
+                <TextInput
+                  value={createRoNumber}
+                  onChangeText={setCreateRoNumber}
+                  placeholder="RO-48291"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.diagNotesInput, { minHeight: 40, marginBottom: 0 }]}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textSecondary, marginBottom: 3 }}>
+                  REGO PLATE *
+                </Text>
+                <TextInput
+                  value={createRego}
+                  onChangeText={setCreateRego}
+                  placeholder="SGS 274"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.diagNotesInput, { minHeight: 40, marginBottom: 0 }]}
+                />
+              </View>
+            </View>
+
+            <View style={{ marginBottom: 10 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textSecondary, marginBottom: 3 }}>
+                VEHICLE (MAKE / MODEL)
+              </Text>
+              <TextInput
+                value={createVehicle}
+                onChangeText={setCreateVehicle}
+                placeholder="2021 Holden Commodore"
+                placeholderTextColor={colors.textMuted}
+                style={[styles.diagNotesInput, { minHeight: 40, marginBottom: 0 }]}
+              />
+            </View>
+
+            <Text style={styles.diagSectionLabel}>DIAGNOSTIC OUTCOME</Text>
+            <View style={styles.diagOutcomeRow}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setCreateTripOutcome('Passed')}
+                style={[
+                  styles.diagOutcomeBtn,
+                  createTripOutcome === 'Passed' && styles.diagOutcomeBtnPassedActive,
+                ]}
+              >
+                <Check
+                  size={16}
+                  color={createTripOutcome === 'Passed' ? '#059669' : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.diagOutcomeBtnText,
+                    createTripOutcome === 'Passed' && styles.diagOutcomeBtnTextPassedActive,
+                  ]}
+                >
+                  Passed
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setCreateTripOutcome('Flagged')}
+                style={[
+                  styles.diagOutcomeBtn,
+                  createTripOutcome === 'Flagged' && styles.diagOutcomeBtnFlaggedActive,
+                ]}
+              >
+                <Flag
+                  size={16}
+                  color={createTripOutcome === 'Flagged' ? '#DC2626' : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.diagOutcomeBtnText,
+                    createTripOutcome === 'Flagged' && styles.diagOutcomeBtnTextFlaggedActive,
+                  ]}
+                >
+                  Flagged
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ marginBottom: 10 }}>
+              <Text style={{ fontSize: 10, fontWeight: '800', color: colors.textSecondary, marginBottom: 3 }}>
+                FINDINGS & NOTES
+              </Text>
+              <TextInput
+                value={createTripNotes}
+                onChangeText={setCreateTripNotes}
+                placeholder="Road test observations..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                numberOfLines={2}
+                style={[styles.diagNotesInput, { minHeight: 50, marginBottom: 0 }]}
+              />
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={savingCreateTrip}
+              onPress={async () => {
+                if (!createRoNumber.trim() || !createRego.trim()) {
+                  Alert.alert('Missing Details', 'Please enter Repair Order and Rego Plate.');
+                  return;
+                }
+                setSavingCreateTrip(true);
+                try {
+                  await createManualTripRecord({
+                    repairOrder: createRoNumber.toUpperCase().trim(),
+                    registration: createRego.toUpperCase().trim(),
+                    vehicleLabel: createVehicle.trim() || `${createRego.toUpperCase().trim()} Vehicle`,
+                    outcome: createTripOutcome,
+                    note: createTripNotes || 'Manual test drive logged.',
+                    distanceKm: parseFloat(createTripDist) || 5.0,
+                    maxSpeedKph: parseInt(createTripSpeed, 10) || 65,
+                    duration: '10m 00s',
+                  });
+                  setShowCreateTripModal(false);
+                } finally {
+                  setSavingCreateTrip(false);
+                }
+              }}
+              style={styles.diagSubmitBtn}
+            >
+              <Check size={18} color="#FFFFFF" />
+              <Text style={styles.diagSubmitBtnText}>
+                {savingCreateTrip ? 'SAVING RECORD...' : 'SAVE ROAD TEST TRIP'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 4. Select Car / Vehicle Picker Modal */}
+      <Modal
+        visible={showVehiclePickerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowVehiclePickerModal(false)}
+      >
+        <View style={styles.pickerModalOverlay}>
+          <View style={styles.pickerModalContent}>
+            {/* Header */}
+            <View style={styles.pickerModalHeader}>
+              <View style={styles.pickerModalTitleWrap}>
+                <View style={styles.pickerModalIconBadge}>
+                  <Car size={18} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text style={styles.pickerModalTitle}>Select Car for Road Test</Text>
+                  <Text style={styles.pickerModalSub}>
+                    Choose vehicle to arm GPS & live telemetry
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowVehiclePickerModal(false)}
+                style={styles.diagModalCloseBtn}
+              >
+                <Text style={styles.diagModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input Bar inside Modal */}
+            <View style={styles.pickerSearchWrap}>
+              <Search size={16} color={colors.textMuted} />
+              <TextInput
+                value={vehiclePickerSearch}
+                onChangeText={setVehiclePickerSearch}
+                placeholder="Search RO, plate, make, model, VIN..."
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="characters"
+                style={styles.pickerSearchInput}
+              />
+              {vehiclePickerSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setVehiclePickerSearch('')}>
+                  <X size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Filter Pills: All, Active ROs, Workshop Fleet */}
+            <View style={styles.pickerFilterRow}>
+              <TouchableOpacity
+                onPress={() => setVehiclePickerFilter('all')}
+                style={[
+                  styles.pickerFilterPill,
+                  vehiclePickerFilter === 'all' && styles.pickerFilterPillActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.pickerFilterPillText,
+                    vehiclePickerFilter === 'all' && styles.pickerFilterPillTextActive,
+                  ]}
+                >
+                  All Cars ({workshopVehicles.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setVehiclePickerFilter('tickets')}
+                style={[
+                  styles.pickerFilterPill,
+                  vehiclePickerFilter === 'tickets' && styles.pickerFilterPillActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.pickerFilterPillText,
+                    vehiclePickerFilter === 'tickets' && styles.pickerFilterPillTextActive,
+                  ]}
+                >
+                  Active ROs
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setVehiclePickerFilter('fleet')}
+                style={[
+                  styles.pickerFilterPill,
+                  vehiclePickerFilter === 'fleet' && styles.pickerFilterPillActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.pickerFilterPillText,
+                    vehiclePickerFilter === 'fleet' && styles.pickerFilterPillTextActive,
+                  ]}
+                >
+                  Fleet
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Car List */}
+            <FlatList
+              data={filteredWorkshopVehicles}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const isSelected =
+                  vehicle?.id === item.id ||
+                  vehicle?.repairOrder === item.repairOrder ||
+                  (Boolean(vehicle?.registration) && vehicle?.registration === item.registration);
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    onPress={() => handleSelectVehicle(item)}
+                    style={[
+                      styles.carItemCard,
+                      isSelected && styles.carItemCardActive,
+                    ]}
+                  >
+                    <View style={styles.carItemHeader}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <Text style={styles.carItemTitle}>
+                            {item.year} {item.make} {item.model}
+                          </Text>
+                          {isSelected && (
+                            <View style={styles.activeCarBadge}>
+                              <Check size={11} color="#059669" />
+                              <Text style={styles.activeCarBadgeText}>Selected</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.carItemSub}>
+                          {item.variant} • {item.colour}
+                        </Text>
+                      </View>
+                      <View style={styles.carItemPlate}>
+                        <Text style={styles.carItemPlateText}>{item.registration}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.carItemMetaRow}>
+                      <View style={styles.carItemRoBadge}>
+                        <Text style={styles.carItemRoText}>RO: {item.repairOrder}</Text>
+                      </View>
+                      {item.status ? (
+                        <View
+                          style={[
+                            styles.carItemStatusBadge,
+                            item.status === 'Active Claim' && styles.carItemStatusActiveClaim,
+                            item.status === 'Inspection Required' && styles.carItemStatusInspection,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.carItemStatusText,
+                              item.status === 'Active Claim' && styles.carItemStatusTextActiveClaim,
+                              item.status === 'Inspection Required' && styles.carItemStatusTextInspection,
+                            ]}
+                          >
+                            {item.status}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {item.odometerKm ? (
+                        <Text style={styles.carItemOdo}>
+                          {item.odometerKm.toLocaleString()} km
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {item.concern ? (
+                      <View style={styles.carItemConcernWrap}>
+                        <Text style={styles.carItemConcernText} numberOfLines={2}>
+                          {item.concern}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.carItemFooter}>
+                      <Text style={styles.carItemSite} numberOfLines={1}>
+                        📍 {item.siteName || 'Booran Workshop'}
+                      </Text>
+                      <View
+                        style={[
+                          styles.carItemActionBtn,
+                          isSelected && styles.carItemActionBtnActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.carItemActionBtnText,
+                            isSelected && styles.carItemActionBtnTextActive,
+                          ]}
+                        >
+                          {isSelected ? 'ARMED' : 'SELECT CAR'}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={styles.pickerEmptyState}>
+                  <Car size={36} color={colors.textMuted} />
+                  <Text style={styles.pickerEmptyTitle}>No Vehicles Found</Text>
+                  <Text style={styles.pickerEmptySub}>
+                    Try searching with another RO number, Rego plate, or make.
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1965,6 +3004,55 @@ const styles = StyleSheet.create({
   },
   historyContainer: {
     gap: 10,
+  },
+  historyRooftopBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  historyRooftopBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  historyRooftopText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  historyRooftopCount: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  emptyTripsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
+    marginVertical: 12,
+  },
+  emptyTripsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  emptyTripsSub: {
+    fontSize: 11,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 260,
   },
   kpiRow: {
     flexDirection: 'row',
@@ -2638,5 +3726,642 @@ const styles = StyleSheet.create({
   },
   bottomBarAvatarTextAdmin: {
     color: '#D97706',
+  },
+  diagModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  diagModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  diagModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  diagModalKicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 0.8,
+  },
+  diagModalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 1,
+  },
+  diagModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  diagModalCloseText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#64748B',
+  },
+  diagVehicleSummary: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  diagVehicleTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  diagRegoPill: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  diagRegoText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.5,
+  },
+  diagVehicleMeta: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  diagStatsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'space-between',
+  },
+  diagStatCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  diagStatLabel: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+  },
+  diagStatVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  diagSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  diagOutcomeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  diagOutcomeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  diagOutcomeBtnPassedActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  diagOutcomeBtnFlaggedActive: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#DC2626',
+  },
+  diagOutcomeBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  diagOutcomeBtnTextPassedActive: {
+    color: '#065F46',
+    fontWeight: '800',
+  },
+  diagOutcomeBtnTextFlaggedActive: {
+    color: '#991B1B',
+    fontWeight: '800',
+  },
+  diagQuickChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
+  },
+  diagQuickChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  diagQuickChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  diagNotesInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 12,
+    color: '#0F172A',
+    minHeight: 65,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  diagSubmitBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  diagSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  tripCardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  tripEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  tripEditBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
+  tripDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  tripDeleteBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  selectCarBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  selectCarIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectCarBarTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  selectCarBarSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  selectCarActionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  selectCarActionPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  chipBtnActive: {
+    backgroundColor: 'rgba(29, 78, 216, 0.12)',
+    borderColor: colors.primary,
+  },
+  chipBtnTextActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  chipBtnBrowseAll: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#CBD5E1',
+  },
+  chipBtnBrowseAllText: {
+    color: colors.textSecondary,
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  switchCarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  switchCarBtnText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  emptyVehicleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyVehicleIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyVehicleTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  emptyVehicleSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    maxWidth: 260,
+    lineHeight: 16,
+  },
+  emptyVehicleBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 6,
+  },
+  emptyVehicleBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    maxHeight: '88%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 25,
+  },
+  pickerModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  pickerModalTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  pickerModalIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerModalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  pickerModalSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  pickerSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  pickerSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 0,
+  },
+  pickerFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  pickerFilterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pickerFilterPillActive: {
+    backgroundColor: '#1E293B',
+    borderColor: '#1E293B',
+  },
+  pickerFilterPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  pickerFilterPillTextActive: {
+    color: '#FFFFFF',
+  },
+  carItemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  carItemCardActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#FAFCFF',
+    borderWidth: 1.8,
+  },
+  carItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  carItemTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  activeCarBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 0.8,
+    borderColor: '#A7F3D0',
+  },
+  activeCarBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  carItemSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  carItemPlate: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  carItemPlateText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  carItemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  carItemRoBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  carItemRoText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#1D4ED8',
+  },
+  carItemStatusBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  carItemStatusActiveClaim: {
+    backgroundColor: '#FEF2F2',
+  },
+  carItemStatusInspection: {
+    backgroundColor: '#FFFBEB',
+  },
+  carItemStatusText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  carItemStatusTextActiveClaim: {
+    color: '#DC2626',
+  },
+  carItemStatusTextInspection: {
+    color: '#D97706',
+  },
+  carItemOdo: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  carItemConcernWrap: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  carItemConcernText: {
+    fontSize: 11,
+    color: '#334155',
+    lineHeight: 15,
+  },
+  carItemFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  carItemSite: {
+    fontSize: 10.5,
+    color: colors.textMuted,
+    flex: 1,
+    marginRight: 8,
+  },
+  carItemActionBtn: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  carItemActionBtnActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  carItemActionBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1D4ED8',
+    letterSpacing: 0.3,
+  },
+  carItemActionBtnTextActive: {
+    color: '#059669',
+  },
+  pickerEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    gap: 8,
+  },
+  pickerEmptyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  pickerEmptySub: {
+    fontSize: 11.5,
+    color: colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 240,
   },
 });

@@ -741,15 +741,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               </Text>
             </TouchableOpacity>
 
-            {/* 4. Test Drive (Replaces Awaiting) */}
+            {/* 4. Loaners */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={onOpenRoadTest}
+              onPress={onOpenLoaners}
               style={styles.bottomBarTab}
             >
-              <Gauge size={20} color={colors.textSecondary} />
+              <Key size={20} color={colors.textSecondary} />
               <Text style={styles.bottomBarLabel}>
-                Test Drive
+                Loaners
               </Text>
             </TouchableOpacity>
 
