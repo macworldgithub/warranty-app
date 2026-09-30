@@ -1,5 +1,4 @@
 import { apiClient } from '../api/client';
-import { ENV } from '../config/env';
 
 export interface StartTestDrivePayload {
   repairOrder: string;
@@ -42,103 +41,17 @@ export interface CompleteTestDrivePayload {
   geofenceAutoVerified?: boolean;
 }
 
-const CANDIDATE_URL_BASES = [
-  ENV.API_URL,
-  'http://localhost:4000/api/v1',
-  'http://127.0.0.1:4000/api/v1',
-  'http://10.0.2.2:4000/api/v1',
-  'http://192.168.100.33:4000/api/v1',
-];
-
-async function fetchFromCandidates<T = any>(
-  endpoint: string,
-  options: RequestInit = {},
-  timeoutMs = 4000
-): Promise<T> {
-  const cleanPath = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-
-  const requests = CANDIDATE_URL_BASES.map(async (base) => {
-    const url = `${base.replace(/\/+$/, '')}${cleanPath}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const res = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...(options.headers || {}),
-        },
-      });
-      clearTimeout(timer);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} from ${url}`);
-      }
-      return (await res.json()) as T;
-    } catch (err) {
-      clearTimeout(timer);
-      throw err;
-    }
-  });
-
-  return await Promise.any(requests);
-}
-
 class RoadTestService {
   public async startDrive(payload: StartTestDrivePayload): Promise<any> {
-    try {
-      return await fetchFromCandidates<any>(
-        '/test-drives/start',
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-        4000
-      );
-    } catch (_err) {
-      return apiClient.request<any>('/test-drives/start', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    }
+    return apiClient.post<any>('/test-drives/start', payload);
   }
 
   public async sendTelemetryBatch(driveId: string, points: TelemetryPointPayload[]): Promise<any> {
-    try {
-      return await fetchFromCandidates<any>(
-        `/test-drives/${driveId}/points`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ points }),
-        },
-        3000
-      );
-    } catch (_err) {
-      return apiClient.request<any>(`/test-drives/${driveId}/points`, {
-        method: 'POST',
-        body: JSON.stringify({ points }),
-      });
-    }
+    return apiClient.post<any>(`/test-drives/${driveId}/points`, { points });
   }
 
   public async completeDrive(driveId: string, payload: CompleteTestDrivePayload): Promise<any> {
-    try {
-      return await fetchFromCandidates<any>(
-        `/test-drives/${driveId}/complete`,
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-        5000
-      );
-    } catch (_err) {
-      return apiClient.request<any>(`/test-drives/${driveId}/complete`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    }
+    return apiClient.post<any>(`/test-drives/${driveId}/complete`, payload);
   }
 
   public async getHistoricalDrives(params?: {
@@ -156,67 +69,20 @@ class RoadTestService {
       });
     }
 
-    try {
-      return await fetchFromCandidates<any>(
-        `/test-drives?${query.toString()}`,
-        { method: 'GET' },
-        4000
-      );
-    } catch (_err) {
-      return apiClient.request<any>(`/test-drives?${query.toString()}`, {
-        method: 'GET',
-      });
-    }
+    const qs = query.toString();
+    return apiClient.get<any>(`/test-drives${qs ? `?${qs}` : ''}`);
   }
 
   public async createTrip(payload: any): Promise<any> {
-    try {
-      return await fetchFromCandidates<any>(
-        '/test-drives',
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-        5000
-      );
-    } catch (_err) {
-      return apiClient.request<any>('/test-drives', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    }
+    return apiClient.post<any>('/test-drives', payload);
   }
 
   public async updateTrip(id: string, payload: any): Promise<any> {
-    try {
-      return await fetchFromCandidates<any>(
-        `/test-drives/${id}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        },
-        5000
-      );
-    } catch (_err) {
-      return apiClient.request<any>(`/test-drives/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload),
-      });
-    }
+    return apiClient.put<any>(`/test-drives/${id}`, payload);
   }
 
   public async deleteTrip(id: string): Promise<any> {
-    try {
-      return await fetchFromCandidates<any>(
-        `/test-drives/${id}`,
-        { method: 'DELETE' },
-        4000
-      );
-    } catch (_err) {
-      return apiClient.request<any>(`/test-drives/${id}`, {
-        method: 'DELETE',
-      });
-    }
+    return apiClient.delete<any>(`/test-drives/${id}`);
   }
 }
 

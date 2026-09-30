@@ -228,10 +228,12 @@ const RoadTestContext = createContext<RoadTestContextValue | null>(null);
 
 export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const { user, activeSiteId } = useAuth();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
-  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER';
+  const isClerk = user?.role === 'CLERK';
+  const isSingleSiteOperator = !isAdmin && !isClerk;
+  const technicianSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || 'site_cranbourne_byd';
 
-  const initialVeh = !isAdmin
+  const initialVeh = isSingleSiteOperator
     ? INITIAL_DEMO_VEHICLES.find(
         (v) => v.siteId?.toLowerCase() === technicianSiteId.toLowerCase()
       ) || INITIAL_DEMO_VEHICLES[0]
@@ -248,7 +250,9 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const [distanceKm, setDistanceKm] = useState(0);
   const [fenceRadius, setFenceRadius] = useState(180);
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([DEFAULT_DEMO_ROUTE[0]]);
-  const [tripRecords, setTripRecords] = useState<RoadTestTripRecord[]>(INITIAL_TRIP_RECORDS);
+  const [tripRecords, setTripRecords] = useState<RoadTestTripRecord[]>(
+    isSingleSiteOperator ? INITIAL_TRIP_RECORDS : []
+  );
   const [pendingCompletion, setPendingCompletion] = useState(false);
 
   const activeDriveIdRef = useRef<string | null>(null);
@@ -285,7 +289,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
   // Synchronize vehicle rooftop when technician profile or site changes
   useEffect(() => {
-    if (!isAdmin) {
+    if (isSingleSiteOperator) {
       setVehicle((curr) => {
         if (!curr || (curr.siteId && curr.siteId.toLowerCase() !== technicianSiteId.toLowerCase())) {
           return (
@@ -297,19 +301,21 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
         return curr;
       });
     }
-  }, [isAdmin, technicianSiteId]);
+  }, [isSingleSiteOperator, technicianSiteId]);
 
-  // Load historical drives from backend: scoped to rooftop for technicians, all for admin
+  // Load historical drives from backend: scoped to rooftop for technicians,
+  // assigned sites for clerks, and all sites for admin/service managers.
   useEffect(() => {
     const queryParams: any = { limit: 50 };
-    if (!isAdmin) {
+    if (isSingleSiteOperator) {
       queryParams.siteId = technicianSiteId;
     }
 
     roadTestService.getHistoricalDrives(queryParams)
       .then((res) => {
-        if (res && res.items && res.items.length > 0) {
-          const mapped: RoadTestTripRecord[] = res.items.map((it: any) => ({
+        const items = Array.isArray(res) ? res : (res?.items || res?.data || []);
+        if (items.length > 0) {
+          const mapped: RoadTestTripRecord[] = items.map((it: any) => ({
             id: it.id,
             repairOrder: it.repairOrder,
             registration: it.registration,
@@ -331,10 +337,12 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
             routePoints: it.routePoints && it.routePoints.length > 0 ? it.routePoints : DEFAULT_DEMO_ROUTE,
           }));
           setTripRecords(mapped);
+        } else if (!isSingleSiteOperator) {
+          setTripRecords([]);
         }
       })
       .catch((e) => console.log('Historical drives fetch error:', e));
-  }, [isAdmin, technicianSiteId]);
+  }, [isSingleSiteOperator, technicianSiteId]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -641,7 +649,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
           customerConcern: v.concern,
           technicianId: user?.id || 'tech_byd_01',
           technicianName: user?.name || 'Shaun H.',
-          siteId: activeSiteId || 'site_cranbourne_byd',
+          siteId: v.siteId || technicianSiteId,
           isLiveGps: true,
         })
         .then((res) => {
@@ -655,7 +663,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
     liveTimerRef.current = setInterval(() => {
       setElapsedSec((prev) => prev + 1);
     }, 1000);
-  }, [clearTimer, user, activeSiteId]);
+  }, [clearTimer, user, technicianSiteId]);
 
   const recordLivePoint = useCallback(
     (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => {
@@ -801,7 +809,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
           customerConcern: v.concern,
           technicianId: user?.id || 'tech_byd_01',
           technicianName: user?.name || 'Active Technician',
-          siteId: activeSiteId || 'site_cranbourne_byd',
+          siteId: v.siteId || technicianSiteId,
           isLiveGps: false,
         })
         .then((res) => {
@@ -834,7 +842,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
       activeIndexRef.current += 1;
     }, 850);
-  }, [armed, clearTimer, user, activeSiteId]);
+  }, [armed, clearTimer, user, technicianSiteId]);
 
   const loadVehicleByROOrRego = useCallback(
     (query: string) => {
@@ -868,12 +876,14 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
         odometerKm: 28400,
         vin: `6G1MK5E37LL${Math.floor(100000 + Math.random() * 899999)}`,
         concern: 'Customer reported diagnostic drivability concern for warranty verification.',
+        siteId: technicianSiteId,
+        siteName: vehicleRef.current?.siteName || 'Booran Workshop',
       };
       setVehicle(customVeh);
       armVehicle();
       return true;
     },
-    [armVehicle]
+    [armVehicle, technicianSiteId]
   );
 
   return (

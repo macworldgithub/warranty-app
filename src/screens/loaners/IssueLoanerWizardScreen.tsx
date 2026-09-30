@@ -34,13 +34,14 @@ interface IssueLoanerWizardScreenProps {
   onSuccess: (agreement: LoanAgreement) => void;
   initialRooftop?: string;
   isRooftopLocked?: boolean;
+  allowedSiteIds?: string[];
   purpose?: 'SERVICE_LOANER' | 'TEST_DRIVE';
 }
 
 const ROOFTOPS = [
   { name: 'Cranbourne', siteId: 'site_cranbourne_byd', siteName: 'Booran BYD Cranbourne' },
   { name: 'Dandenong', siteId: 'site_dandenong_multi', siteName: 'Booran Dandenong Multi-Franchise' },
-  { name: 'Berwick', siteId: 'site_berwick_nissan', siteName: 'Booran Nissan Berwick' },
+  { name: 'Berwick', siteId: 'site_berwick_toyota_ford', siteName: 'Booran Berwick Commercials' },
   { name: 'Cheltenham', siteId: 'site_cheltenham_mg', siteName: 'Booran MG & Chery Cheltenham' },
 ];
 
@@ -78,6 +79,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   onSuccess,
   initialRooftop = 'Cranbourne',
   isRooftopLocked = false,
+  allowedSiteIds,
   purpose = 'SERVICE_LOANER',
 }) => {
   const insets = useSafeAreaInsets();
@@ -86,6 +88,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const isOnSite = presenceStatus === 'ON_SITE';
   const isTestDrive = purpose === 'TEST_DRIVE';
   const agreementLabel = isTestDrive ? 'Test Drive' : 'Service Loaner';
+  const allowedRooftops = allowedSiteIds?.length
+    ? ROOFTOPS.filter((r) => allowedSiteIds.includes(r.siteId))
+    : ROOFTOPS;
+  const fleetVehicles = allowedSiteIds?.length
+    ? PREPOPULATED_VEHICLES.filter((veh) =>
+        allowedRooftops.some((site) => site.name.toLowerCase() === veh.rooftop.toLowerCase())
+      )
+    : PREPOPULATED_VEHICLES;
 
   // Section Accordion State: allows expanding/collapsing each dropdown
   const [openSections, setOpenSections] = useState<{ [key: number]: boolean }>({
@@ -130,7 +140,11 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [showLicenceExpiryPicker, setShowLicenceExpiryPicker] = useState(false);
 
   // Section 2: Loan Vehicle
-  const [rooftop, setRooftop] = useState(initialRooftop);
+  const [rooftop, setRooftop] = useState(
+    allowedRooftops.some((r) => r.name.toLowerCase() === initialRooftop.toLowerCase())
+      ? initialRooftop
+      : (allowedRooftops[0]?.name || initialRooftop)
+  );
   const [registration, setRegistration] = useState('CRN-882');
   const [make, setMake] = useState('BYD');
   const [model, setModel] = useState('DOLPHIN Premium');
@@ -383,7 +397,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
     try {
       setIsSubmitting(true);
-      const chosenRooftop = ROOFTOPS.find((r) => r.name.toLowerCase() === rooftop.toLowerCase()) || ROOFTOPS[0];
+      const chosenRooftop = allowedRooftops.find((r) => r.name.toLowerCase() === rooftop.toLowerCase()) || allowedRooftops[0] || ROOFTOPS[0];
       const dueBackDate = new Date(`${expectedReturnDate}T${expectedReturnTime || '18:00'}`);
 
       const createPayload = {
@@ -549,7 +563,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           </View>
           <View style={styles.rooftopDetails}>
             <Text style={styles.rooftopSubLabel}>YOUR ASSIGNED ROOFTOP</Text>
-            <Text style={styles.rooftopName}>Booran BYD Cranbourne</Text>
+            <Text style={styles.rooftopName}>
+              {allowedRooftops.find((r) => r.name.toLowerCase() === rooftop.toLowerCase())?.siteName || rooftop}
+            </Text>
           </View>
           <View style={styles.assignedBadge}>
             <Icon name="lock" size={13} color="#475569" />
@@ -808,7 +824,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               {/* Quick Select Fleet */}
               <Text style={styles.inputSubheading}>Quick Select Dealership Fleet</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fleetScroll}>
-                {PREPOPULATED_VEHICLES.map((veh) => {
+                {fleetVehicles.map((veh) => {
                   const isSelected = registration === veh.rego;
                   return (
                     <TouchableOpacity

@@ -33,6 +33,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function getInitialSiteId(user: User | null): string {
+  return (
+    user?.defaultSiteId ||
+    user?.authorizedSiteIds?.[0] ||
+    'site_cranbourne_byd'
+  );
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -58,9 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const me = await authApi.getMe();
           if (me) {
             setUser(me);
-            if (me.defaultSiteId) {
-              setActiveSiteId(me.defaultSiteId);
-            }
+            setActiveSiteId(getInitialSiteId(me));
           }
         }
       } catch (err) {
@@ -86,9 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToken(res.token);
         apiClient.setToken(res.token);
       }
-      if (currentUser.defaultSiteId) {
-        setActiveSiteId(currentUser.defaultSiteId);
-      }
+      setActiveSiteId(getInitialSiteId(currentUser));
       return currentUser;
     } finally {
       setIsLoading(false);
@@ -111,9 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToken(res.token);
         apiClient.setToken(res.token);
       }
-      if (currentUser.defaultSiteId) {
-        setActiveSiteId(currentUser.defaultSiteId);
-      }
+      setActiveSiteId(getInitialSiteId(currentUser));
       return currentUser;
     } finally {
       setIsLoading(false);
@@ -139,9 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToken(res.token);
         apiClient.setToken(res.token);
       }
-      if (currentUser.defaultSiteId) {
-        setActiveSiteId(currentUser.defaultSiteId);
-      }
+      setActiveSiteId(getInitialSiteId(currentUser));
       return currentUser;
     } finally {
       setIsLoading(false);
@@ -163,7 +163,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshMe = async () => {
     try {
       const me = await authApi.getMe();
-      if (me) setUser(me);
+      if (me) {
+        setUser(me);
+        setActiveSiteId(getInitialSiteId(me));
+      }
     } catch (e) {}
   };
 

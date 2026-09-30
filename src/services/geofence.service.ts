@@ -37,10 +37,7 @@ import { ENV } from '../config/env';
 
 const CANDIDATE_URL_BASES = [
   ENV.API_URL,
-  'http://localhost:4000/api/v1',
-  'http://127.0.0.1:4000/api/v1',
-  'http://10.0.2.2:4000/api/v1',
-  'http://192.168.100.33:4000/api/v1',
+  'https://warranty-evidence.omnisuiteai.com/api/v1',
 ];
 
 async function fetchFromCandidates<T = any>(
@@ -133,4 +130,3 @@ class MobileGeofenceService {
 }
 
 export const mobileGeofenceService = new MobileGeofenceService();
-

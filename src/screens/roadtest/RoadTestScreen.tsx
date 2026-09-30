@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -89,7 +89,8 @@ export function RoadTestScreen({
 }: RoadTestScreenProps) {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId } = useAuth();
-  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+  const isClerk = user?.role === 'CLERK';
+  const technicianSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || 'site_cranbourne_byd';
 
   const {
     vehicle,
@@ -124,8 +125,10 @@ export function RoadTestScreen({
   const [regoInput, setRegoInput] = useState<string>('1BY-9EV');
   const [selectedTripDetail, setSelectedTripDetail] = useState<RoadTestTripRecord | null>(null);
   const [showNotifModal, setShowNotifModal] = useState<boolean>(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(7);
-  const [workshopVehicles, setWorkshopVehicles] = useState<RoadTestVehicle[]>(INITIAL_DEMO_VEHICLES);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [workshopVehicles, setWorkshopVehicles] = useState<RoadTestVehicle[]>(
+    isClerk ? [] : INITIAL_DEMO_VEHICLES
+  );
 
   const isDriving = isLiveDrive || demoRunning;
 
@@ -154,7 +157,7 @@ export function RoadTestScreen({
 
   // Notifications listener
   useEffect(() => {
-    setUnreadNotifCount(notificationsService.getUnreadCount() || 7);
+    setUnreadNotifCount(notificationsService.getUnreadCount());
     const unsub = notificationsService.onNotification(() => {
       setUnreadNotifCount(notificationsService.getUnreadCount());
     });
@@ -178,7 +181,13 @@ export function RoadTestScreen({
     casesApi
       .getCases()
       .then((cases) => {
-        const fleet = rooftopVehiclesService.getVehiclesForRooftop(technicianSiteId, cases);
+        const fleetSiteId = technicianSiteId;
+        const assigned = isClerk
+          ? cases.filter((c: any) => c.siteId === technicianSiteId)
+          : cases;
+        const fleet = rooftopVehiclesService
+          .getVehiclesForRooftop(fleetSiteId, assigned)
+          .filter((v) => !isClerk || v.siteId === technicianSiteId);
         if (fleet && fleet.length > 0) {
           const mapped: RoadTestVehicle[] = fleet.map((f: any, idx: number) => ({
             id: f.id || `fleet-${idx}`,
@@ -193,14 +202,16 @@ export function RoadTestScreen({
             odometerKm: f.odometerKm || 3400,
             vin: f.vin || 'LGXCE43C8P0192831',
             concern: f.concern || 'Internal test drive',
-            siteId: technicianSiteId,
-            siteName: siteName || 'Booran BYD Cranbourne',
+            siteId: f.siteId || technicianSiteId,
+            siteName: f.siteName || siteName || 'Booran Workshop',
           }));
-          setWorkshopVehicles([...INITIAL_DEMO_VEHICLES, ...mapped]);
+          setWorkshopVehicles(isClerk ? mapped : [...INITIAL_DEMO_VEHICLES, ...mapped]);
+        } else if (isClerk) {
+          setWorkshopVehicles([]);
         }
       })
       .catch(() => {});
-  }, [technicianSiteId, siteName]);
+  }, [isClerk, technicianSiteId, siteName]);
 
   // Handle Starting the Drive
   const handleStartDrive = async () => {

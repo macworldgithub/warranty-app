@@ -80,7 +80,7 @@ class SyncManager {
             repairStage: (item.repairStage as RepairStage) || 'Repair complete',
             technicianId: item.technicianId,
             technicianName: item.technicianName,
-            evidenceItems: item.evidenceItems || [],
+            evidenceItems: [],
             voiceNotes: item.voiceNotes || [],
           };
           const created = await casesApi.createCase(createDto);
@@ -110,12 +110,12 @@ class SyncManager {
                   if (ev.ocrExtractedText) formData.append('ocrExtractedText', ev.ocrExtractedText);
 
                   await casesApi.uploadEvidenceFile(serverCaseId, formData);
-                } else if (ev.storageUrl || ev.fileUri) {
+                } else if (ev.storageUrl && !ev.storageUrl.startsWith('file://') && !ev.storageUrl.startsWith('content://')) {
                   await casesApi.addEvidence(serverCaseId, {
                     ruleKey: ev.ruleKey,
                     name: ev.ruleName || ev.ruleKey,
                     mediaType: (ev.mediaType as any) || 'image',
-                    storageUrl: ev.storageUrl || ev.fileUri || '',
+                    storageUrl: ev.storageUrl,
                     ocrExtractedText: ev.ocrExtractedText,
                     ocrConfidence: ev.ocrConfidence,
                     durationSeconds: ev.durationSeconds,
@@ -123,6 +123,7 @@ class SyncManager {
                 }
               } catch (e) {
                 console.warn('[SyncManager] Failed to upload evidence item for case:', e);
+                throw e;
               }
             }
           }

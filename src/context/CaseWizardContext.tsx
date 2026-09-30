@@ -589,7 +589,9 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       repairStage: state.repairStage || 'Repair complete',
       technicianId: user?.id || 'usr_tech_1',
       technicianName: user?.name || 'Jake Smith',
-      evidenceItems: state.evidenceItems || [],
+      // Do not save local phone paths or demo URLs on case creation.
+      // Real evidence is uploaded below through multipart/form-data and the backend stores /uploads or S3 URLs.
+      evidenceItems: [],
       voiceNotes: state.voiceNotes || [],
     };
 
@@ -634,12 +636,12 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               }
 
               await casesApi.uploadEvidenceFile(createdCase.id, formData);
-            } else if (ev.storageUrl || ev.fileUri) {
+            } else if (ev.storageUrl && !ev.storageUrl.startsWith('file://') && !ev.storageUrl.startsWith('content://')) {
               await casesApi.addEvidence(createdCase.id, {
                 ruleKey: ev.ruleKey,
                 name: ev.ruleName || ev.ruleKey,
                 mediaType: (ev.mediaType as any) || 'image',
-                storageUrl: ev.storageUrl || ev.fileUri || '',
+                storageUrl: ev.storageUrl,
                 ocrExtractedText: ev.ocrExtractedText,
                 ocrConfidence: ev.ocrConfidence,
                 durationSeconds: ev.durationSeconds,
@@ -647,19 +649,7 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
           } catch (uploadErr) {
             console.warn(`[CaseWizardContext] Upload failed for evidence ${ev.ruleKey}:`, uploadErr);
-            try {
-              await casesApi.addEvidence(createdCase.id, {
-                ruleKey: ev.ruleKey,
-                name: ev.ruleName || ev.ruleKey,
-                mediaType: (ev.mediaType as any) || 'image',
-                storageUrl: ev.storageUrl || ev.fileUri || '',
-                ocrExtractedText: ev.ocrExtractedText,
-                ocrConfidence: ev.ocrConfidence,
-                durationSeconds: ev.durationSeconds,
-              });
-            } catch (e) {
-              console.warn(`[CaseWizardContext] addEvidence fallback failed for ${ev.ruleKey}:`, e);
-            }
+            throw uploadErr;
           }
         }
       }

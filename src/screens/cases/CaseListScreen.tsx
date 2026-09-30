@@ -23,7 +23,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { casesApi } from '../../api/cases.api';
 import { offlineStorage } from '../../services/offlineStorage';
-import { WarrantyCase, CaseStatus } from '../../types';
+import { WarrantyCase, CaseStatus, Site } from '../../types';
+import { sitesApi } from '../../api/sites.api';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
 import {
   notificationsService,
@@ -88,7 +89,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onLogout: _onLogout,
 }) => {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, activeSiteId, setActiveSiteId } = useAuth();
   const { startNewCase } = useCaseWizard();
 
   const [cases, setCases] = useState<WarrantyCase[]>([]);
@@ -98,6 +99,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [assignedSites, setAssignedSites] = useState<Site[]>([]);
 
   useEffect(() => {
     if (initialTab) {
@@ -105,8 +107,25 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
     }
   }, [initialTab]);
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
   const isClerk = user?.role === 'CLERK';
+  const clerkSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0];
+  const isAdmin = user?.role === 'ADMIN' || isClerk || user?.role === 'SERVICE_MANAGER';
+
+  useEffect(() => {
+    if (!isClerk) return;
+    const authorizedIds = user?.authorizedSiteIds || [];
+    sitesApi.getSites()
+      .then((siteList) => {
+        setAssignedSites(siteList.filter((site) => authorizedIds.includes(site.id) && site.isActive !== false));
+      })
+      .catch(() => {
+        setAssignedSites(authorizedIds.map((id) => ({
+          id,
+          code: id,
+          name: id.replace(/^site_/, '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+        })));
+      });
+  }, [isClerk, user?.authorizedSiteIds]);
 
   useEffect(() => {
     setUnreadNotifCount(notificationsService.getUnreadCount());
@@ -119,7 +138,9 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const fetchCases = useCallback(async () => {
     try {
       const filters: any = { limit: 100 };
-      if (!isAdmin && user?.id) {
+      if (isClerk && clerkSiteId) {
+        filters.siteId = clerkSiteId;
+      } else if (!isAdmin && user?.id) {
         filters.technicianId = user.id;
         filters.technicianName = user.name;
       }
@@ -174,7 +195,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAdmin, user?.id, user?.name]);
+  }, [clerkSiteId, isAdmin, isClerk, user?.id, user?.name]);
 
   useEffect(() => {
     fetchCases();
@@ -326,6 +347,39 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.listHeaderArea}>
+            {isClerk && assignedSites.length > 0 && (
+              <View style={styles.rooftopSwitcherCard}>
+                <View style={styles.rooftopSwitcherHeader}>
+                  <View>
+                    <Text style={styles.rooftopSwitcherEyebrow}>ACTIVE ROOFTOP</Text>
+                    <Text style={styles.rooftopSwitcherTitle}>Switch assigned location</Text>
+                  </View>
+                  <Text style={styles.rooftopSwitcherCount}>{assignedSites.length} assigned</Text>
+                </View>
+                <View style={styles.rooftopSwitcherOptions}>
+                  {assignedSites.map((site) => {
+                    const selected = site.id === clerkSiteId;
+                    return (
+                      <TouchableOpacity
+                        key={site.id}
+                        activeOpacity={0.8}
+                        onPress={() => setActiveSiteId(site.id)}
+                        style={[styles.rooftopOption, selected && styles.rooftopOptionActive]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Switch to ${site.name}`}
+                      >
+                        <Home size={14} color={selected ? '#FFFFFF' : colors.textSecondary} />
+                        <Text style={[styles.rooftopOptionText, selected && styles.rooftopOptionTextActive]} numberOfLines={1}>
+                          {site.name.replace(/^Booran\s+/i, '')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             {/* When on Awaiting Tab: Direct Clean Awaiting Header (Remove Booran Intelligence hero and KPI bars) */}
             {activeTab === 'awaiting' ? (
               <View style={styles.awaitingHeaderSection}>
@@ -661,7 +715,9 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                 <View style={styles.evidenceThumbnailsRow}>
                   {item.evidenceItems.slice(0, 4).map((ev, thumbIdx) => {
                     const rawUri = ev.storageUrl || ev.fileUri || ev.serverUrl || ev.thumbnailUrl;
-                    const isValidUri = rawUri && (rawUri.startsWith('http') || rawUri.startsWith('file:') || rawUri.startsWith('content:'));
+                    const isValidUri = rawUri &&
+                      !rawUri.includes('images.unsplash.com') &&
+                      (rawUri.startsWith('http') || rawUri.startsWith('file:') || rawUri.startsWith('content:'));
                     return (
                       <View key={ev.id || `${thumbIdx}`} style={styles.evidenceThumbBox}>
                         {isValidUri ? (
@@ -731,47 +787,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
       {/* Website-Style 5-Item Symmetrical Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
-        {isClerk ? (
-          <>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => setActiveTab('all')}
-              style={styles.bottomBarTab}
-            >
-              <Home size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
-              <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>Cases</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Drive</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenLoaners}
-              style={styles.bottomBarTab}
-            >
-              <Key size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Loaners</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={onOpenProfile}
-              style={styles.bottomBarUserTab}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
-                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
-                  {getUserInitials(user?.name)}
-                </Text>
-              </View>
-              <Text style={styles.bottomBarLabel} numberOfLines={1}>Profile</Text>
-            </TouchableOpacity>
-          </>
-        ) : isAdmin ? (
+        {isAdmin ? (
           <>
             {/* 1. Home / Tickets */}
             <TouchableOpacity
@@ -978,6 +994,69 @@ const styles = StyleSheet.create({
   listHeaderArea: {
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
+  },
+  rooftopSwitcherCard: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rooftopSwitcherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  rooftopSwitcherEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: colors.primary,
+  },
+  rooftopSwitcherTitle: {
+    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  rooftopSwitcherCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  rooftopSwitcherOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  rooftopOption: {
+    minWidth: '47%',
+    flexGrow: 1,
+    flexBasis: 145,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rooftopOptionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  rooftopOptionText: {
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  rooftopOptionTextActive: {
+    color: '#FFFFFF',
   },
   heroSection: {
     backgroundColor: colors.surface,

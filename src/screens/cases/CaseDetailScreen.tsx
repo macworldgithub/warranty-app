@@ -79,6 +79,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
     if (!ev) return null;
     const raw = ev.storageUrl || ev.fileUri || ev.serverUrl || ev.thumbnailUrl;
     if (!raw) return null;
+    if (raw.includes('images.unsplash.com')) return null;
     if (
       raw.startsWith('http://') ||
       raw.startsWith('https://') ||
@@ -230,7 +231,19 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
     }).catch((e) => console.warn('[CaseDetailScreen] Upload to MongoDB failed:', e));
   };
 
+  const isClerk = user?.role === 'CLERK';
+  const reviewerLabel = isClerk ? 'Warranty Clerk' : 'Warranty Admin';
+  const canEditEvidence = user?.role === 'TECHNICIAN';
+
   const handleAddEvidencePrompt = () => {
+    if (!canEditEvidence) {
+      Alert.alert(
+        'Review Only',
+        'Clerks can review, accept, or reject inspections, but cannot capture or upload technician evidence.'
+      );
+      return;
+    }
+
     Alert.alert(
       'Attach Vehicle Evidence Photo',
       'Select how you want to capture or upload evidence for this car:',
@@ -284,7 +297,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
     try {
       const updated = await casesApi.markSubmitted(currentCase.id, {
         claimNumber: claimNumber.trim() || `CLM-${currentCase.roNumber}`,
-        internalClerkNotes: acceptNotes.trim() || 'Approved by Admin in mobile portal',
+        internalClerkNotes: acceptNotes.trim() || `Approved by ${reviewerLabel} in mobile portal`,
       });
       const resolvedCase: WarrantyCase = updated?.id
         ? updated
@@ -292,7 +305,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
           ...currentCase,
           status: 'Submitted' as const,
           claimNumber: claimNumber.trim() || `CLM-${currentCase.roNumber}`,
-          clerkNotes: acceptNotes.trim() || 'Approved by Admin in mobile portal',
+          clerkNotes: acceptNotes.trim() || `Approved by ${reviewerLabel} in mobile portal`,
         };
       setCurrentCase(resolvedCase);
       onCaseUpdated?.(resolvedCase);
@@ -321,7 +334,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
         evidenceRuleKey: currentCase.evidenceItems?.[0]?.ruleKey || 'general',
         reasonCode: selectedReasonCode,
         instruction: rejectComments.trim(),
-        flaggedBy: user?.name ? `${user.name} (Admin)` : 'Warranty Admin',
+        flaggedBy: user?.name ? `${user.name} (${reviewerLabel})` : reviewerLabel,
       });
       const resolvedCase: WarrantyCase = updated?.id
         ? updated
@@ -336,7 +349,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
               reasonCode: selectedReasonCode as any,
               instruction: rejectComments.trim(),
               flaggedAt: new Date().toISOString(),
-              flaggedBy: user?.name ? `${user.name} (Admin)` : 'Warranty Admin',
+              flaggedBy: user?.name ? `${user.name} (${reviewerLabel})` : reviewerLabel,
             },
           ],
         };
@@ -388,7 +401,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
               <View style={styles.adminActionHint}>
                 <Icon name="shield" size={14} color="#B45309" />
                 <Text style={styles.adminActionHintText}>
-                  As Admin/Clerk, review the captured evidence and select Accept or Reject below.
+                  Review the captured evidence and select Accept or Reject below.
                 </Text>
               </View>
             )}
@@ -449,7 +462,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
             <TouchableOpacity
               style={styles.vehicleCoverEmpty}
               activeOpacity={0.8}
-              onPress={handleAddEvidencePrompt}
+              onPress={canEditEvidence ? handleAddEvidencePrompt : undefined}
             >
               <View style={styles.vehicleCoverEmptyIcon}>
                 <Car size={26} color="#DC2626" />
@@ -459,13 +472,15 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
                   {currentCase.year} {currentCase.make} {currentCase.model}
                 </Text>
                 <Text style={styles.vehicleCoverEmptySub}>
-                  No photo attached • Tap to capture or upload
+                  {canEditEvidence ? 'No photo attached • Tap to capture or upload' : 'No photo attached'}
                 </Text>
               </View>
-              <View style={styles.vehicleCoverAddBtn}>
-                <Camera size={14} color="#FFFFFF" />
-                <Text style={styles.vehicleCoverAddBtnText}>Add Photo</Text>
-              </View>
+              {canEditEvidence && (
+                <View style={styles.vehicleCoverAddBtn}>
+                  <Camera size={14} color="#FFFFFF" />
+                  <Text style={styles.vehicleCoverAddBtnText}>Add Photo</Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
 
@@ -533,7 +548,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
         {/* Captured Evidence Gallery */}
         <Card
           title={`Captured Evidence (${allEvidenceItems.length})`}
-          rightAction={
+          rightAction={canEditEvidence ? (
             <TouchableOpacity
               style={styles.evidenceHeaderActionBtn}
               onPress={handleAddEvidencePrompt}
@@ -542,7 +557,7 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
               <Plus size={14} color="#DC2626" />
               <Text style={styles.evidenceHeaderActionText}>Add Photo</Text>
             </TouchableOpacity>
-          }
+          ) : undefined}
         >
           {allEvidenceItems.length > 0 ? (
             <View style={styles.evidenceGallery}>
@@ -713,14 +728,16 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
               <Text style={styles.emptyEvidenceDesc}>
                 Evidence photos captured in Guided Zone Capture or workshop inspection will appear here.
               </Text>
-              <TouchableOpacity
-                style={styles.emptyEvidenceActionBtn}
-                onPress={handleAddEvidencePrompt}
-                activeOpacity={0.85}
-              >
-                <Camera size={16} color="#FFFFFF" />
-                <Text style={styles.emptyEvidenceActionText}>Capture Evidence Photo</Text>
-              </TouchableOpacity>
+              {canEditEvidence && (
+                <TouchableOpacity
+                  style={styles.emptyEvidenceActionBtn}
+                  onPress={handleAddEvidencePrompt}
+                  activeOpacity={0.85}
+                >
+                  <Camera size={16} color="#FFFFFF" />
+                  <Text style={styles.emptyEvidenceActionText}>Capture Evidence Photo</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </Card>

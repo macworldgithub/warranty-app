@@ -84,7 +84,9 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   const { user, activeSiteId } = useAuth();
   const { startNewCase } = useCaseWizard();
 
-  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+  const isClerk = user?.role === 'CLERK';
+  const technicianSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || 'site_cranbourne_byd';
+  const canCaptureInspection = !isClerk;
 
   const [sites, setSites] = useState<Site[]>(FALLBACK_SITES);
   const [cases, setCases] = useState<WarrantyCase[]>([]);
@@ -127,8 +129,12 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
 
   const fetchCases = useCallback(async () => {
     try {
-      const data = await casesApi.getCases({ limit: 100 });
-      const pending = offlineStorage.getPendingUploads();
+      const filters: any = { limit: 100 };
+      if (isClerk) {
+        filters.siteId = technicianSiteId;
+      }
+      const data = await casesApi.getCases(filters);
+      const pending = isClerk ? [] : offlineStorage.getPendingUploads();
       const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
       const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
       const merged = [
@@ -139,13 +145,13 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
       const flagged = merged.filter((c) => c.status === 'Flagged').length;
       setFlaggedCount(flagged);
     } catch {
-      const pending = offlineStorage.getPendingUploads();
+      const pending = isClerk ? [] : offlineStorage.getPendingUploads();
       setCases(pending);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isClerk, technicianSiteId]);
 
   useEffect(() => {
     fetchCases();
@@ -283,6 +289,11 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   }, [vehicles, activeFilter, searchQuery, getVehicleZoneMetrics]);
 
   const handleContinueCapture = (item: RooftopVehicle) => {
+    if (!canCaptureInspection) {
+      handleViewReport(item);
+      return;
+    }
+
     if (onOpenZoneCapture) {
       onOpenZoneCapture(item);
       return;
@@ -647,13 +658,23 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                 <Text style={styles.emptySubtitle}>
                   No vehicle inspection records match your selected filter criteria.
                 </Text>
-                <TouchableOpacity
-                  style={styles.emptyActionBtn}
-                  onPress={() => onStartNewCase()}
-                >
-                  <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.emptyActionBtnText}>Start New Inspection</Text>
-                </TouchableOpacity>
+                {canCaptureInspection ? (
+                  <TouchableOpacity
+                    style={styles.emptyActionBtn}
+                    onPress={() => onStartNewCase()}
+                  >
+                    <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
+                    <Text style={styles.emptyActionBtnText}>Start New Inspection</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.emptyActionBtn}
+                    onPress={() => onOpenTickets('awaiting')}
+                  >
+                    <FileText size={16} color="#FFFFFF" strokeWidth={2.5} />
+                    <Text style={styles.emptyActionBtnText}>Review Queue</Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
           </View>
@@ -665,7 +686,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
           return (
             <TouchableOpacity
               activeOpacity={0.92}
-              onPress={() => onOpenZoneCapture && onOpenZoneCapture(item)}
+              onPress={() => (canCaptureInspection && onOpenZoneCapture ? onOpenZoneCapture(item) : handleViewReport(item))}
               style={styles.inspectionCard}
             >
               {/* Card Header: Year + Make + Model */}
@@ -760,7 +781,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
 
               {/* Action Buttons Row */}
               <View style={styles.cardActionsRow}>
-                {!metrics.isComplete ? (
+                {!metrics.isComplete && canCaptureInspection ? (
                   <>
                     <TouchableOpacity
                       style={styles.btnContinueCapture}
@@ -828,14 +849,24 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
           <Text style={styles.bottomBarLabel}>Tickets</Text>
         </TouchableOpacity>
 
-        {/* 3. Center Red Primary Action Pill Button: New Inspection */}
+        {/* 3. Center Primary Action Pill Button */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture(filteredVehicles[0]) : onStartNewCase())}
+          onPress={() =>
+            canCaptureInspection
+              ? (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture(filteredVehicles[0]) : onStartNewCase())
+              : onOpenTickets('awaiting')
+          }
           style={styles.bottomBarActionBtn}
         >
-          <Camera size={16} color="#FFFFFF" strokeWidth={2.2} />
-          <Text style={styles.bottomBarActionText}>New Inspection</Text>
+          {canCaptureInspection ? (
+            <Camera size={16} color="#FFFFFF" strokeWidth={2.2} />
+          ) : (
+            <FileText size={16} color="#FFFFFF" strokeWidth={2.2} />
+          )}
+          <Text style={styles.bottomBarActionText}>
+            {canCaptureInspection ? 'New Inspection' : 'Review Queue'}
+          </Text>
         </TouchableOpacity>
 
         {/* 4. Loaners */}

@@ -66,15 +66,14 @@ function MainNavigator() {
     completedMandatoryCount,
   } = useCaseWizard();
 
-  const isTechnician =
+  const isTechnicianExperience =
     user?.role === 'TECHNICIAN' ||
-    !user?.role ||
-    (user?.role !== 'ADMIN' && user?.role !== 'CLERK' && user?.role !== 'SERVICE_MANAGER');
+    !user?.role;
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(
-    isAuthenticated ? (isTechnician ? 'TECH_HOME' : 'LIST') : 'LOGIN'
+    isAuthenticated ? (isTechnicianExperience ? 'TECH_HOME' : 'LIST') : 'LOGIN'
   );
-  const [previousScreen, setPreviousScreen] = useState<AppScreen>(isTechnician ? 'TECH_HOME' : 'LIST');
+  const [previousScreen, setPreviousScreen] = useState<AppScreen>(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
   const [selectedInspectionVehicle, setSelectedInspectionVehicle] = useState<RooftopVehicle | null>(null);
   const [caseListTab, setCaseListTab] = useState<string>('all');
@@ -83,9 +82,9 @@ function MainNavigator() {
 
   useEffect(() => {
     if (isAuthenticated && currentScreen === 'LOGIN') {
-      setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+      setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
     }
-  }, [isAuthenticated, isTechnician]);
+  }, [isAuthenticated, isTechnicianExperience]);
 
   // Deep-Link Navigation when Technician Taps Notification Banner or System Tray Push
   const handleNotificationPress = async (notif: AppNotificationPayload) => {
@@ -165,12 +164,12 @@ function MainNavigator() {
 
   // If user logs out, go to LOGIN
   if (!isAuthenticated && currentScreen !== 'LOGIN') {
-    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST')} />;
+    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST')} />;
   }
 
   // 1. Login Screen
   if (currentScreen === 'LOGIN') {
-    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST')} />;
+    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST')} />;
   }
 
   // 1b. Technician Portal Home Screen (New Figma UI with real data)
@@ -278,7 +277,7 @@ function MainNavigator() {
             setCurrentScreen('ROAD_TEST');
           }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
           }}
           onLogout={() => {
             logout();
@@ -326,7 +325,7 @@ function MainNavigator() {
             setCurrentScreen('ROAD_TEST');
           }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
           }}
           onLogout={() => {
             logout();
@@ -359,7 +358,7 @@ function MainNavigator() {
         <GuidedZoneCaptureScreen
           vehicle={selectedInspectionVehicle}
           onBack={() => setCurrentScreen(previousScreen || 'VEHICLES')}
-          onOpenHome={() => setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST')}
+          onOpenHome={() => setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST')}
           onOpenTickets={() => {
             setCaseListTab('all');
             setCurrentScreen('LIST');
@@ -394,7 +393,7 @@ function MainNavigator() {
           onDismiss={() => setActiveNotification(null)}
         />
         <LoanVehiclesScreen
-          onBack={() => setCurrentScreen(previousScreen || (isTechnician ? 'TECH_HOME' : 'LIST'))}
+          onBack={() => setCurrentScreen(previousScreen || (isTechnicianExperience ? 'TECH_HOME' : 'LIST'))}
           onOpenTickets={(tab) => {
             setCaseListTab(tab || 'all');
             setCurrentScreen('LIST');
@@ -417,7 +416,7 @@ function MainNavigator() {
             setCurrentScreen('ROAD_TEST');
           }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
           }}
           onLogout={() => {
             logout();
@@ -450,7 +449,7 @@ function MainNavigator() {
             setCurrentScreen('PROFILE');
           }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
           }}
           onLogout={() => {
             logout();
@@ -466,7 +465,7 @@ function MainNavigator() {
     return (
       <View style={{ flex: 1 }}>
         <ProfileScreen
-          onBack={() => setCurrentScreen(previousScreen || (isTechnician ? 'TECH_HOME' : 'LIST'))}
+          onBack={() => setCurrentScreen(previousScreen || (isTechnicianExperience ? 'TECH_HOME' : 'LIST'))}
           onLogout={() => {
             logout();
             setCurrentScreen('LOGIN');
@@ -537,7 +536,7 @@ function MainNavigator() {
         return (
           <Step0_StartTicket
             onNext={nextStep}
-            onCancel={() => setCurrentScreen(previousScreen || (isTechnician ? 'TECH_HOME' : 'LIST'))}
+            onCancel={() => setCurrentScreen(previousScreen || (isTechnicianExperience ? 'TECH_HOME' : 'LIST'))}
           />
         );
       case 1:
@@ -681,7 +680,7 @@ function MainNavigator() {
               style={styles.receiptBtn}
               onPress={() => {
                 setSubmittedReceipt(null);
-                setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+                setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
               }}
             >
               <Text style={styles.receiptBtnText}>Back to Active Jobs</Text>

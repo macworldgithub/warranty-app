@@ -153,7 +153,8 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
       if (result.assets && result.assets.length > 0 && result.assets[0].uri) {
         const asset = result.assets[0];
-        const uri = asset.uri || `file:///data/user/0/com.warrantyapp/cache/${rule.ruleKey}_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+        const uri = asset.uri;
+        if (!uri) return;
         onCaptureSuccess({
           fileUri: uri,
           ocrText: getMockOcr(),
@@ -164,7 +165,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       }
     } catch (err) {
       setIsCapturing(false);
-      handleSimulatedCapture();
+      Alert.alert('Capture Failed', 'Could not open the camera. Please try again or import from gallery.');
     }
   };
 
@@ -182,7 +183,8 @@ export const CameraModal: React.FC<CameraModalProps> = ({
 
       if (result.assets && result.assets.length > 0 && result.assets[0].uri) {
         const asset = result.assets[0];
-        const uri = asset.uri || `file:///data/user/0/com.warrantyapp/cache/${rule.ruleKey}_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+        const uri = asset.uri;
+        if (!uri) return;
         onCaptureSuccess({
           fileUri: uri,
           ocrText: getMockOcr(),
@@ -193,7 +195,7 @@ export const CameraModal: React.FC<CameraModalProps> = ({
       }
     } catch (err) {
       setIsCapturing(false);
-      handleSimulatedCapture();
+      Alert.alert('Import Failed', 'Could not import this media. Please try another file.');
     }
   };
 

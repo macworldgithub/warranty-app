@@ -45,7 +45,7 @@ const ROOFTOPS = [
   { label: 'All Rooftops', siteId: 'all', fullName: 'All Rooftops & Dealerships' },
   { label: 'Cranbourne', siteId: 'site_cranbourne_byd', fullName: 'Booran BYD Cranbourne' },
   { label: 'Dandenong', siteId: 'site_dandenong_multi', fullName: 'Booran Dandenong Multi-Franchise' },
-  { label: 'Berwick', siteId: 'site_berwick_nissan', fullName: 'Booran Nissan Berwick' },
+  { label: 'Berwick', siteId: 'site_berwick_toyota_ford', fullName: 'Booran Berwick Commercials' },
   { label: 'Cheltenham', siteId: 'site_cheltenham_mg', fullName: 'Booran MG & Chery Cheltenham' },
 ];
 
@@ -105,13 +105,13 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
     );
   };
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
   const isTechnician = user?.role === 'TECHNICIAN';
   const isClerk = user?.role === 'CLERK';
-  const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
+  const assignedSiteIds = user?.authorizedSiteIds?.length ? user.authorizedSiteIds : [];
+  const technicianSiteId = activeSiteId || user?.defaultSiteId || assignedSiteIds[0] || 'site_cranbourne_byd';
   const technicianSiteObj = ROOFTOPS.find((r) => r.siteId === technicianSiteId) || ROOFTOPS[1];
 
-  const [awaitingCount, setAwaitingCount] = useState(7);
+  const [awaitingCount, setAwaitingCount] = useState(0);
 
   useEffect(() => {
     const fetchAwaitingCount = async () => {
@@ -125,9 +125,9 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
           ...serverList,
         ];
         const count = merged.filter((c) => c.status === 'Awaiting Review').length;
-        setAwaitingCount(count > 0 ? count : 7);
+        setAwaitingCount(count);
       } catch {
-        setAwaitingCount(7);
+        setAwaitingCount(0);
       }
     };
     fetchAwaitingCount();
@@ -142,7 +142,9 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
     return name.slice(0, 2).toUpperCase();
   };
 
-  const [selectedSiteId, setSelectedSiteId] = useState(isTechnician ? technicianSiteId : isClerk ? 'all' : 'site_cranbourne_byd');
+  const [selectedSiteId, setSelectedSiteId] = useState(
+    isClerk || isTechnician ? technicianSiteId : 'site_cranbourne_byd'
+  );
   const [activeTab, setActiveTab] = useState<'ALL' | 'ON_LOAN' | 'RETURNED' | 'TODAY'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -186,10 +188,8 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   };
 
   useEffect(() => {
-    if (isTechnician) {
+    if (isClerk || isTechnician) {
       setSelectedSiteId(technicianSiteId);
-    } else if (isClerk) {
-      setSelectedSiteId('all');
     }
   }, [isTechnician, isClerk, technicianSiteId]);
 
@@ -400,6 +400,9 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       }
     } catch (err: any) {
       console.warn('Failed to load loan agreements:', err?.message);
+      if (isClerk) {
+        setAgreements([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -427,7 +430,10 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   const todayDateStr = new Date().toDateString();
 
   const filteredAgreements = agreements.filter((ag) => {
-    const effectiveSiteId = isTechnician ? technicianSiteId : selectedSiteId;
+    const effectiveSiteId = isTechnician || isClerk ? technicianSiteId : selectedSiteId;
+    if (isClerk && ag.siteId !== technicianSiteId) {
+      return false;
+    }
     if (effectiveSiteId !== 'all' && ag.siteId !== effectiveSiteId && selectedSiteId !== 'all') {
       return false;
     }
@@ -464,12 +470,15 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
     return cat === 'RETURNED';
   });
 
-  const onLoanCount = agreements.filter((ag) => getDynamicLoanCategory(ag.status, ag.dueBackDateTime) !== 'RETURNED').length || 2;
-  const returnedCount = agreements.filter((ag) => getDynamicLoanCategory(ag.status, ag.dueBackDateTime) === 'RETURNED').length || 12;
-  const todayCount = agreements.filter((ag) => ag.createdAt && new Date(ag.createdAt).toDateString() === todayDateStr).length || 1;
-  const totalCount = agreements.length || 14;
+  const scopedAgreements = agreements.filter((ag) =>
+    !isClerk || ag.siteId === technicianSiteId
+  );
+  const onLoanCount = scopedAgreements.filter((ag) => getDynamicLoanCategory(ag.status, ag.dueBackDateTime) !== 'RETURNED').length;
+  const returnedCount = scopedAgreements.filter((ag) => getDynamicLoanCategory(ag.status, ag.dueBackDateTime) === 'RETURNED').length;
+  const todayCount = scopedAgreements.filter((ag) => ag.createdAt && new Date(ag.createdAt).toDateString() === todayDateStr).length;
+  const totalCount = scopedAgreements.length;
 
-  const currentSiteName = isTechnician
+  const currentSiteName = isClerk || isTechnician
     ? technicianSiteObj.fullName
     : (ROOFTOPS.find((r) => r.siteId === selectedSiteId)?.fullName || 'Booran BYD Cranbourne');
 
@@ -482,7 +491,8 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
     return (
       <IssueLoanerWizardScreen
         initialRooftop={activeLabel}
-        isRooftopLocked={isTechnician}
+        isRooftopLocked={isTechnician || isClerk}
+        allowedSiteIds={isClerk ? [technicianSiteId] : undefined}
         purpose={wizardPurpose}
         onBack={() => setIsWizardOpen(false)}
         onSuccess={(_newAgreement) => {
@@ -721,7 +731,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
         {/* ── HISTORICAL FORMS SECTION ───────────────────────── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Historical forms</Text>
-          <Text style={styles.sectionCount}>{historicalForms.length || 12} agreements</Text>
+          <Text style={styles.sectionCount}>{historicalForms.length} agreements</Text>
         </View>
 
         {historicalForms.map((item) => (

@@ -193,10 +193,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         </Text>
       </View>
 
-      <View style={styles.connectionRow}>
+      <TouchableOpacity
+        style={styles.connectionRow}
+        activeOpacity={0.8}
+        onLongPress={() => {
+          setTempUrl(serverUrl);
+          setShowDevConfig((current) => !current);
+        }}
+      >
         <View style={[styles.connectionDot, { backgroundColor: isOnline ? colors.success : colors.warning }]} />
         <Text style={styles.connectionText}>{isOnline ? 'Service available' : 'Offline mode'}</Text>
-      </View>
+      </TouchableOpacity>
 
       {showDevConfig && (
         <View style={styles.configPanel}>

@@ -78,14 +78,7 @@ export const cameraService = {
       return { success: false, error: 'No image captured' };
     } catch (err: any) {
       console.warn('[CameraService] Exception launching camera:', err);
-      // Fallback cache uri for test / simulator
-      const mockUri = `file:///data/user/0/com.warrantyapp/cache/${ruleKey}_${Date.now()}.jpg`;
-      return {
-        success: true,
-        fileUri: mockUri,
-        fileSize: 1850000,
-        mimeType: 'image/jpeg',
-      };
+      return { success: false, error: err?.message || 'Camera launch failed' };
     }
   },
 
@@ -128,14 +121,7 @@ export const cameraService = {
       return { success: false, error: 'No video recorded' };
     } catch (err: any) {
       console.warn('[CameraService] Exception recording video:', err);
-      const mockUri = `file:///data/user/0/com.warrantyapp/cache/${ruleKey}_${Date.now()}.mp4`;
-      return {
-        success: true,
-        fileUri: mockUri,
-        fileSize: 5400000,
-        durationSeconds: 24,
-        mimeType: 'video/mp4',
-      };
+      return { success: false, error: err?.message || 'Video recording failed' };
     }
   },
 

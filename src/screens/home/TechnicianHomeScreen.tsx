@@ -253,6 +253,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
   const { isLiveDrive, demoRunning, tripRecords } = useRoadTest();
   const wizard = useCaseWizard();
   const isDriveActive = isLiveDrive || demoRunning;
+  const isClerk = user?.role === 'CLERK';
 
   const handleLogout = () => {
     Alert.alert(
@@ -305,10 +306,12 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
       // 2. Fetch Warranty Cases for this technician
       try {
         const filters: any = { limit: 100 };
-        if (user?.id) {
+        if (isClerk) {
+          filters.siteId = activeSiteId;
+        } else if (user?.id) {
           filters.technicianId = user.id;
         }
-        if (user?.name) {
+        if (!isClerk && user?.name) {
           filters.technicianName = user.name;
         }
         const data = await casesApi.getCases(filters);
@@ -321,7 +324,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
       // 3. Fetch latest historical road test drive
       try {
         const drivesData = await roadTestService.getHistoricalDrives({
-          technicianId: user?.id,
+          technicianId: isClerk ? undefined : user?.id,
           siteId: activeSiteId,
           limit: 1,
         });
@@ -352,7 +355,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
     } finally {
       setRefreshing(false);
     }
-  }, [user?.id, user?.name, activeSiteId]);
+  }, [isClerk, user?.id, user?.name, activeSiteId]);
 
   useEffect(() => {
     loadDashboardData();
