@@ -59,6 +59,8 @@ interface RoadTestScreenProps {
   onOpenVehicles: () => void;
   onOpenLoaners: () => void;
   onOpenProfile: () => void;
+  onOpenHome?: () => void;
+  onLogout?: () => void;
 }
 
 function getUserInitials(name?: string): string {
@@ -81,6 +83,8 @@ export function RoadTestScreen({
   onOpenVehicles,
   onOpenLoaners,
   onOpenProfile,
+  onOpenHome,
+  onLogout,
 }: RoadTestScreenProps) {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId } = useAuth();
@@ -261,6 +265,16 @@ export function RoadTestScreen({
   const userFirstName = user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'shaun';
   const userInitials = getUserInitials(user?.name);
 
+  const getDisplayMaxSpeed = (trip: RoadTestTripRecord | null) => {
+    if (!trip) return 0;
+    if (typeof trip.maxSpeedKph === 'number' && trip.maxSpeedKph > 0) return trip.maxSpeedKph;
+    if (trip.routePoints && trip.routePoints.length > 0) {
+      const peak = Math.max(...trip.routePoints.map((p) => p.speed || 0));
+      if (peak > 0) return peak;
+    }
+    return trip.maxSpeedKph ?? 0;
+  };
+
   // -----------------------------------------------------------------------------------
   // RENDER: LIVE DRIVE VIEW (Figma Image 1)
   // -----------------------------------------------------------------------------------
@@ -415,7 +429,7 @@ export function RoadTestScreen({
         {/* 5. Website-Style Bottom Navigation Bar (Figma Image 1) */}
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 10, 24) }]}>
           {/* 1. Home */}
-          <TouchableOpacity activeOpacity={0.7} onPress={onOpenTickets} style={styles.bottomBarTab}>
+          <TouchableOpacity activeOpacity={0.7} onPress={onOpenHome || onOpenTickets} style={styles.bottomBarTab}>
             <Home size={22} color={colors.textSecondary} />
             <Text style={styles.bottomBarLabel}>Home</Text>
           </TouchableOpacity>
@@ -471,6 +485,7 @@ export function RoadTestScreen({
       {/* 1. Header with Booran Motors Logo, Presence, and Notifications */}
       <Header
         showBrandLogo
+        onLogout={onLogout}
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
@@ -614,7 +629,7 @@ export function RoadTestScreen({
       {/* 3. Website-Style Bottom Navigation Bar (Figma Image 2) */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 10, 24) }]}>
         {/* 1. Home */}
-        <TouchableOpacity activeOpacity={0.7} onPress={onOpenTickets} style={styles.bottomBarTab}>
+        <TouchableOpacity activeOpacity={0.7} onPress={onOpenHome || onOpenTickets} style={styles.bottomBarTab}>
           <Home size={22} color={colors.textSecondary} />
           <Text style={styles.bottomBarLabel}>Home</Text>
         </TouchableOpacity>
@@ -699,7 +714,7 @@ export function RoadTestScreen({
 
               <View style={styles.modalStatCard}>
                 <Gauge size={16} color="#DC2626" />
-                <Text style={styles.modalStatVal}>{selectedTripDetail?.maxSpeedKph || 65} km/h</Text>
+                <Text style={styles.modalStatVal}>{getDisplayMaxSpeed(selectedTripDetail)} km/h</Text>
                 <Text style={styles.modalStatLabel}>MAX SPEED</Text>
               </View>
             </View>

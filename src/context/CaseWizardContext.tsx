@@ -255,7 +255,26 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Step 1 Setters
   const setVin = (vin: string) => {
-    setState(prev => ({ ...prev, vin: vin.toUpperCase() }));
+    const cleanVin = (vin || '').toUpperCase();
+    setState(prev => {
+      let mergedEvidence = [...prev.evidenceItems];
+      if (cleanVin) {
+        const inspection = offlineStorage.getVehicleInspection(cleanVin);
+        if (inspection?.evidenceItems && inspection.evidenceItems.length > 0) {
+          for (const item of inspection.evidenceItems) {
+            const exists = mergedEvidence.some(e => e.ruleKey === item.ruleKey);
+            if (!exists) {
+              mergedEvidence.push(item);
+            }
+          }
+        }
+      }
+      return {
+        ...prev,
+        vin: cleanVin,
+        evidenceItems: mergedEvidence,
+      };
+    });
   };
 
   const setOdometer = (odo: number | null) => {
@@ -378,6 +397,10 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updatedList.push(newEvidence);
       }
 
+      if (prev.vin) {
+        offlineStorage.recordZoneCapture(prev.vin, item.ruleKey, newEvidence);
+      }
+
       return {
         ...prev,
         evidenceItems: updatedList,
@@ -439,10 +462,24 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Case Lifecycle
   const startNewCase = (initialData?: Partial<CaseWizardState>) => {
+    const cleanVin = (initialData?.vin || '').toUpperCase();
+    let initialEvidence: EvidenceItem[] = initialData?.evidenceItems ? [...initialData.evidenceItems] : [];
+    if (cleanVin) {
+      const inspection = offlineStorage.getVehicleInspection(cleanVin);
+      if (inspection?.evidenceItems && inspection.evidenceItems.length > 0) {
+        for (const item of inspection.evidenceItems) {
+          if (!initialEvidence.some(e => e.ruleKey === item.ruleKey)) {
+            initialEvidence.push(item);
+          }
+        }
+      }
+    }
+
     setState({
       ...defaultState,
       roNumber: `CR-${Math.floor(10000 + Math.random() * 90000)}`,
       ...(initialData || {}),
+      evidenceItems: initialEvidence,
     });
     evaluateRules();
   };

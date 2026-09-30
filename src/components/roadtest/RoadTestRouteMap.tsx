@@ -119,8 +119,10 @@ export function RoadTestRouteMap({
 
   // Normalize all route points to real geographic latitude and longitude
   const normalizedPoints = useMemo(() => {
-    const list = points && points.length > 0 ? points : [DEFAULT_DEMO_ROUTE[0]];
-    return list.map((p) => normalizePoint(p, workshopLat, workshopLng));
+    if (!points || points.length === 0) {
+      return [{ lat: workshopLat, lng: workshopLng, speed: 0 }];
+    }
+    return points.map((p) => normalizePoint(p, workshopLat, workshopLng));
   }, [points, workshopLat, workshopLng]);
 
   const startPoint = normalizedPoints[0] ?? {

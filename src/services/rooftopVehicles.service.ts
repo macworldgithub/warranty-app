@@ -13,9 +13,16 @@ export interface RooftopVehicle {
   siteId: string;
   siteName: string;
   roNumber?: string;
+  inspectionNumber?: string;
   claimNumber?: string;
   concernTitle?: string;
   warrantyStatus: 'Active Claim' | 'Under Warranty' | 'Inspection Required' | 'Complete';
+  inspectionStatus?: 'IN_PROGRESS' | 'COMPLETE';
+  capturedZones?: number;
+  totalZones?: number;
+  defectCount?: number;
+  defectSummary?: string;
+  aiFindingText?: string;
   caseCount: number;
   latestCase?: WarrantyCase;
 }
@@ -32,19 +39,25 @@ const BASE_ROOFTOP_VEHICLES: RooftopVehicle[] = [
     year: 2024,
     powertrain: 'EV',
     color: 'Ski White',
-    odometer: 14250,
+    odometer: 18200,
     siteId: 'site_cranbourne_byd',
     siteName: 'Booran BYD Cranbourne',
     roNumber: 'CR-98421',
+    inspectionNumber: '180001',
     claimNumber: 'BYD-CLM-8839',
     concernTitle: 'Blade battery coolant manifold seepage & DTC P0B0D isolation alert',
     warrantyStatus: 'Active Claim',
+    inspectionStatus: 'IN_PROGRESS',
+    capturedZones: 7,
+    totalZones: 10,
+    defectCount: 0,
+    aiFindingText: 'AI found 0 defects so far. 7 of 10 zones captured. Continue interior, engine bay and cargo tray.',
     caseCount: 1,
   },
   {
     id: 'veh_cr_02',
     vin: 'LGXCE4C88R0048192',
-    rego: '1SL-4EV',
+    rego: '1BY-4EV',
     make: 'BYD',
     model: 'SEAL Performance AWD',
     year: 2024,
@@ -54,8 +67,15 @@ const BASE_ROOFTOP_VEHICLES: RooftopVehicle[] = [
     siteId: 'site_cranbourne_byd',
     siteName: 'Booran BYD Cranbourne',
     roNumber: 'CR-98502',
-    warrantyStatus: 'Under Warranty',
-    caseCount: 0,
+    inspectionNumber: '180002',
+    warrantyStatus: 'Complete',
+    inspectionStatus: 'COMPLETE',
+    capturedZones: 10,
+    totalZones: 10,
+    defectCount: 1,
+    defectSummary: 'Front bumper scratch',
+    aiFindingText: '1 defect flagged by Vision AI (Front bumper scratch).',
+    caseCount: 1,
   },
   {
     id: 'veh_cr_03',
@@ -70,8 +90,14 @@ const BASE_ROOFTOP_VEHICLES: RooftopVehicle[] = [
     siteId: 'site_cranbourne_byd',
     siteName: 'Booran BYD Cranbourne',
     roNumber: 'CR-98610',
+    inspectionNumber: '180003',
     concernTitle: '12V auxiliary charging fault — scheduled warranty inspection',
-    warrantyStatus: 'Inspection Required',
+    warrantyStatus: 'Active Claim',
+    inspectionStatus: 'IN_PROGRESS',
+    capturedZones: 4,
+    totalZones: 10,
+    defectCount: 0,
+    aiFindingText: 'AI found 0 defects so far. Continue bonnet, roof and interior.',
     caseCount: 1,
   },
   {
@@ -86,23 +112,15 @@ const BASE_ROOFTOP_VEHICLES: RooftopVehicle[] = [
     odometer: 4120,
     siteId: 'site_cranbourne_byd',
     siteName: 'Booran BYD Cranbourne',
-    warrantyStatus: 'Under Warranty',
-    caseCount: 0,
-  },
-  {
-    id: 'veh_cr_05',
-    vin: 'LGXCE4C85S0093811',
-    rego: '1SK-6UT',
-    make: 'BYD',
-    model: 'Shark 6 Dual Cab 4WD',
-    year: 2025,
-    powertrain: 'Hybrid',
-    color: 'Marmara Black',
-    odometer: 2600,
-    siteId: 'site_cranbourne_byd',
-    siteName: 'Booran BYD Cranbourne',
-    warrantyStatus: 'Under Warranty',
-    caseCount: 0,
+    roNumber: 'CR-98705',
+    inspectionNumber: '180004',
+    warrantyStatus: 'Active Claim',
+    inspectionStatus: 'IN_PROGRESS',
+    capturedZones: 1,
+    totalZones: 10,
+    defectCount: 0,
+    aiFindingText: 'AI found 0 defects so far. Continue rear, driver and passenger side.',
+    caseCount: 1,
   },
 
   // ── 2. Booran Dandenong Multi (site_dandenong_multi) ────────────────
@@ -337,14 +355,17 @@ export const rooftopVehiclesService = {
       (v) => isAll || v.siteId.toLowerCase() === siteId.toLowerCase()
     );
 
-    // 2. Map of existing vehicles by VIN - initialize dynamically with 0 cases
+    // 2. Map of existing vehicles by VIN - preserve base inspection status
     const vehicleMap = new Map<string, RooftopVehicle>();
     for (const v of baseList) {
       vehicleMap.set(v.vin.toUpperCase(), {
         ...v,
-        caseCount: 0,
-        latestCase: undefined,
-        warrantyStatus: 'Under Warranty',
+        caseCount: v.caseCount || 0,
+        inspectionStatus: v.inspectionStatus || (v.warrantyStatus === 'Complete' ? 'COMPLETE' : 'IN_PROGRESS'),
+        capturedZones: v.capturedZones ?? 2,
+        totalZones: v.totalZones ?? 10,
+        defectCount: v.defectCount ?? 0,
+        inspectionNumber: v.inspectionNumber || v.roNumber || '180001',
       });
     }
 
@@ -368,19 +389,35 @@ export const rooftopVehiclesService = {
       if (existing) {
         existing.caseCount += 1;
         existing.latestCase = c;
-        if (c.roNumber) existing.roNumber = c.roNumber;
+        if (c.roNumber) {
+          existing.roNumber = c.roNumber;
+          existing.inspectionNumber = c.roNumber;
+        }
         if (c.claimNumber) existing.claimNumber = c.claimNumber;
         if (c.concernTitle) existing.concernTitle = c.concernTitle;
         if (c.odometer && c.odometer > (existing.odometer || 0)) {
           existing.odometer = c.odometer;
         }
-        if (c.status === 'Flagged' || c.status === 'Awaiting Review' || c.status === 'Draft') {
-          existing.warrantyStatus = 'Active Claim';
-        } else if (c.status === 'Submitted' || c.status === 'Closed') {
+        if (c.evidenceItems && c.evidenceItems.length > 0) {
+          existing.capturedZones = Math.min(10, Math.max(existing.capturedZones || 0, c.evidenceItems.length));
+        }
+        if (c.flagHistory && c.flagHistory.length > 0) {
+          existing.defectCount = Math.max(existing.defectCount || 0, c.flagHistory.length);
+        }
+        if (c.status === 'Submitted' || c.status === 'Closed') {
           existing.warrantyStatus = 'Complete';
+          existing.inspectionStatus = 'COMPLETE';
+          existing.capturedZones = 10;
+        } else if (c.status === 'Flagged') {
+          existing.warrantyStatus = 'Active Claim';
+          existing.defectCount = Math.max(existing.defectCount || 0, 1);
         }
       } else if (cleanVin) {
         // Vehicle created dynamically from live case
+        const dynCaptured = c.evidenceItems ? Math.min(10, c.evidenceItems.length) : 2;
+        const dynDefects = c.flagHistory ? c.flagHistory.length : 0;
+        const isComplete = c.status === 'Submitted' || c.status === 'Closed';
+
         vehicleMap.set(cleanVin, {
           id: `dyn_${cleanVin.slice(-6)}`,
           vin: cleanVin,
@@ -393,14 +430,17 @@ export const rooftopVehiclesService = {
           siteId: c.siteId || siteId,
           siteName: c.siteName || 'Booran Motors',
           roNumber: c.roNumber,
+          inspectionNumber: c.roNumber || `18${cleanVin.slice(-4)}`,
           claimNumber: c.claimNumber,
           concernTitle: c.concernTitle,
-          warrantyStatus:
-            c.status === 'Flagged' || c.status === 'Awaiting Review' || c.status === 'Draft'
-              ? 'Active Claim'
-              : c.status === 'Submitted'
-              ? 'Complete'
-              : 'Under Warranty',
+          warrantyStatus: isComplete ? 'Complete' : 'Active Claim',
+          inspectionStatus: isComplete ? 'COMPLETE' : 'IN_PROGRESS',
+          capturedZones: isComplete ? 10 : dynCaptured,
+          totalZones: 10,
+          defectCount: dynDefects,
+          aiFindingText: dynDefects > 0
+            ? `AI flagged ${dynDefects} defect${dynDefects > 1 ? 's' : ''} during zone capture.`
+            : 'AI found 0 defects so far. Continue remaining vehicle zones.',
           caseCount: 1,
           latestCase: c,
         });

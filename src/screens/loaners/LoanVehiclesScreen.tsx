@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Image,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { Icon } from '../../components/common/Icon';
@@ -18,13 +19,15 @@ import { LoanAgreement, LoanAgreementKpis, WarrantyCase } from '../../types';
 import { loanAgreementsApi } from '../../api';
 import { casesApi } from '../../api/cases.api';
 import { offlineStorage } from '../../services/offlineStorage';
-import { Key, Home, Car, Plus } from 'lucide-react-native';
+import { Key, Home, Car, Plus, LogOut } from 'lucide-react-native';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
 import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
 import { EditLoanerModal } from './EditLoanerModal';
 import { LoanVehicleDetailsModal } from './LoanVehicleDetailsModal';
 import { useAuth } from '../../context/AuthContext';
+
+const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
 interface LoanVehiclesScreenProps {
   onBack?: () => void;
@@ -33,6 +36,8 @@ interface LoanVehiclesScreenProps {
   onOpenProfile?: () => void;
   onStartNewCase?: () => void;
   onOpenRoadTest?: () => void;
+  onOpenHome?: () => void;
+  onLogout?: () => void;
 }
 
 const ROOFTOPS = [
@@ -74,9 +79,28 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   onOpenProfile,
   onStartNewCase,
   onOpenRoadTest,
+  onOpenHome,
+  onLogout,
 }) => {
   const insets = useSafeAreaInsets();
-  const { user, activeSiteId } = useAuth();
+  const { user, activeSiteId, logout } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out of Booran Motors Portal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: () => {
+            onLogout ? onLogout() : logout();
+          },
+        },
+      ]
+    );
+  };
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
   const isTechnician = user?.role === 'TECHNICIAN';
@@ -465,13 +489,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       {/* ── RED TOP BRANDED HEADER ─────────────────────────────────────── */}
       <View style={[styles.topHeader, { paddingTop: insets.top + 6 }]}>
         <View style={styles.logoWrap}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoYear}>1965</Text>
-          </View>
-          <View style={styles.logoTextWrap}>
-            <Text style={styles.logoTop}>BOORAN</Text>
-            <Text style={styles.logoBottom}>MOTORS</Text>
-          </View>
+          <Image source={booranLogo} style={styles.logoImage} resizeMode="contain" />
         </View>
 
         <View style={styles.headerRight}>
@@ -487,6 +505,16 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                 <Text style={styles.bellBadgeText}>{awaitingCount > 9 ? '9+' : awaitingCount}</Text>
               </View>
             )}
+          </TouchableOpacity>
+
+          {/* Logout Button on Extreme Right */}
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={handleLogout}
+            activeOpacity={0.75}
+            accessibilityLabel="Log Out"
+          >
+            <LogOut size={18} color="#FFF" strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
       </View>
@@ -709,7 +737,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       {/* ── BOTTOM NAVIGATION BAR ───────────────────────────────────────── */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
         {/* 1. Home */}
-        <TouchableOpacity style={styles.bottomTab} onPress={() => onOpenTickets?.('all')} activeOpacity={0.75}>
+        <TouchableOpacity style={styles.bottomTab} onPress={onOpenHome || (() => onOpenTickets?.('all'))} activeOpacity={0.75}>
           <Home size={20} color={colors.textSecondary} />
           <Text style={styles.bottomTabLabel}>Home</Text>
         </TouchableOpacity>
@@ -812,44 +840,15 @@ const styles = StyleSheet.create({
   logoWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  logoCircle: {
-    width: 38,
+  logoImage: {
+    width: 140,
     height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoYear: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#FFF',
-  },
-  logoTextWrap: {
-    gap: -2,
-  },
-  logoTop: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFF',
-    letterSpacing: 1.2,
-    lineHeight: 17,
-  },
-  logoBottom: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.85)',
-    letterSpacing: 1.8,
-    lineHeight: 14,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   locationPill: {
     flexDirection: 'row',
@@ -876,7 +875,19 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },

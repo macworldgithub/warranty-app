@@ -7,38 +7,31 @@ import {
   TouchableOpacity,
   RefreshControl,
   TextInput,
-  Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Car,
-  FileText,
-  CheckCircle2,
-  Clock,
-  Zap,
-  Search,
-  Plus,
-  ChevronDown,
   Building2,
-  Gauge,
-  ShieldCheck,
-  ArrowRight,
-  User,
-  X,
-  Sparkles,
-  AlertCircle,
   Lock,
-  Key,
-  Bell,
+  ClipboardList,
+  Clock,
+  CheckCircle2,
+  Sparkles,
+  Search,
+  X,
+  Camera,
+  ArrowRight,
+  FileText,
+  Zap,
   Home,
+  Key,
+  Plus,
+  Bell,
+  Gauge,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
-import { spacing } from '../../theme/spacing';
 import { Header } from '../../components/common/Header';
-import { Badge } from '../../components/common/Badge';
-import { Button } from '../../components/common/Button';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
 import {
   notificationsService,
@@ -53,7 +46,8 @@ import {
   rooftopVehiclesService,
   RooftopVehicle,
 } from '../../services/rooftopVehicles.service';
-import { Site, WarrantyCase, PowertrainType } from '../../types';
+import { GUIDED_CAPTURE_ZONES } from '../../components/evidence/GuidedZoneStepper';
+import { Site, WarrantyCase } from '../../types';
 
 interface VehicleListScreenProps {
   onOpenTickets: (tab?: string) => void;
@@ -62,6 +56,10 @@ interface VehicleListScreenProps {
   onOpenProfile: () => void;
   onOpenLoaners?: () => void;
   onOpenRoadTest?: () => void;
+  onOpenHome?: () => void;
+  onLogout?: () => void;
+  onOpenZoneCapture?: (item: RooftopVehicle) => void;
+  onStartNewInspection?: () => void;
 }
 
 const FALLBACK_SITES: Site[] = [
@@ -71,48 +69,48 @@ const FALLBACK_SITES: Site[] = [
   { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Commercials', code: 'BERWICK_COMMERCIALS' },
 ];
 
-const ALL_ROOFTOPS_SITE: Site = {
-  id: 'ALL',
-  name: 'All Dealerships & Rooftops',
-  code: 'ALL_FLEET',
-};
-
 export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onOpenTickets,
   onStartNewCase,
   onOpenCase,
   onOpenProfile,
   onOpenLoaners,
-  onOpenRoadTest,
+  onOpenHome,
+  onLogout,
+  onOpenZoneCapture,
+  onStartNewInspection,
 }) => {
   const insets = useSafeAreaInsets();
-  const { user, activeSiteId, setActiveSiteId } = useAuth();
+  const { user, activeSiteId } = useAuth();
   const { startNewCase } = useCaseWizard();
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
   const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
 
   const [sites, setSites] = useState<Site[]>(FALLBACK_SITES);
-  const [selectedSiteId, setSelectedSiteId] = useState<string>(
-    isAdmin ? (activeSiteId || user?.defaultSiteId || 'site_cranbourne_byd') : technicianSiteId
-  );
-  const effectiveSiteId = isAdmin ? selectedSiteId : technicianSiteId;
-  const [showSitePicker, setShowSitePicker] = useState<boolean>(false);
-
   const [cases, setCases] = useState<WarrantyCase[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'all' | 'claims' | 'warranty' | 'clean'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'in_progress' | 'complete' | 'defects'>('all');
+  const [syncTimestamp, setSyncTimestamp] = useState<number>(Date.now());
 
-  // Admin View Cases Modals
-  const [selectedVehicleForCases, setSelectedVehicleForCases] = useState<RooftopVehicle | null>(null);
-  const [vehicleCasesList, setVehicleCasesList] = useState<WarrantyCase[]>([]);
-  const [showNoCasesNotice, setShowNoCasesNotice] = useState<boolean>(false);
-  const [selectedVehicleForNotice, setSelectedVehicleForNotice] = useState<RooftopVehicle | null>(null);
-  const [noticeVehicleName, setNoticeVehicleName] = useState<string>('');
+  // Notification state
+  const [showNotifModal, setShowNotifModal] = useState<boolean>(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [flaggedCount, setFlaggedCount] = useState<number>(0);
 
-  // Load sites from API
+  // Poll for notification updates and offline captures
+  useEffect(() => {
+    const updateNotifs = () => {
+      const count = notificationsService.getUnreadCount();
+      setUnreadNotifCount(count);
+      setSyncTimestamp(Date.now());
+    };
+    updateNotifs();
+    const interval = setInterval(updateNotifs, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const loadSites = async () => {
       try {
@@ -121,13 +119,12 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
           setSites(s);
         }
       } catch {
-        // Fallback to FALLBACK_SITES
+        // Fallback to default
       }
     };
     loadSites();
   }, []);
 
-  // Fetch cases to sync rooftop fleet
   const fetchCases = useCallback(async () => {
     try {
       const data = await casesApi.getCases({ limit: 100 });
@@ -135,10 +132,12 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
       const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
       const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
       const merged = [
-        ...pending.filter(p => !serverIds.has(p.id)),
+        ...pending.filter((p) => !serverIds.has(p.id)),
         ...serverList,
       ];
       setCases(merged);
+      const flagged = merged.filter((c) => c.status === 'Flagged').length;
+      setFlaggedCount(flagged);
     } catch {
       const pending = offlineStorage.getPendingUploads();
       setCases(pending);
@@ -157,148 +156,223 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     fetchCases();
   };
 
-  // Keep technician strictly locked to their assigned rooftop even if user context updates
-  useEffect(() => {
-    if (!isAdmin && technicianSiteId && selectedSiteId !== technicianSiteId) {
-      setSelectedSiteId(technicianSiteId);
-    }
-  }, [isAdmin, technicianSiteId, selectedSiteId]);
-
   const currentSite = useMemo(() => {
-    if (effectiveSiteId === 'ALL') {
-      return ALL_ROOFTOPS_SITE;
+    return (
+      sites.find((s) => s.id === technicianSiteId) ||
+      sites[0] || {
+        id: 'site_cranbourne_byd',
+        name: 'Booran BYD Cranbourne',
+        code: 'CRANBOURNE_BYD',
+      }
+    );
+  }, [sites, technicianSiteId]);
+
+  const vehicles = useMemo(() => {
+    return rooftopVehiclesService.getVehiclesForRooftop(technicianSiteId, cases);
+  }, [technicianSiteId, cases, syncTimestamp]);
+
+  // Dynamic Zone Metrics Calculator for each vehicle
+  const getVehicleZoneMetrics = useCallback((veh: RooftopVehicle) => {
+    const cleanVin = (veh.vin || '').toUpperCase();
+    const zoneInspection = offlineStorage.getVehicleInspection(cleanVin);
+    const caseEvidence = veh.latestCase?.evidenceItems || [];
+
+    // All captured ruleKeys for this vehicle
+    const capturedRuleKeys = new Set<string>([
+      ...(zoneInspection?.capturedZoneKeys || []),
+      ...caseEvidence.filter((e) => e.fileUri || e.serverUrl || e.storageUrl).map((e) => e.ruleKey),
+    ]);
+
+    // Check each of the 10 zones from GUIDED_CAPTURE_ZONES
+    const zonesStatus = GUIDED_CAPTURE_ZONES.map((zone, idx) => {
+      const isExplicitlyCaptured = capturedRuleKeys.has(zone.ruleKey);
+      const isInheritedCaptured =
+        (zoneInspection?.status === 'COMPLETE') ||
+        (veh.inspectionStatus === 'COMPLETE') ||
+        (veh.capturedZones !== undefined && idx < veh.capturedZones);
+
+      return {
+        ...zone,
+        isCaptured: isExplicitlyCaptured || isInheritedCaptured,
+      };
+    });
+
+    const capturedCount = zonesStatus.filter((z) => z.isCaptured).length;
+    const missingZones = zonesStatus.filter((z) => !z.isCaptured);
+    const isComplete =
+      capturedCount >= 10 ||
+      veh.inspectionStatus === 'COMPLETE' ||
+      zoneInspection?.status === 'COMPLETE';
+
+    // Defects from inspection or case
+    const defects = [
+      ...(zoneInspection?.defects || []),
+      ...(veh.latestCase?.flagHistory || []).map((f) => ({
+        zoneKey: f.ruleKey || 'defect',
+        description: f.instruction,
+        flaggedAt: f.flaggedAt,
+      })),
+    ];
+    const totalDefects = Math.max(veh.defectCount || 0, defects.length);
+
+    // Dynamic AI Finding Text
+    let aiPrefix = '';
+    let aiText = '';
+
+    if (totalDefects > 0) {
+      const defectSummary = defects[0]?.description || veh.defectSummary || 'Defect detected';
+      aiPrefix = `${totalDefects} defect${totalDefects > 1 ? 's' : ''} flagged by Vision AI`;
+      aiText = ` (${defectSummary}).`;
+    } else if (isComplete || capturedCount >= 10) {
+      aiPrefix = 'Inspection Complete.';
+      aiText = ' All 10 zones captured and verified. Vision AI analysis confirms zero surface defects.';
+    } else {
+      aiPrefix = 'AI found 0 defects so far.';
+      const nextMissing = missingZones.slice(0, 3).map((z) => z.shortLabel.toLowerCase());
+      const missingStr =
+        nextMissing.length > 1
+          ? `${nextMissing.slice(0, -1).join(', ')} and ${nextMissing[nextMissing.length - 1]}`
+          : nextMissing[0] || 'remaining zones';
+      aiText = ` Continue ${missingStr}.`;
     }
-    return sites.find(s => s.id === effectiveSiteId) || sites[0] || {
-      id: effectiveSiteId,
-      name: 'Booran BYD Cranbourne',
-      code: 'CRANBOURNE_BYD',
+
+    return {
+      zonesStatus,
+      capturedCount,
+      totalZones: 10,
+      missingZones,
+      isComplete,
+      totalDefects,
+      aiPrefix,
+      aiText,
     };
-  }, [sites, effectiveSiteId]);
+  }, []);
 
-  const handleSelectSite = (site: Site) => {
-    if (!isAdmin) return; // Strictly forbid technician from changing rooftop
-    setSelectedSiteId(site.id);
-    if (site.id !== 'ALL') {
-      setActiveSiteId(site.id);
-    }
-    setShowSitePicker(false);
-  };
+  // KPI Calculations (Real & Dynamic)
+  const totalCount = vehicles.length;
+  const inProgressCount = useMemo(() => {
+    return vehicles.filter((v) => !getVehicleZoneMetrics(v).isComplete).length;
+  }, [vehicles, getVehicleZoneMetrics]);
+  const completeCount = useMemo(() => {
+    return vehicles.filter((v) => getVehicleZoneMetrics(v).isComplete).length;
+  }, [vehicles, getVehicleZoneMetrics]);
+  const defectsCount = useMemo(() => {
+    return vehicles.filter((v) => getVehicleZoneMetrics(v).totalDefects > 0).length;
+  }, [vehicles, getVehicleZoneMetrics]);
 
-  // Vehicles for selected rooftop (technicians strictly restricted to their assigned rooftop)
-  const vehiclesForRooftop = useMemo(() => {
-    return rooftopVehiclesService.getVehiclesForRooftop(effectiveSiteId, cases);
-  }, [effectiveSiteId, cases]);
-
-  // Filter vehicles
+  // Filtered Inspections
   const filteredVehicles = useMemo(() => {
-    return vehiclesForRooftop.filter(veh => {
-      // Tab filter
-      if (activeTab === 'claims' && veh.warrantyStatus !== 'Active Claim') return false;
-      if (activeTab === 'warranty' && veh.warrantyStatus !== 'Under Warranty') return false;
-      if (activeTab === 'clean' && veh.powertrain !== 'EV' && veh.powertrain !== 'Hybrid') return false;
+    return vehicles.filter((veh) => {
+      const metrics = getVehicleZoneMetrics(veh);
 
-      // Search query
+      if (activeFilter === 'in_progress' && metrics.isComplete) return false;
+      if (activeFilter === 'complete' && !metrics.isComplete) return false;
+      if (activeFilter === 'defects' && metrics.totalDefects === 0) return false;
+
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const matchVin = veh.vin.toLowerCase().includes(q);
         const matchModel = `${veh.make} ${veh.model}`.toLowerCase().includes(q);
         const matchRego = veh.rego.toLowerCase().includes(q);
-        const matchRo = veh.roNumber?.toLowerCase().includes(q);
+        const matchRo = (veh.inspectionNumber || veh.roNumber || '').toLowerCase().includes(q);
         if (!matchVin && !matchModel && !matchRego && !matchRo) return false;
       }
 
       return true;
     });
-  }, [vehiclesForRooftop, activeTab, searchQuery]);
+  }, [vehicles, activeFilter, searchQuery, getVehicleZoneMetrics]);
 
-  // KPI counts
-  const totalVehiclesCount = vehiclesForRooftop.length;
-  const activeClaimsCount = vehiclesForRooftop.filter(v => v.warrantyStatus === 'Active Claim').length;
-  const cleanEnergyCount = vehiclesForRooftop.filter(v => v.powertrain === 'EV' || v.powertrain === 'Hybrid').length;
-  const underWarrantyCount = vehiclesForRooftop.filter(v => v.warrantyStatus === 'Under Warranty').length;
-
-  const handleStartCaseForVehicle = (veh: RooftopVehicle) => {
-    const initialData = {
-      siteId: currentSite.id,
-      siteName: currentSite.name,
-      vin: veh.vin,
-      make: veh.make,
-      model: veh.model,
-      year: veh.year,
-      powertrain: veh.powertrain,
-      odometer: veh.odometer,
-      roNumber: veh.roNumber || '',
-    };
-    startNewCase(initialData as any);
-    onStartNewCase(initialData);
-  };
-
-  const handleCreateNewBlank = () => {
+  const handleContinueCapture = (item: RooftopVehicle) => {
+    if (onOpenZoneCapture) {
+      onOpenZoneCapture(item);
+      return;
+    }
+    const zoneInspection = offlineStorage.getVehicleInspection(item.vin);
     startNewCase({
-      siteId: currentSite.id,
-      siteName: currentSite.name,
-    } as any);
-    onStartNewCase();
-  };
-
-  const handleViewCasesForVehicle = (veh: RooftopVehicle) => {
-    const cleanVehVin = (veh.vin || '').trim().toUpperCase();
-    const cleanVehRo = (veh.roNumber || '').trim().toUpperCase();
-
-    // Find all cases matching this vehicle by VIN or RO
-    const matchingCases = cases.filter(c => {
-      const cVin = (c.vin || '').trim().toUpperCase();
-      const cRo = (c.roNumber || '').trim().toUpperCase();
-      const vinMatch = cleanVehVin && cVin && (cVin === cleanVehVin || cVin.endsWith(cleanVehVin) || cleanVehVin.endsWith(cVin));
-      const roMatch = cleanVehRo && cRo && cRo === cleanVehRo;
-      return vinMatch || roMatch;
+      currentStep: 3,
+      vin: item.vin,
+      make: item.make,
+      model: item.model,
+      year: item.year,
+      powertrain: item.powertrain,
+      odometer: item.odometer,
+      roNumber: item.inspectionNumber || item.roNumber || '180001',
+      evidenceItems: zoneInspection?.evidenceItems || item.latestCase?.evidenceItems || [],
     });
-
-    if (matchingCases.length === 1) {
-      onOpenCase(matchingCases[0]);
-      return;
-    }
-
-    if (matchingCases.length > 1) {
-      setSelectedVehicleForCases(veh);
-      setVehicleCasesList(matchingCases);
-      return;
-    }
-
-    if (veh.latestCase) {
-      onOpenCase(veh.latestCase);
-      return;
-    }
-
-    // No cases found on record
-    setSelectedVehicleForNotice(veh);
-    setNoticeVehicleName(`${veh.year} ${veh.make} ${veh.model} (${veh.rego})`);
-    setShowNoCasesNotice(true);
+    onStartNewCase({
+      currentStep: 3,
+      vin: item.vin,
+      rego: item.rego,
+      make: item.make,
+      model: item.model,
+      year: item.year,
+      powertrain: item.powertrain,
+      odometer: item.odometer,
+      roNumber: item.inspectionNumber || item.roNumber || '180001',
+    });
   };
 
-  const getUserInitials = (name?: string) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(/\s+/);
+  const handleViewReport = (item: RooftopVehicle) => {
+    if (item.latestCase) {
+      onOpenCase(item.latestCase);
+    } else {
+      const zoneInspection = offlineStorage.getVehicleInspection(item.vin);
+      const metrics = getVehicleZoneMetrics(item);
+      const fallbackCase: WarrantyCase = {
+        id: item.id || `case_${item.vin}`,
+        siteId: item.siteId,
+        siteName: item.siteName,
+        brandId: 'brand_byd',
+        brandName: item.make,
+        roNumber: item.inspectionNumber || item.roNumber || '180001',
+        vin: item.vin,
+        odometer: item.odometer,
+        make: item.make,
+        model: item.model,
+        year: item.year,
+        powertrain: item.powertrain,
+        status: metrics.isComplete ? 'Closed' : 'Draft',
+        technicianId: user?.id || 'tech_1',
+        technicianName: user?.name || 'Shaun Sumaru',
+        concernTitle: item.concernTitle || `${item.make} ${item.model} Condition Inspection`,
+        faultCategory: 'Condition Inspection',
+        partReplaced: false,
+        noiseFault: false,
+        diagnosticsAvailable: true,
+        repairStage: 'Pre-repair only',
+        evidenceItems: zoneInspection?.evidenceItems || [],
+        voiceNotes: [],
+        flagHistory: (zoneInspection?.defects || []).map((d, i) => ({
+          id: `fl_${i}`,
+          ruleKey: d.zoneKey,
+          reasonCode: 'OTHER',
+          instruction: d.description,
+          flaggedAt: d.flaggedAt,
+          isResolved: false,
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      onOpenCase(fallbackCase);
+    }
+  };
+
+  const userInitials = useMemo(() => {
+    if (!user?.name) return 'SH';
+    const parts = user.name.trim().split(/\s+/);
     if (parts.length >= 2) {
       return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
     }
-    return name.slice(0, 2).toUpperCase();
-  };
-  const awaitingCount = cases.filter(c => c.status === 'Awaiting Review').length;
-  const flaggedCount = cases.filter(c => c.status === 'Flagged').length;
+    return user.name.slice(0, 2).toUpperCase();
+  }, [user?.name]);
 
-  const [showNotifModal, setShowNotifModal] = useState(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const userFirstName = useMemo(() => {
+    if (!user?.name) return 'shaun';
+    return user.name.trim().toLowerCase().split(/\s+/)[0];
+  }, [user?.name]);
 
-  useEffect(() => {
-    setUnreadNotifCount(notificationsService.getUnreadCount());
-    const unsubscribe = notificationsService.onNotification(() => {
-      setUnreadNotifCount(notificationsService.getUnreadCount());
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleNotificationSelect = (notif: AppNotificationPayload) => {
+  const handleSelectNotification = (notif: AppNotificationPayload) => {
+    setShowNotifModal(false);
     const targetCase = notif.caseItem || cases.find((c) => c.id === notif.caseId);
     if (targetCase) {
       onOpenCase(targetCase);
@@ -309,31 +383,33 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Clean App Header: Logo left, Notification Bell right */}
+      {/* ── 1. Top Red Brand Header Bar (With Logout on Extreme Right) ── */}
       <Header
         showBrandLogo
+        onLogout={onLogout}
         rightAction={
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => {
-              setShowNotifModal(true);
-            }}
+            onPress={() => setShowNotifModal(true)}
             style={styles.bellBtn}
             accessibilityLabel="Warranty Alerts"
           >
             <Bell size={20} color="#FFFFFF" />
             {(unreadNotifCount > 0 || flaggedCount > 0) && (
               <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>{unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}</Text>
+                <Text style={styles.bellBadgeText}>
+                  {unreadNotifCount > 0 ? unreadNotifCount : flaggedCount}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
         }
       />
 
+      {/* ── 2. Scrollable Body Content ─────────────────────────────────── */}
       <FlatList
         data={filteredVehicles}
-        keyExtractor={item => item.id || item.vin}
+        keyExtractor={(item) => item.id || item.vin}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -342,798 +418,513 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
             tintColor={colors.primary}
           />
         }
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: Math.max(insets.bottom + 90, 110) },
+        ]}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.listHeaderArea}>
-            {/* Rooftop Selector Strip (Switchable for Admin, Locked for Technician) */}
-            <TouchableOpacity
-              activeOpacity={isAdmin ? 0.85 : 1}
-              onPress={() => {
-                if (isAdmin) {
-                  setShowSitePicker(true);
-                }
-              }}
-              style={styles.rooftopCard}
-            >
+            {/* Assigned Rooftop Card */}
+            <View style={styles.rooftopCard}>
               <View style={styles.rooftopLeft}>
                 <View style={styles.rooftopIconCircle}>
-                  <Building2 size={18} color={colors.primary} />
+                  <Building2 size={18} color="#DC2626" />
                 </View>
                 <View style={styles.rooftopDetails}>
-                  <View style={styles.rooftopTagRow}>
-                    <Text style={styles.rooftopEyebrow}>
-                      {isAdmin
-                        ? effectiveSiteId === 'ALL'
-                          ? 'NETWORK FLEET'
-                          : 'CURRENT ROOFTOP'
-                        : 'YOUR ASSIGNED ROOFTOP'}
-                    </Text>
-                  </View>
+                  <Text style={styles.rooftopEyebrow}>YOUR ASSIGNED ROOFTOP</Text>
                   <Text style={styles.rooftopTitle} numberOfLines={1}>
                     {currentSite.name}
                   </Text>
                 </View>
               </View>
-              {isAdmin ? (
-                <View style={styles.rooftopSwitchBtn}>
-                  <Text style={styles.rooftopSwitchText}>Switch</Text>
-                  <ChevronDown size={14} color={colors.primary} />
-                </View>
-              ) : (
-                <View style={styles.rooftopLockedBadge}>
-                  <Lock size={12} color={colors.textSecondary} />
-                  <Text style={styles.rooftopLockedText}>Assigned</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Hero Subhead */}
-            <View style={styles.heroSection}>
-              <View style={styles.heroEyebrowRow}>
-                <Text style={styles.heroEyebrow}>
-                  {effectiveSiteId === 'ALL' ? 'NETWORK FLEET OVERVIEW' : 'BOORAN ROOFTOP FLEET'}
-                </Text>
+              <View style={styles.rooftopLockedBadge}>
+                <Lock size={12} color="#64748B" />
+                <Text style={styles.rooftopLockedText}>Assigned</Text>
               </View>
-              <Text style={styles.heroHeadline}>
-                {effectiveSiteId === 'ALL' ? 'All Dealership Vehicles' : 'Workshop Vehicle Registry'}
-              </Text>
-              <Text style={styles.heroSubhead}>
-                {isAdmin
-                  ? effectiveSiteId === 'ALL'
-                    ? 'Showing all vehicles across all Booran dealership rooftops. Tap any vehicle to view active and historic warranty claims.'
-                    : `Vehicles assigned to ${currentSite.name}. Tap any vehicle to view active and historic warranty claims.`
-                  : `Vehicles assigned to ${currentSite.name}. Tap any vehicle to raise an instant warranty evidence ticket.`}
+            </View>
+
+            {/* Hero Header Card */}
+            <View style={styles.heroCard}>
+              <Text style={styles.heroEyebrow}>BOORAN VEHICLE INSPECT</Text>
+              <Text style={styles.heroTitle}>Vehicle Inspection</Text>
+              <Text style={styles.heroSubtitle}>
+                Photograph each vehicle zone, let AI surface scratches, dents and defects, then deliver a condition report.
               </Text>
             </View>
 
-            {/* 2 Boxes per Line Grid (Consistent 2x2 layout) */}
+            {/* 2x2 KPI Stat Cards */}
             <View style={styles.kpiGrid}>
               <View style={styles.kpiRow}>
-                {/* 1. Total Vehicles */}
+                {/* 1. Total Inspections */}
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => setActiveTab('all')}
-                  style={[styles.kpiCard, activeTab === 'all' && styles.kpiCardActive]}
+                  onPress={() => setActiveFilter('all')}
+                  style={[
+                    styles.kpiCard,
+                    activeFilter === 'all' && styles.kpiCardActiveRed,
+                  ]}
                 >
-                  <View style={[styles.kpiIconBox, { backgroundColor: colors.backgroundSecondary }]}>
-                    <Car size={18} color={colors.textPrimary} />
+                  <View style={[styles.kpiIconBox, { backgroundColor: '#FEE2E2' }]}>
+                    <ClipboardList size={18} color="#DC2626" />
                   </View>
                   <View style={styles.kpiTextBox}>
-                    <Text style={styles.kpiValue}>{totalVehiclesCount}</Text>
-                    <Text style={styles.kpiLabel}>Total Vehicles</Text>
+                    <Text style={[styles.kpiValue, { color: '#DC2626' }]}>
+                      {totalCount}
+                    </Text>
+                    <Text style={styles.kpiLabel}>TOTAL INSPECTIONS</Text>
                   </View>
                 </TouchableOpacity>
 
-                {/* 2. Active Claims */}
+                {/* 2. In Progress */}
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => setActiveTab('claims')}
-                  style={[styles.kpiCard, activeTab === 'claims' && styles.kpiCardActive]}
+                  onPress={() => setActiveFilter('in_progress')}
+                  style={[
+                    styles.kpiCard,
+                    activeFilter === 'in_progress' && styles.kpiCardActiveRed,
+                  ]}
                 >
                   <View style={[styles.kpiIconBox, { backgroundColor: '#FEE2E2' }]}>
-                    <Clock size={18} color={colors.flagged} />
+                    <Clock size={18} color="#DC2626" />
                   </View>
                   <View style={styles.kpiTextBox}>
-                    <Text style={[styles.kpiValue, { color: colors.flagged }]}>
-                      {activeClaimsCount}
+                    <Text style={[styles.kpiValue, { color: '#DC2626' }]}>
+                      {inProgressCount}
                     </Text>
-                    <Text style={styles.kpiLabel}>Active Claims</Text>
+                    <Text style={styles.kpiLabel}>IN PROGRESS</Text>
                   </View>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.kpiRow}>
-                {/* 3. EV & Hybrid */}
+                {/* 3. Complete */}
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => setActiveTab('clean')}
-                  style={[styles.kpiCard, activeTab === 'clean' && styles.kpiCardActive]}
+                  onPress={() => setActiveFilter('complete')}
+                  style={[
+                    styles.kpiCard,
+                    activeFilter === 'complete' && styles.kpiCardActiveGreen,
+                  ]}
                 >
-                  <View style={[styles.kpiIconBox, { backgroundColor: '#ECFDF5' }]}>
-                    <Zap size={18} color={colors.success} />
+                  <View style={[styles.kpiIconBox, { backgroundColor: '#DCFCE7' }]}>
+                    <CheckCircle2 size={18} color="#10B981" />
                   </View>
                   <View style={styles.kpiTextBox}>
-                    <Text style={[styles.kpiValue, { color: colors.success }]}>
-                      {cleanEnergyCount}
+                    <Text style={[styles.kpiValue, { color: '#059669' }]}>
+                      {completeCount}
                     </Text>
-                    <Text style={styles.kpiLabel}>EV & Hybrids</Text>
+                    <Text style={styles.kpiLabel}>COMPLETE</Text>
                   </View>
                 </TouchableOpacity>
 
-                {/* 4. Under Warranty */}
+                {/* 4. AI Analysis */}
                 <TouchableOpacity
                   activeOpacity={0.8}
-                  onPress={() => setActiveTab('warranty')}
-                  style={[styles.kpiCard, activeTab === 'warranty' && styles.kpiCardActive]}
+                  onPress={() => setActiveFilter('defects')}
+                  style={[
+                    styles.kpiCard,
+                    activeFilter === 'defects' && styles.kpiCardActiveAmber,
+                  ]}
                 >
                   <View style={[styles.kpiIconBox, { backgroundColor: '#FEF3C7' }]}>
-                    <ShieldCheck size={18} color={colors.warning} />
+                    <Sparkles size={18} color="#D97706" />
                   </View>
                   <View style={styles.kpiTextBox}>
-                    <Text style={[styles.kpiValue, { color: colors.warning }]}>
-                      {underWarrantyCount}
+                    <Text style={[styles.kpiValue, { color: '#0F172A', fontSize: 16 }]}>
+                      Vision LLM
                     </Text>
-                    <Text style={styles.kpiLabel}>Under Warranty</Text>
+                    <Text style={styles.kpiLabel}>AI ANALYSIS</Text>
                   </View>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Search Bar */}
-            <View style={styles.searchBar}>
-              <Search size={18} color={colors.textMuted} />
+            {/* Search Input Bar */}
+            <View style={styles.searchBarContainer}>
+              <Search size={16} color="#94A3B8" />
               <TextInput
+                style={styles.searchInput}
+                placeholder="Search by VIN, model, rego, or inspection #"
+                placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="Search by VIN, Model, Rego, or RO #..."
-                placeholderTextColor={colors.textMuted}
-                style={styles.searchInput}
+                clearButtonMode="while-editing"
               />
-              {searchQuery ? (
-                <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <X size={16} color={colors.textMuted} />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={15} color="#94A3B8" />
                 </TouchableOpacity>
-              ) : null}
+              )}
             </View>
 
-            {/* Filter Tabs Strip */}
-            <View style={styles.filterStrip}>
+            {/* Filter Pills */}
+            <View style={styles.filterPillsRow}>
               <TouchableOpacity
-                onPress={() => setActiveTab('all')}
-                style={[styles.filterChip, activeTab === 'all' && styles.filterChipActive]}
+                onPress={() => setActiveFilter('all')}
+                style={[
+                  styles.filterPill,
+                  activeFilter === 'all' ? styles.filterPillActive : styles.filterPillInactive,
+                ]}
               >
-                <Text style={[styles.filterChipText, activeTab === 'all' && styles.filterChipTextActive]}>
-                  All ({vehiclesForRooftop.length})
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    activeFilter === 'all' && styles.filterPillTextActive,
+                  ]}
+                >
+                  All ({totalCount})
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setActiveTab('claims')}
-                style={[styles.filterChip, activeTab === 'claims' && styles.filterChipActive]}
+                onPress={() => setActiveFilter('in_progress')}
+                style={[
+                  styles.filterPill,
+                  activeFilter === 'in_progress' ? styles.filterPillActive : styles.filterPillInactive,
+                ]}
               >
-                <Text style={[styles.filterChipText, activeTab === 'claims' && styles.filterChipTextActive]}>
-                  Active Claims ({activeClaimsCount})
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    activeFilter === 'in_progress' && styles.filterPillTextActive,
+                  ]}
+                >
+                  In Progress ({inProgressCount})
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setActiveTab('warranty')}
-                style={[styles.filterChip, activeTab === 'warranty' && styles.filterChipActive]}
+                onPress={() => setActiveFilter('complete')}
+                style={[
+                  styles.filterPill,
+                  activeFilter === 'complete' ? styles.filterPillActive : styles.filterPillInactive,
+                ]}
               >
-                <Text style={[styles.filterChipText, activeTab === 'warranty' && styles.filterChipTextActive]}>
-                  Warranty Ready ({underWarrantyCount})
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    activeFilter === 'complete' && styles.filterPillTextActive,
+                  ]}
+                >
+                  Complete ({completeCount})
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setActiveTab('clean')}
-                style={[styles.filterChip, activeTab === 'clean' && styles.filterChipActive]}
+                onPress={() => setActiveFilter('defects')}
+                style={[
+                  styles.filterPill,
+                  activeFilter === 'defects' ? styles.filterPillActive : styles.filterPillInactive,
+                ]}
               >
-                <Text style={[styles.filterChipText, activeTab === 'clean' && styles.filterChipTextActive]}>
-                  EV / Hybrid ({cleanEnergyCount})
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    activeFilter === 'defects' && styles.filterPillTextActive,
+                  ]}
+                >
+                  Defects found ({defectsCount})
                 </Text>
               </TouchableOpacity>
             </View>
 
+            {/* Section Header */}
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderTitle}>
-                {effectiveSiteId === 'ALL' ? 'All Rooftops Fleet' : 'Rooftop Inventory'}
-              </Text>
-              <Text style={styles.sectionHeaderCount}>{filteredVehicles.length} vehicles</Text>
+              <Text style={styles.sectionHeaderTitle}>Recent inspections</Text>
+              <Text style={styles.sectionHeaderCount}>{filteredVehicles.length} reports</Text>
             </View>
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Car size={48} color={colors.surfaceElevated} />
-            <Text style={styles.emptyTitle}>No Vehicles Found</Text>
-            <Text style={styles.emptySubtitle}>
-              No vehicles matched your search criteria for {currentSite.name}.
-            </Text>
-            {!isAdmin && (
-              <Button
-                title="Add New Vehicle Case"
-                variant="primary"
-                onPress={handleCreateNewBlank}
-                leftIcon={<Plus size={16} color="#FFFFFF" />}
-                style={{ marginTop: spacing.md }}
-              />
+          <View style={styles.emptyContainer}>
+            {loading ? (
+              <ActivityIndicator color={colors.primary} size="large" />
+            ) : (
+              <>
+                <FileText size={40} color="#CBD5E1" />
+                <Text style={styles.emptyTitle}>No Inspections Found</Text>
+                <Text style={styles.emptySubtitle}>
+                  No vehicle inspection records match your selected filter criteria.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyActionBtn}
+                  onPress={() => onStartNewCase()}
+                >
+                  <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.emptyActionBtnText}>Start New Inspection</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         }
         renderItem={({ item }) => {
-          const isClaimActive = item.warrantyStatus === 'Active Claim';
+          const metrics = getVehicleZoneMetrics(item);
+          const inspectionNum = item.inspectionNumber || item.roNumber || '180001';
+
           return (
-            <View style={styles.vehicleCard}>
+            <TouchableOpacity
+              activeOpacity={0.92}
+              onPress={() => onOpenZoneCapture && onOpenZoneCapture(item)}
+              style={styles.inspectionCard}
+            >
               {/* Card Header: Year + Make + Model */}
-              <View style={styles.vehicleCardHeader}>
-                <View style={styles.vehicleTitleGroup}>
-                  <Text style={styles.vehicleTitle}>
-                    {item.year} {item.make} {item.model}
-                  </Text>
-                  <View style={styles.vehicleBadgeRow}>
-                    <View style={styles.regoBadge}>
-                      <Text style={styles.regoText}>{item.rego}</Text>
-                    </View>
-                    <Badge
-                      label={item.powertrain}
-                      variant={item.powertrain === 'EV' ? 'success' : item.powertrain === 'Hybrid' ? 'warning' : 'outline'}
-                      size="sm"
-                    />
-                    <Badge
-                      label={item.warrantyStatus}
-                      variant={isClaimActive ? 'flagged' : item.warrantyStatus === 'Complete' ? 'success' : 'primary'}
-                      size="sm"
-                    />
-                  </View>
+              <Text style={styles.cardVehicleTitle}>
+                {item.year} {item.make} {item.model}
+              </Text>
+
+              {/* Tags Row */}
+              <View style={styles.tagsRow}>
+                <View style={styles.regoTag}>
+                  <Text style={styles.regoTagText}>{item.rego}</Text>
                 </View>
+
+                <View style={styles.powertrainTag}>
+                  <Text style={styles.powertrainTagText}>{item.powertrain}</Text>
+                </View>
+
+                <View style={metrics.isComplete ? styles.statusTagComplete : styles.statusTagInProgress}>
+                  <Text
+                    style={
+                      metrics.isComplete ? styles.statusTagTextComplete : styles.statusTagTextInProgress
+                    }
+                  >
+                    {metrics.isComplete ? 'COMPLETE' : 'IN PROGRESS'}
+                  </Text>
+                </View>
+
+                {metrics.totalDefects > 0 && (
+                  <View style={styles.defectTag}>
+                    <Zap size={11} color="#DC2626" />
+                    <Text style={styles.defectTagText}>
+                      {metrics.totalDefects} DEFECT{metrics.totalDefects > 1 ? 'S' : ''}
+                    </Text>
+                  </View>
+                )}
               </View>
 
-              {/* Specs Strip */}
-              <View style={styles.specsStrip}>
-                <View style={styles.specItem}>
-                  <Text style={styles.specLabel}>VIN</Text>
-                  <Text style={styles.specVinText} numberOfLines={1}>
+              {/* 3-Column Metadata Strip */}
+              <View style={styles.metadataBox}>
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>VIN</Text>
+                  <Text style={styles.metaValue} numberOfLines={1}>
                     {item.vin}
                   </Text>
                 </View>
-                <View style={styles.specDivider} />
-                <View style={styles.specItem}>
-                  <Text style={styles.specLabel}>ODOMETER</Text>
-                  <View style={styles.specRow}>
-                    <Gauge size={12} color={colors.textSecondary} />
-                    <Text style={styles.specValueText}>
+                <View style={styles.metaDivider} />
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>ODOMETER</Text>
+                  <View style={styles.metaValueWithIcon}>
+                    <Gauge size={12} color="#475569" style={{ marginRight: 3 }} />
+                    <Text style={styles.metaValue}>
                       {item.odometer ? `${item.odometer.toLocaleString()} km` : '—'}
                     </Text>
                   </View>
                 </View>
-                {item.roNumber ? (
-                  <>
-                    <View style={styles.specDivider} />
-                    <View style={styles.specItem}>
-                      <Text style={styles.specLabel}>REPAIR ORDER</Text>
-                      <Text style={styles.specRoText}>{item.roNumber}</Text>
-                    </View>
-                  </>
-                ) : null}
-              </View>
-
-              {/* Concern description if present */}
-              {item.concernTitle ? (
-                <View style={styles.concernBox}>
-                  <Text style={styles.concernLabel}>Recent Note / Concern:</Text>
-                  <Text style={styles.concernText} numberOfLines={2}>
-                    {item.concernTitle}
+                <View style={styles.metaDivider} />
+                <View style={styles.metaCol}>
+                  <Text style={styles.metaLabel}>INSPECTION #</Text>
+                  <Text style={[styles.metaValue, styles.metaValueInspectionNum]}>
+                    {inspectionNum}
                   </Text>
                 </View>
-              ) : null}
+              </View>
 
-              {/* Card Footer Actions */}
+              {/* Dynamic Guided Zone Capture Segmented Progress Bar */}
+              <View style={styles.guidedZoneHeader}>
+                <Text style={styles.guidedZoneTitle}>Guided zone capture</Text>
+                <Text style={styles.guidedZoneCount}>{metrics.capturedCount} of 10 zones</Text>
+              </View>
+              <View style={styles.segmentsRow}>
+                {metrics.zonesStatus.map((zone) => (
+                  <View
+                    key={zone.id}
+                    style={[
+                      styles.segmentBar,
+                      zone.isCaptured ? styles.segmentFilled : styles.segmentUnfilled,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              {/* Dynamic AI Finding Banner */}
+              <View style={styles.aiBanner}>
+                <Sparkles size={16} color="#D97706" style={{ marginTop: 1 }} />
+                <Text style={styles.aiBannerText}>
+                  <Text style={{ fontWeight: '700', color: '#92400E' }}>
+                    {metrics.aiPrefix}
+                  </Text>
+                  {metrics.aiText}
+                </Text>
+              </View>
+
+              {/* Action Buttons Row */}
               <View style={styles.cardActionsRow}>
-                {isAdmin ? (
-                  // Admins: only view cases, no creation
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => handleViewCasesForVehicle(item)}
-                    style={styles.actionBtnAdminViewCases}
-                  >
-                    <FileText size={15} color={colors.primary} />
-                    <Text style={styles.actionBtnAdminViewCasesText}>
-                      {item.caseCount > 1
-                        ? `View Cases (${item.caseCount})`
-                        : item.caseCount === 1
-                        ? 'View Case'
-                        : 'Case History'}
-                    </Text>
-                    <ArrowRight size={14} color={colors.primary} />
-                  </TouchableOpacity>
-                ) : item.caseCount > 0 || item.latestCase ? (
+                {!metrics.isComplete ? (
                   <>
                     <TouchableOpacity
+                      style={styles.btnContinueCapture}
+                      onPress={() => handleContinueCapture(item)}
                       activeOpacity={0.8}
-                      onPress={() => handleViewCasesForVehicle(item)}
-                      style={styles.actionBtnAdminViewCases}
                     >
-                      <FileText size={15} color={colors.primary} />
-                      <Text style={styles.actionBtnAdminViewCasesText}>
-                        {item.caseCount > 1 ? `View Cases (${item.caseCount})` : 'View Case'}
-                      </Text>
-                      <ArrowRight size={14} color={colors.primary} />
+                      <Camera size={16} color="#DC2626" />
+                      <Text style={styles.btnContinueCaptureText}>Continue Capture</Text>
+                      <ArrowRight size={14} color="#DC2626" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => handleStartCaseForVehicle(item)}
-                      style={styles.actionBtnSmallNewCase}
+                      style={styles.btnViewReport}
+                      onPress={() => handleViewReport(item)}
+                      activeOpacity={0.8}
                     >
-                      <Plus size={14} color={colors.primary} />
-                      <Text style={styles.actionBtnSmallNewCaseText}>New Case</Text>
+                      <FileText size={15} color="#475569" />
+                      <Text style={styles.btnViewReportText}>View Report</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
                   <>
                     <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={() => handleStartCaseForVehicle(item)}
-                      style={styles.actionBtnPrimary}
-                    >
-                      <Plus size={15} color="#FFFFFF" />
-                      <Text style={styles.actionBtnPrimaryText}>New Warranty Case</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
+                      style={[styles.btnViewReport, { flex: 1.1 }]}
+                      onPress={() => handleViewReport(item)}
                       activeOpacity={0.8}
-                      onPress={() => handleViewCasesForVehicle(item)}
-                      style={styles.actionBtnOutline}
                     >
-                      <FileText size={14} color={colors.textSecondary} />
-                      <Text style={[styles.actionBtnOutlineText, { color: colors.textSecondary }]}>
-                        Case Info
+                      <FileText size={15} color="#1E293B" />
+                      <Text style={[styles.btnViewReportText, { color: '#0F172A' }]}>
+                        View Report
                       </Text>
                     </TouchableOpacity>
+
+                    <View style={styles.btnPassedBadge}>
+                      <CheckCircle2 size={16} color="#059669" />
+                      <Text style={styles.btnPassedText}>Inspection Complete</Text>
+                    </View>
                   </>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
 
-      {/* Rooftop Switcher Modal - Admin Only */}
-      {isAdmin && (
-        <Modal
-          visible={showSitePicker}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowSitePicker(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowSitePicker(false)}
-          >
-            <View style={styles.modalCard}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHeaderLeft}>
-                  <Building2 size={20} color={colors.primary} />
-                  <Text style={styles.modalTitle}>Select Rooftop Dealership</Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowSitePicker(false)}>
-                  <X size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.modalSubtitle}>
-                Select your active workshop rooftop to view vehicles and warranty tickets.
-              </Text>
-
-              <View style={styles.siteList}>
-                {/* "All Dealerships & Rooftops" option */}
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => handleSelectSite(ALL_ROOFTOPS_SITE)}
-                  style={[styles.siteOption, selectedSiteId === 'ALL' && styles.siteOptionActive]}
-                >
-                  <View style={styles.siteOptionLeft}>
-                    <View style={[styles.siteOptionRadio, selectedSiteId === 'ALL' && styles.siteOptionRadioActive]}>
-                      {selectedSiteId === 'ALL' && <View style={styles.siteOptionRadioInner} />}
-                    </View>
-                    <View>
-                      <Text style={[styles.siteOptionName, selectedSiteId === 'ALL' && styles.siteOptionNameActive]}>
-                        All Rooftops & Dealerships
-                      </Text>
-                      <Text style={styles.siteOptionCode}>View all vehicles across all workshops</Text>
-                    </View>
-                  </View>
-                  {selectedSiteId === 'ALL' && (
-                    <Badge label="All Fleet" variant="success" size="sm" />
-                  )}
-                </TouchableOpacity>
-
-                {/* Individual Rooftops */}
-                {sites.map(s => {
-                  const isCurrent = s.id === selectedSiteId;
-                  return (
-                    <TouchableOpacity
-                      key={s.id}
-                      activeOpacity={0.8}
-                      onPress={() => handleSelectSite(s)}
-                      style={[styles.siteOption, isCurrent && styles.siteOptionActive]}
-                    >
-                      <View style={styles.siteOptionLeft}>
-                        <View style={[styles.siteOptionRadio, isCurrent && styles.siteOptionRadioActive]}>
-                          {isCurrent && <View style={styles.siteOptionRadioInner} />}
-                        </View>
-                        <View>
-                          <Text style={[styles.siteOptionName, isCurrent && styles.siteOptionNameActive]}>
-                            {s.name}
-                          </Text>
-                          <Text style={styles.siteOptionCode}>{s.code || s.id}</Text>
-                        </View>
-                      </View>
-                      {isCurrent && (
-                        <Badge label="Active" variant="primary" size="sm" />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      )}
-
-      {/* Vehicle Cases List Modal for Admin */}
-      <Modal
-        visible={!!selectedVehicleForCases}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSelectedVehicleForCases(null)}
-      >
+      {/* ── 3. Fixed Bottom Navigation Bar (Home, Tickets, + Capture Photo, Loaners, shaun) ── */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+        {/* 1. Home */}
         <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setSelectedVehicleForCases(null)}
+          activeOpacity={0.7}
+          onPress={onOpenHome}
+          style={styles.bottomBarTab}
         >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderLeft}>
-                <FileText size={20} color={colors.primary} />
-                <View>
-                  <Text style={styles.modalTitle}>Warranty Cases</Text>
-                  <Text style={styles.modalSubtitleVin}>
-                    {selectedVehicleForCases?.year} {selectedVehicleForCases?.make} {selectedVehicleForCases?.model} • {selectedVehicleForCases?.rego}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedVehicleForCases(null)}>
-                <X size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSubtitle}>
-              Select a warranty ticket below to review case details:
-            </Text>
-
-            <FlatList
-              data={vehicleCasesList}
-              keyExtractor={(c) => c.id}
-              style={{ maxHeight: 320 }}
-              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-              renderItem={({ item: c }) => (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    setSelectedVehicleForCases(null);
-                    onOpenCase(c);
-                  }}
-                  style={styles.vehicleCaseItem}
-                >
-                  <View style={styles.vehicleCaseItemTop}>
-                    <Text style={styles.vehicleCaseRoText}>RO: {c.roNumber || 'N/A'}</Text>
-                    <Badge
-                      label={c.status}
-                      variant={
-                        c.status === 'Flagged'
-                          ? 'flagged'
-                          : c.status === 'Awaiting Review'
-                            ? 'primary'
-                            : c.status === 'Submitted'
-                              ? 'success'
-                              : 'outline'
-                      }
-                      size="sm"
-                    />
-                  </View>
-                  {c.concernTitle ? (
-                    <Text style={styles.vehicleCaseConcernText} numberOfLines={2}>
-                      {c.concernTitle}
-                    </Text>
-                  ) : null}
-                  <View style={styles.vehicleCaseItemBottom}>
-                    <Text style={styles.vehicleCaseDateText}>
-                      {new Date(c.createdAt || Date.now()).toLocaleDateString('en-AU', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                    <View style={styles.vehicleCaseActionLink}>
-                      <Text style={styles.vehicleCaseActionLinkText}>View Details</Text>
-                      <ArrowRight size={12} color={colors.primary} />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
+          <Home size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Home</Text>
         </TouchableOpacity>
-      </Modal>
 
-      {/* No Cases Found Notice Modal */}
-      <Modal
-        visible={showNoCasesNotice}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNoCasesNotice(false)}
-      >
+        {/* 2. Tickets */}
         <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowNoCasesNotice(false)}
+          activeOpacity={0.7}
+          onPress={() => onOpenTickets('all')}
+          style={styles.bottomBarTab}
         >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderLeft}>
-                <AlertCircle size={20} color={colors.warning} />
-                <Text style={styles.modalTitle}>No Cases Logged</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowNoCasesNotice(false)}>
-                <X size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSubtitle}>
-              There are currently no warranty tickets or claims filed for {noticeVehicleName}.
-            </Text>
-
-            <View style={{ gap: 10, marginTop: spacing.sm }}>
-              {/* Only Technicians can start a new case from here */}
-              {!isAdmin && selectedVehicleForNotice && (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    const v = selectedVehicleForNotice;
-                    setShowNoCasesNotice(false);
-                    handleStartCaseForVehicle(v);
-                  }}
-                  style={styles.modalActionPrimaryBtn}
-                >
-                  <Plus size={16} color="#FFF" />
-                  <Text style={styles.modalActionPrimaryBtnText}>Start New Warranty Case</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => {
-                  setShowNoCasesNotice(false);
-                  onOpenTickets('all');
-                }}
-                style={styles.modalActionOutlineBtn}
-              >
-                <FileText size={16} color={colors.primary} />
-                <Text style={styles.modalActionOutlineBtnText}>View All Dealership Tickets</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setShowNoCasesNotice(false)}
-                style={{ paddingVertical: 8, alignItems: 'center' }}
-              >
-                <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <FileText size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Tickets</Text>
         </TouchableOpacity>
-      </Modal>
 
-      {/* Website-Style 5-Item Symmetrical Bottom Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
-        {isAdmin ? (
-          <>
-            {/* 1. Home / Tickets */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => onOpenTickets('all')}
-              style={styles.bottomBarTab}
-            >
-              <Home size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Home</Text>
-            </TouchableOpacity>
+        {/* 3. Center Red Primary Action Pill Button: New Inspection */}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture(filteredVehicles[0]) : onStartNewCase())}
+          style={styles.bottomBarActionBtn}
+        >
+          <Camera size={16} color="#FFFFFF" strokeWidth={2.2} />
+          <Text style={styles.bottomBarActionText}>New Inspection</Text>
+        </TouchableOpacity>
 
-            {/* 2. Drive (Always visible) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Drive</Text>
-            </TouchableOpacity>
+        {/* 4. Loaners */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={onOpenLoaners}
+          style={styles.bottomBarTab}
+        >
+          <Key size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Loaners</Text>
+        </TouchableOpacity>
 
-            {/* 3. Vehicles (ACTIVE) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              style={styles.bottomBarTab}
-            >
-              <FileText size={20} color={colors.primary} />
-              <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Vehicles</Text>
-            </TouchableOpacity>
-
-            {/* 4. Loaners */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenLoaners}
-              style={styles.bottomBarTab}
-            >
-              <Key size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Loaners</Text>
-            </TouchableOpacity>
-
-            {/* 5. Logged-in User Profile */}
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={onOpenProfile}
-              style={styles.bottomBarUserTab}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
-                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
-                  {getUserInitials(user?.name)}
-                </Text>
-              </View>
-              <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {/* Technician Layout */}
-            {/* 1. Home */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => onOpenTickets('all')}
-              style={styles.bottomBarTab}
-            >
-              <Home size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Home</Text>
-            </TouchableOpacity>
-
-            {/* 2. Drive (Always visible in bottom navbar) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Drive</Text>
-            </TouchableOpacity>
-
-            {/* 3. Red Primary Action Button (Center) */}
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={handleCreateNewBlank}
-              style={styles.bottomBarActionBtn}
-            >
-              <Plus size={15} color="#FFFFFF" />
-              <Text style={styles.bottomBarActionText} numberOfLines={1}>
-                New Warranty Case
-              </Text>
-            </TouchableOpacity>
-
-            {/* 4. Loaners */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenLoaners}
-              style={styles.bottomBarTab}
-            >
-              <Key size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Loaners</Text>
-            </TouchableOpacity>
-
-            {/* 5. Profile */}
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={onOpenProfile}
-              style={styles.bottomBarUserTab}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={styles.bottomBarAvatar}>
-                <Text style={styles.bottomBarAvatarText}>
-                  {getUserInitials(user?.name)}
-                </Text>
-              </View>
-              <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
+        {/* 5. User Profile / Initials Avatar */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={onOpenProfile}
+          style={styles.bottomBarTab}
+        >
+          <View style={styles.bottomBarAvatarCircle}>
+            <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
+          </View>
+          <Text style={styles.bottomBarLabel} numberOfLines={1}>
+            {userFirstName}
+          </Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Notifications Modal */}
       <NotificationModal
         visible={showNotifModal}
         onClose={() => setShowNotifModal(false)}
-        onSelectNotification={handleNotificationSelect}
+        onSelectNotification={handleSelectNotification}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   bellBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    position: 'relative',
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   bellBadge: {
     position: 'absolute',
-    top: -3,
-    right: -3,
+    top: -2,
+    right: -2,
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    borderRadius: 9,
+    width: 17,
+    height: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 2,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.25,
-    shadowRadius: 2,
-    elevation: 3,
   },
   bellBadgeText: {
-    color: colors.primary,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
+    color: '#D71920',
   },
   listContent: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: 155,
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   listHeaderArea: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    marginBottom: 6,
   },
   rooftopCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: 'rgba(215, 25, 32, 0.2)',
-    shadowColor: '#0F172A',
+    marginBottom: 12,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -1147,712 +938,24 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(215, 25, 32, 0.08)',
+    backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
   },
   rooftopDetails: {
     flex: 1,
   },
-  rooftopTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  rooftopEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.6,
     marginBottom: 2,
   },
-  rooftopEyebrow: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.8,
-  },
-  liveDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: colors.success,
-  },
-  liveText: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
   rooftopTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  rooftopSwitchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(215, 25, 32, 0.06)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(215, 25, 32, 0.15)',
-  },
-  rooftopSwitchText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  heroSection: {
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    padding: spacing.md + 2,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  heroEyebrowRow: {
-    marginBottom: 6,
-  },
-  heroEyebrow: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  heroHeadline: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.4,
-    lineHeight: 26,
-  },
-  heroSubhead: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  kpiGrid: {
-    marginBottom: spacing.md,
-    gap: 10,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    minHeight: 64,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  kpiCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFBFB',
-  },
-  kpiIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  kpiTextBox: {
-    justifyContent: 'center',
-    flex: 1,
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    lineHeight: 22,
-    includeFontPadding: false,
-  },
-  kpiLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: 2,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    height: 44,
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.textPrimary,
-    fontSize: typography.sizes.sm,
-    paddingVertical: 0,
-  },
-  filterStrip: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: spacing.sm + 2,
-    flexWrap: 'wrap',
-  },
-  filterChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: 'rgba(215, 25, 32, 0.08)',
-    borderColor: colors.primary,
-  },
-  filterChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  filterChipTextActive: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 6,
-    marginBottom: 4,
-    paddingHorizontal: 2,
-  },
-  sectionHeaderTitle: {
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-  },
-  sectionHeaderCount: {
-    fontSize: typography.sizes.xs,
-    color: colors.textMuted,
-    fontWeight: typography.weights.medium,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: typography.sizes.md,
-    fontWeight: typography.weights.bold,
-    color: colors.textPrimary,
-    marginTop: spacing.md,
-  },
-  emptySubtitle: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-  },
-  vehicleCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  vehicleCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  vehicleTitleGroup: {
-    flex: 1,
-  },
-  vehicleTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: -0.2,
-    marginBottom: 6,
-  },
-  vehicleBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  regoBadge: {
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  regoText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#334155',
-    letterSpacing: 0.5,
-  },
-  specsStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    marginBottom: 8,
-  },
-  specItem: {
-    flex: 1,
-  },
-  specDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: colors.border,
-    marginHorizontal: 8,
-  },
-  specLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: 1,
-  },
-  specVinText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  specRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  specValueText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  specRoText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  concernBox: {
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    marginBottom: 8,
-  },
-  concernLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#B45309',
-    marginBottom: 1,
-  },
-  concernText: {
-    fontSize: 11,
-    color: '#78350F',
-    lineHeight: 15,
-  },
-  cardActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-  },
-  actionBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 4,
-  },
-  actionBtnOutlineText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  actionBtnPrimary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  actionBtnPrimaryText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-    lineHeight: 16,
-  },
-  siteList: {
-    gap: 8,
-  },
-  siteOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  siteOptionActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFBFB',
-  },
-  siteOptionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  siteOptionRadio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: colors.textMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  siteOptionRadioActive: {
-    borderColor: colors.primary,
-  },
-  siteOptionRadioInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: colors.primary,
-  },
-  siteOptionName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  siteOptionNameActive: {
-    color: colors.primary,
-  },
-  siteOptionCode: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    minHeight: 84,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 6,
-    paddingTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 12,
-  },
-  bottomBarTab: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 42,
-    paddingHorizontal: 2,
-    gap: 3,
-  },
-  bottomBarUserTab: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 42,
-    paddingHorizontal: 2,
-    gap: 3,
-  },
-  bottomBarAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(215, 25, 32, 0.08)',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bottomBarAvatarAdmin: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#D97706',
-  },
-  bottomBarAvatarText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: colors.primary,
-    includeFontPadding: false,
-  },
-  bottomBarAvatarTextAdmin: {
-    color: '#D97706',
-  },
-  tabIconWrapper: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 24,
-    height: 24,
-  },
-  tabBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    minWidth: 15,
-    height: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 2,
-  },
-  tabBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 8.5,
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  bottomBarLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: -0.1,
-  },
-  bottomBarActionBtn: {
-    flex: 1,
-    maxWidth: 138,
-    height: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    borderRadius: 23,
-    gap: 5,
-    marginHorizontal: 3,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  bottomBarActionText: {
-    color: '#FFFFFF',
-    fontSize: 10.5,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-    textAlign: 'center',
-  },
-  actionBtnAdminViewCases: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF1F2',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    gap: 8,
-  },
-  actionBtnAdminViewCasesText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  actionBtnSmallNewCase: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    gap: 4,
-  },
-  actionBtnSmallNewCaseText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  modalActionPrimaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  modalActionPrimaryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  modalActionOutlineBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  modalActionOutlineBtnText: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  modalSubtitleVin: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  vehicleCaseItem: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-  },
-  vehicleCaseItemTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  vehicleCaseRoText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  vehicleCaseConcernText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 6,
-    lineHeight: 16,
-  },
-  vehicleCaseItemBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  vehicleCaseDateText: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  vehicleCaseActionLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  vehicleCaseActionLinkText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
+    color: '#0F172A',
   },
   rooftopLockedBadge: {
     flexDirection: 'row',
@@ -1868,6 +971,486 @@ const styles = StyleSheet.create({
   rooftopLockedText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: '#64748B',
+  },
+  heroCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.6,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 4,
+  },
+  heroSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    lineHeight: 18,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  kpiGrid: {
+    gap: 10,
+    marginBottom: 12,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  kpiCardActiveRed: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FFF5F5',
+  },
+  kpiCardActiveGreen: {
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
+  },
+  kpiCardActiveAmber: {
+    borderColor: '#D97706',
+    backgroundColor: '#FFFBEB',
+  },
+  kpiIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kpiTextBox: {
+    flex: 1,
+  },
+  kpiValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 22,
+  },
+  kpiLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  searchBarContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    fontWeight: '500',
+    padding: 0,
+  },
+  filterPillsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 14,
+    flexWrap: 'wrap',
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  filterPillActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#DC2626',
+  },
+  filterPillInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterPillTextActive: {
+    color: '#DC2626',
+    fontWeight: '800',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  sectionHeaderCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  inspectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  cardVehicleTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  regoTag: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  regoTagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  powertrainTag: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  powertrainTagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  statusTagInProgress: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusTagTextInProgress: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  statusTagComplete: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusTagTextComplete: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#16A34A',
+  },
+  defectTag: {
+    backgroundColor: '#FEE2E2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  defectTagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  metadataBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  metaCol: {
+    flex: 1,
+  },
+  metaDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 8,
+  },
+  metaLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  metaValue: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  metaValueWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metaValueInspectionNum: {
+    color: '#DC2626',
+    fontWeight: '900',
+  },
+  guidedZoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  guidedZoneTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  guidedZoneCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  segmentsRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 10,
+  },
+  segmentBar: {
+    flex: 1,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  segmentFilled: {
+    backgroundColor: '#DC2626',
+  },
+  segmentUnfilled: {
+    backgroundColor: '#E2E8F0',
+  },
+  aiBanner: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: 9,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+  },
+  aiBannerText: {
+    flex: 1,
+    fontSize: 11.5,
+    color: '#78350F',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  cardActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  btnContinueCapture: {
+    flex: 1.25,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#DC2626',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  btnContinueCaptureText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  btnViewReport: {
+    flex: 1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  btnViewReportText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  btnPassedBadge: {
+    flex: 1.1,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    backgroundColor: '#ECFDF5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  btnPassedText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 260,
+  },
+  emptyActionBtn: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  emptyActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  bottomBarTab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 54,
+    gap: 3,
+  },
+  bottomBarLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  bottomBarActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+    gap: 6,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 4,
+    marginHorizontal: 4,
+  },
+  bottomBarActionText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  bottomBarAvatarCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  bottomBarAvatarText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#DC2626',
   },
 });

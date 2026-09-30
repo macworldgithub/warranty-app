@@ -289,6 +289,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         title="Profile & Settings"
         subtitle="Manage your workshop account"
         onBack={onBack}
+        showLogout={true}
+        onLogout={onLogout}
       />
 
       <ScrollView
@@ -523,19 +525,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
             )}
           </View>
         )}
-
-        {/* Actions Section */}
-        <View style={styles.actionSection}>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={handleLogoutPress}
-            style={styles.logoutButton}
-          >
-            <Icon name="log-out" size={18} color="#FFFFFF" />
-            <Text style={styles.logoutButtonText}>Log Out of Workshop</Text>
-          </TouchableOpacity>
-        </View>
 
         <Text style={styles.versionFooter}>
           Booran Motors Warranty Capture · v1.0.0

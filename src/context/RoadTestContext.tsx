@@ -256,6 +256,8 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const liveTimerRef = useRef<any>(null);
   const activeIndexRef = useRef(1);
   const lastPointRef = useRef<{ lat: number; lng: number } | null>(null);
+  const movementAnchorRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const speedSamplesRef = useRef<number[]>([]);
   const wasOutsideRef = useRef<boolean>(false);
   const pointsBufferRef = useRef<RoutePoint[]>([DEFAULT_DEMO_ROUTE[0]]);
 
@@ -611,10 +613,14 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
       vehicleRef.current = merged;
     }
 
-    setRoutePoints([{ x: 18, y: 68, speed: 0, latitude: -38.0992, longitude: 145.2813 }]);
-    pointsBufferRef.current = [{ x: 18, y: 68, speed: 0, latitude: -38.0992, longitude: 145.2813 }];
+    setRoutePoints([]);
+    pointsBufferRef.current = [];
+    movementAnchorRef.current = null;
+    speedSamplesRef.current = [];
     lastPointRef.current = null;
     wasOutsideRef.current = false;
+    distanceKmRef.current = 0;
+    maxSpeedKphRef.current = 0;
     setPendingCompletion(false);
 
     const v = vehicleRef.current;
@@ -653,32 +659,72 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
   const recordLivePoint = useCallback(
     (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => {
-      let currentSpeed = speedKmh !== undefined && speedKmh > 0 ? Math.round(speedKmh) : 0;
+      const now = Date.now();
+      const nativeSpeed = typeof speedKmh === 'number' && speedKmh > 0 ? Math.round(speedKmh) : 0;
+      let calculatedSpeed = 0;
 
-      if (lastPointRef.current) {
+      if (!movementAnchorRef.current) {
+        movementAnchorRef.current = { lat, lng, time: now };
+      } else {
+        const dtSec = (now - movementAnchorRef.current.time) / 1000;
         const incMeters = calculateDistanceMeters(
-          lastPointRef.current.lat,
-          lastPointRef.current.lng,
+          movementAnchorRef.current.lat,
+          movementAnchorRef.current.lng,
           lat,
           lng
         );
-        // Realistic movement threshold (between 2 meters and 5000 meters)
-        if (incMeters >= 2 && incMeters <= 5000) {
-          setDistanceKm((prev) => Number((prev + incMeters / 1000).toFixed(2)));
 
-          // Derive speed if GPS device doesn't report native Doppler speed
-          if (currentSpeed === 0) {
-            const derivedSpeed = Math.min(130, Math.round((incMeters / 2.5) * 3.6));
-            if (derivedSpeed >= 5) {
-              currentSpeed = derivedSpeed;
-            }
+        // Movement threshold (>= 1.5m to eliminate stationary jitter)
+        if (incMeters >= 1.5 && incMeters <= 5000) {
+          setDistanceKm((prev) => {
+            const next = Number((prev + incMeters / 1000).toFixed(2));
+            distanceKmRef.current = next;
+            return next;
+          });
+
+          if (dtSec >= 0.5) {
+            calculatedSpeed = Math.round((incMeters / dtSec) * 3.6);
+            if (calculatedSpeed > 160) calculatedSpeed = 0; // Filter impossible GPS telemetry jump
           }
+          movementAnchorRef.current = { lat, lng, time: now };
+        } else if (dtSec > 3.5) {
+          // Stationary for > 3.5 seconds: advance anchor so distance does not accumulate drift
+          movementAnchorRef.current = { lat, lng, time: now };
         }
       }
-      lastPointRef.current = { lat, lng };
 
-      setSpeedKph(currentSpeed);
-      setMaxSpeedKph((prev) => Math.max(prev, currentSpeed));
+      // Select most accurate instantaneous speed reading
+      let rawSpeed = 0;
+      if (nativeSpeed > 0 && calculatedSpeed > 0) {
+        rawSpeed = Math.round((nativeSpeed + calculatedSpeed) / 2);
+      } else if (nativeSpeed > 0) {
+        rawSpeed = nativeSpeed;
+      } else if (calculatedSpeed > 0) {
+        rawSpeed = calculatedSpeed;
+      }
+
+      // Smooth with rolling window (last 3 samples)
+      if (rawSpeed > 0) {
+        speedSamplesRef.current.push(rawSpeed);
+        if (speedSamplesRef.current.length > 3) speedSamplesRef.current.shift();
+      } else {
+        if (speedSamplesRef.current.length > 0) {
+          speedSamplesRef.current.shift();
+        }
+      }
+
+      const smoothedSpeed = speedSamplesRef.current.length > 0
+        ? Math.round(speedSamplesRef.current.reduce((a, b) => a + b, 0) / speedSamplesRef.current.length)
+        : 0;
+
+      setSpeedKph(smoothedSpeed);
+      if (smoothedSpeed > 0) {
+        setMaxSpeedKph((prev) => {
+          const nextMax = Math.max(prev, smoothedSpeed);
+          maxSpeedKphRef.current = nextMax;
+          return nextMax;
+        });
+      }
 
       // Project real (lat, lng) to SVG map coordinates (0-100) centered around Cranbourne (18, 68)
       const siteLat = -38.0992;
@@ -691,7 +737,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
       const newPoint: RoutePoint = {
         x: svgX,
         y: svgY,
-        speed: currentSpeed,
+        speed: smoothedSpeed,
         latitude: lat,
         longitude: lng,
       };
@@ -700,7 +746,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
       setRoutePoints((prev) => {
         const next = [...prev, newPoint];
-        return next.length > 300 ? next.slice(next.length - 300) : next;
+        return next.length > 400 ? next.slice(next.length - 400) : next;
       });
 
       // Stream to backend periodically (every 5 points)
@@ -714,8 +760,10 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
         wasOutsideRef.current = true;
         setTripState('outside');
       } else if (isInsideFence === true && wasOutsideRef.current) {
-        // Automatic Return: Technician drove back inside dealership perimeter
-        finishLiveDrive();
+        // Automatic Return only if trip genuinely progressed (>200m or >60s)
+        if (distanceKmRef.current >= 0.2 || elapsedSecRef.current >= 60) {
+          finishLiveDrive();
+        }
       }
     },
     [finishLiveDrive]

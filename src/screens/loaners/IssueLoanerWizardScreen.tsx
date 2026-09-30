@@ -24,6 +24,8 @@ import { LoanAgreement } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { formatDateForInput, pad } from '../../utils/date';
 
+const booranLogo = require('../../assets/images/booran-motors-transparent.png');
+
 interface IssueLoanerWizardScreenProps {
   onBack: () => void;
   onSuccess: (agreement: LoanAgreement) => void;
@@ -491,16 +493,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             <Icon name="chevron-left" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
-          {/* Booran Motors Logo Badge */}
+          {/* Booran Motors Logo */}
           <View style={styles.brandContainer}>
-            <View>
-              <Text style={styles.brandTitle}>BOORAN</Text>
-              <Text style={styles.brandSubtitle}>MOTORS</Text>
-            </View>
-            <View style={styles.brandBadgeCircle}>
-              <Text style={styles.brandBadgeSince}>SINCE</Text>
-              <Text style={styles.brandBadgeYear}>1965</Text>
-            </View>
+            <Image source={booranLogo} style={styles.brandLogoImg} resizeMode="contain" />
           </View>
 
           {/* Right Status Pill & Bell */}
@@ -1360,48 +1355,10 @@ const styles = StyleSheet.create({
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
   },
-  brandTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    lineHeight: 18,
-  },
-  brandSubtitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    lineHeight: 14,
-  },
-  brandBadgeCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#B91C1C',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  brandBadgeSince: {
-    fontSize: 7,
-    fontWeight: '800',
-    color: '#D71920',
-    lineHeight: 8,
-  },
-  brandBadgeYear: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#D71920',
-    lineHeight: 12,
+  brandLogoImg: {
+    width: 130,
+    height: 36,
   },
   headerRightActions: {
     flexDirection: 'row',

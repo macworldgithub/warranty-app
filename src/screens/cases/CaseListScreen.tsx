@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -39,6 +40,7 @@ interface CaseListScreenProps {
   onOpenVehicles: () => void;
   onOpenLoaners?: () => void;
   onOpenRoadTest?: () => void;
+  onOpenHome?: () => void;
   onLogout: () => void;
 }
 
@@ -83,6 +85,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onOpenVehicles,
   onOpenLoaners,
   onOpenRoadTest,
+  onOpenHome,
   onLogout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -125,14 +128,48 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
       const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
       const merged: WarrantyCase[] = [
-        ...pending.filter(p => !serverIds.has(p.id)),
+        ...pending.filter((p) => !serverIds.has(p.id)),
         ...serverList,
       ];
-      setCases(merged);
+
+      // Merge local offline vehicle evidence items into each warranty case
+      const mergedWithLocal: WarrantyCase[] = merged.map((c) => {
+        if (!c.vin) return c;
+        const localInsp = offlineStorage.getVehicleInspection(c.vin);
+        if (!localInsp || !localInsp.evidenceItems || localInsp.evidenceItems.length === 0) {
+          return c;
+        }
+        const existingKeys = new Set((c.evidenceItems || []).map((e) => e.ruleKey || e.id));
+        const combined = [
+          ...(c.evidenceItems || []),
+          ...localInsp.evidenceItems.filter((e) => !existingKeys.has(e.ruleKey || e.id)),
+        ];
+        return {
+          ...c,
+          evidenceItems: combined,
+        };
+      });
+
+      setCases(mergedWithLocal);
     } catch (_err) {
-      // Load offline pending drafts
+      // Load offline pending drafts with local evidence items
       const pending = offlineStorage.getPendingUploads();
-      setCases(pending);
+      const pendingWithLocal = pending.map((c) => {
+        if (!c.vin) return c;
+        const localInsp = offlineStorage.getVehicleInspection(c.vin);
+        if (!localInsp || !localInsp.evidenceItems || localInsp.evidenceItems.length === 0) {
+          return c;
+        }
+        const existingKeys = new Set((c.evidenceItems || []).map((e) => e.ruleKey || e.id));
+        return {
+          ...c,
+          evidenceItems: [
+            ...(c.evidenceItems || []),
+            ...localInsp.evidenceItems.filter((e) => !existingKeys.has(e.ruleKey || e.id)),
+          ],
+        };
+      });
+      setCases(pendingWithLocal);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -141,6 +178,13 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
   useEffect(() => {
     fetchCases();
+  }, [fetchCases]);
+
+  useEffect(() => {
+    const unsub = offlineStorage.subscribe(() => {
+      fetchCases();
+    });
+    return () => unsub();
   }, [fetchCases]);
 
   const onRefresh = () => {
@@ -581,23 +625,70 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               ) : null}
 
               {/* Vehicle Identity Strip */}
-              <View style={styles.vehicleStrip}>
-                <View style={styles.vehicleDetail}>
-                  <Icon name="car" size={14} color={colors.textSecondary} />
-                  <Text style={styles.vehicleText} numberOfLines={1} ellipsizeMode="tail">
-                    {item.year || ''} {item.make} {item.model || ''}
-                  </Text>
-                </View>
+              {(() => {
+                const frontEv = item.evidenceItems?.find((e) => e.ruleKey === 'front_vehicle_photo' && (e.fileUri || e.storageUrl));
+                const carThumbUri = frontEv?.fileUri || frontEv?.storageUrl || item.evidenceItems?.find(e => e.fileUri || e.storageUrl)?.fileUri || item.evidenceItems?.find(e => e.fileUri || e.storageUrl)?.storageUrl;
+                return (
+                  <View style={styles.vehicleStrip}>
+                    <View style={styles.vehicleDetail}>
+                      {carThumbUri ? (
+                        <Image
+                          source={{ uri: carThumbUri }}
+                          style={styles.cardCarMiniThumb}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Icon name="car" size={14} color={colors.textSecondary} />
+                      )}
+                      <Text style={styles.vehicleText} numberOfLines={1} ellipsizeMode="tail">
+                        {item.year || ''} {item.make} {item.model || ''}
+                      </Text>
+                    </View>
 
-                {item.vin ? (
-                  <View style={styles.vinBadge}>
-                    <Text style={styles.vinLabel}>VIN</Text>
-                    <Text style={styles.vinText} numberOfLines={1} ellipsizeMode="middle">
-                      {item.vin.length > 11 ? `...${item.vin.slice(-8)}` : item.vin}
-                    </Text>
+                    {item.vin ? (
+                      <View style={styles.vinBadge}>
+                        <Text style={styles.vinLabel}>VIN</Text>
+                        <Text style={styles.vinText} numberOfLines={1} ellipsizeMode="middle">
+                          {item.vin.length > 11 ? `...${item.vin.slice(-8)}` : item.vin}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
-                ) : null}
-              </View>
+                );
+              })()}
+
+              {/* Evidence Images Strip */}
+              {item.evidenceItems && item.evidenceItems.length > 0 && (
+                <View style={styles.evidenceThumbnailsRow}>
+                  {item.evidenceItems.slice(0, 4).map((ev, thumbIdx) => {
+                    const rawUri = ev.storageUrl || ev.fileUri || ev.serverUrl || ev.thumbnailUrl;
+                    const isValidUri = rawUri && (rawUri.startsWith('http') || rawUri.startsWith('file:') || rawUri.startsWith('content:'));
+                    return (
+                      <View key={ev.id || `${thumbIdx}`} style={styles.evidenceThumbBox}>
+                        {isValidUri ? (
+                          <Image
+                            source={{ uri: rawUri }}
+                            style={styles.evidenceThumbImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.evidenceThumbFallback}>
+                            <Car size={15} color="#DC2626" />
+                          </View>
+                        )}
+                        <Text style={styles.evidenceThumbTag} numberOfLines={1}>
+                          {ev.ruleName || ev.name || `Shot ${thumbIdx + 1}`}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  {item.evidenceItems.length > 4 && (
+                    <View style={styles.evidenceMorePill}>
+                      <Text style={styles.evidenceMoreText}>+{item.evidenceItems.length - 4}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* Bottom Metadata & Gate Progress */}
               <View style={styles.cardFooter}>
@@ -710,11 +801,11 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
             {/* 1. Home */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => setActiveTab('all')}
+              onPress={onOpenHome || (() => setActiveTab('all'))}
               style={styles.bottomBarTab}
             >
-              <Home size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
-              <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
+              <Home size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>
                 Home
               </Text>
             </TouchableOpacity>
@@ -1251,6 +1342,63 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: typography.weights.semibold,
     letterSpacing: 0.5,
+  },
+  cardCarMiniThumb: {
+    width: 22,
+    height: 16,
+    borderRadius: 3,
+    backgroundColor: '#F1F5F9',
+  },
+  evidenceThumbnailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 8,
+    paddingTop: 4,
+  },
+  evidenceThumbBox: {
+    width: 58,
+    alignItems: 'center',
+  },
+  evidenceThumbImage: {
+    width: 56,
+    height: 40,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  evidenceThumbFallback: {
+    width: 56,
+    height: 40,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  evidenceThumbTag: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  evidenceMorePill: {
+    height: 40,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  evidenceMoreText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
   },
   cardFooter: {
     flexDirection: 'row',

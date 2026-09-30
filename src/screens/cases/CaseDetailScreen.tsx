@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,17 @@ import {
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Camera,
+  Car,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Image as ImageIcon,
+  ChevronRight,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
@@ -27,6 +38,9 @@ import { EvidenceItem, WarrantyCase } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { casesApi } from '../../api';
 import { getBaseServerUrl } from '../../config/env';
+import { offlineStorage } from '../../services/offlineStorage';
+import { cameraService } from '../../services/cameraService';
+import { evidenceUploadService } from '../../services/evidenceUpload.service';
 
 interface CaseDetailScreenProps {
   caseItem: WarrantyCase;
@@ -112,6 +126,136 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
         Alert.alert('Playback Error', 'Unable to launch native media player for this video.');
       });
     }
+  };
+
+  const [storageVersion, setStorageVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = offlineStorage.subscribe(() => {
+      setStorageVersion((v) => v + 1);
+    });
+    return () => unsub();
+  }, []);
+
+  // Sync latest inspection from offlineStorage for this VIN
+  const cleanVin = (currentCase.vin || '').toUpperCase();
+  const localInspection = cleanVin ? offlineStorage.getVehicleInspection(cleanVin) : undefined;
+
+  // Merged evidence list: combines server case evidence items with offline inspection captures
+  const allEvidenceItems: EvidenceItem[] = useMemo(() => {
+    const itemsMap = new Map<string, EvidenceItem>();
+
+    // 1. Add server/case evidence items first
+    (currentCase.evidenceItems || []).forEach((item) => {
+      const key = item.ruleKey || item.id;
+      if (key) itemsMap.set(key, item);
+    });
+
+    // 2. Merge local inspection items from offlineStorage (e.g. from Guided Zone Capture)
+    if (localInspection?.evidenceItems) {
+      localInspection.evidenceItems.forEach((localEv) => {
+        const key = localEv.ruleKey || localEv.id;
+        if (!key) return;
+        if (!itemsMap.has(key)) {
+          itemsMap.set(key, localEv);
+        } else {
+          // If server item doesn't have a valid image URI, but local item does, prefer the local item!
+          const existing = itemsMap.get(key)!;
+          const existingUri = getEvidenceUri(existing);
+          const localUri = getEvidenceUri(localEv);
+          if (!existingUri && localUri) {
+            itemsMap.set(key, { ...existing, ...localEv });
+          }
+        }
+      });
+    }
+
+    return Array.from(itemsMap.values());
+  }, [currentCase.evidenceItems, localInspection, storageVersion]);
+
+  // Find vehicle reference image (front_vehicle_photo or first valid photo)
+  const vehicleCoverPhoto = useMemo(() => {
+    const front = allEvidenceItems.find(
+      (e) => e.ruleKey === 'front_vehicle_photo' && getEvidenceUri(e)
+    );
+    if (front) return getEvidenceUri(front);
+    const anyImg = allEvidenceItems.find(
+      (e) => e.mediaType !== 'video' && getEvidenceUri(e)
+    );
+    return anyImg ? getEvidenceUri(anyImg) : null;
+  }, [allEvidenceItems]);
+
+  const attachNewEvidence = (fileUri: string, ruleKey: string = 'front_vehicle_photo', ruleName: string = 'Front of Vehicle') => {
+    const newEv: EvidenceItem = {
+      id: `ev_${cleanVin || 'case'}_${ruleKey}_${Date.now()}`,
+      ruleKey,
+      ruleName,
+      mediaType: 'image',
+      fileUri,
+      storageUrl: fileUri,
+      fileSize: 1850000,
+      qualityStatus: 'PASSED',
+      capturedAt: new Date().toISOString(),
+      oemFileName: `${currentCase.roNumber || '180001'}_${ruleKey}.jpg`,
+    };
+
+    if (cleanVin) {
+      offlineStorage.recordZoneCapture(cleanVin, ruleKey, newEv);
+    }
+
+    const updatedItems = [...(currentCase.evidenceItems || []), newEv];
+    const updatedCase = { ...currentCase, evidenceItems: updatedItems };
+    setCurrentCase(updatedCase);
+    if (onCaseUpdated) onCaseUpdated(updatedCase);
+
+    // Upload to server /uploads folder and MongoDB
+    evidenceUploadService.uploadEvidenceToServer({
+      vin: cleanVin,
+      roNumber: currentCase.roNumber || '180001',
+      evidenceItem: newEv,
+      caseId: currentCase.id,
+      vehicleDetails: {
+        make: currentCase.make,
+        model: currentCase.model,
+        year: currentCase.year ?? undefined,
+        powertrain: currentCase.powertrain,
+      },
+    }).then((uploadRes) => {
+      if (uploadRes.success && uploadRes.storageUrl) {
+        newEv.storageUrl = uploadRes.storageUrl;
+        if (cleanVin) {
+          offlineStorage.recordZoneCapture(cleanVin, ruleKey, newEv);
+        }
+      }
+    }).catch((e) => console.warn('[CaseDetailScreen] Upload to MongoDB failed:', e));
+  };
+
+  const handleAddEvidencePrompt = () => {
+    Alert.alert(
+      'Attach Vehicle Evidence Photo',
+      'Select how you want to capture or upload evidence for this car:',
+      [
+        {
+          text: 'Take Photo (Camera)',
+          onPress: async () => {
+            const res = await cameraService.capturePhoto('vehicle_photo');
+            if (res.success && res.fileUri) {
+              attachNewEvidence(res.fileUri, 'front_vehicle_photo', 'Front of Vehicle');
+            }
+          },
+        },
+        {
+          text: 'Upload from Gallery',
+          onPress: async () => {
+            const res = await cameraService.pickFromGallery(false);
+            if (res.success && res.fileUri) {
+              attachNewEvidence(res.fileUri, 'front_vehicle_photo', 'Front of Vehicle');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   // Accept Form State
@@ -283,6 +427,48 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
 
         {/* Vehicle Identity Card */}
         <Card title="Vehicle Identification">
+          {vehicleCoverPhoto ? (
+            <View style={styles.vehicleCoverCard}>
+              <Image
+                source={{ uri: vehicleCoverPhoto }}
+                style={styles.vehicleCoverImg}
+                resizeMode="cover"
+              />
+              <View style={styles.vehicleCoverOverlay}>
+                <View style={styles.vehicleCoverBadge}>
+                  <Text style={styles.vehicleCoverBadgeText}>
+                    {currentCase.roNumber ? `RO #${currentCase.roNumber}` : 'INSPECTION'}
+                  </Text>
+                </View>
+                <Text style={styles.vehicleCoverTitle} numberOfLines={1}>
+                  {currentCase.year} {currentCase.make} {currentCase.model}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.vehicleCoverEmpty}
+              activeOpacity={0.8}
+              onPress={handleAddEvidencePrompt}
+            >
+              <View style={styles.vehicleCoverEmptyIcon}>
+                <Car size={26} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.vehicleCoverEmptyTitle}>
+                  {currentCase.year} {currentCase.make} {currentCase.model}
+                </Text>
+                <Text style={styles.vehicleCoverEmptySub}>
+                  No photo attached • Tap to capture or upload
+                </Text>
+              </View>
+              <View style={styles.vehicleCoverAddBtn}>
+                <Camera size={14} color="#FFFFFF" />
+                <Text style={styles.vehicleCoverAddBtnText}>Add Photo</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.grid}>
             <View style={styles.gridItem}>
               <Text style={styles.fieldLabel}>MAKE & MODEL</Text>
@@ -345,10 +531,22 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
         </Card>
 
         {/* Captured Evidence Gallery */}
-        <Card title={`Captured Evidence (${currentCase.evidenceItems?.length || 0})`}>
-          {currentCase.evidenceItems && currentCase.evidenceItems.length > 0 ? (
+        <Card
+          title={`Captured Evidence (${allEvidenceItems.length})`}
+          rightAction={
+            <TouchableOpacity
+              style={styles.evidenceHeaderActionBtn}
+              onPress={handleAddEvidencePrompt}
+              activeOpacity={0.8}
+            >
+              <Plus size={14} color="#DC2626" />
+              <Text style={styles.evidenceHeaderActionText}>Add Photo</Text>
+            </TouchableOpacity>
+          }
+        >
+          {allEvidenceItems.length > 0 ? (
             <View style={styles.evidenceGallery}>
-              {currentCase.evidenceItems.map((ev, idx) => {
+              {allEvidenceItems.map((ev, idx) => {
                 const imgUri = getEvidenceUri(ev);
                 const isVideo = ev.mediaType === 'video';
 
@@ -507,7 +705,23 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
               })}
             </View>
           ) : (
-            <Text style={styles.noEvidenceText}>No evidence items recorded yet.</Text>
+            <View style={styles.emptyEvidenceContainer}>
+              <View style={styles.emptyEvidenceIconWrap}>
+                <Camera size={36} color="#DC2626" />
+              </View>
+              <Text style={styles.emptyEvidenceTitle}>No Evidence Photos Attached</Text>
+              <Text style={styles.emptyEvidenceDesc}>
+                Evidence photos captured in Guided Zone Capture or workshop inspection will appear here.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyEvidenceActionBtn}
+                onPress={handleAddEvidencePrompt}
+                activeOpacity={0.85}
+              >
+                <Camera size={16} color="#FFFFFF" />
+                <Text style={styles.emptyEvidenceActionText}>Capture Evidence Photo</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </Card>
 
@@ -1822,5 +2036,151 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.md,
     lineHeight: 16,
+  },
+  // Vehicle Cover Photo Banner
+  vehicleCoverCard: {
+    height: 160,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: spacing.md,
+    backgroundColor: '#0F172A',
+  },
+  vehicleCoverImg: {
+    width: '100%',
+    height: '100%',
+  },
+  vehicleCoverOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  vehicleCoverBadge: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  vehicleCoverBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  vehicleCoverTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  vehicleCoverEmpty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: spacing.md,
+  },
+  vehicleCoverEmptyIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleCoverEmptyTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  vehicleCoverEmptySub: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  vehicleCoverAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  vehicleCoverAddBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Evidence Card Header Action
+  evidenceHeaderActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  evidenceHeaderActionText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  // Empty Evidence Section
+  emptyEvidenceContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  emptyEvidenceIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyEvidenceTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  emptyEvidenceDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 17,
+    marginBottom: 16,
+    maxWidth: 280,
+  },
+  emptyEvidenceActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  emptyEvidenceActionText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

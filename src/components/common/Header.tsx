@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, Modal, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -8,6 +8,8 @@ import { Icon } from './Icon';
 import { Badge } from './Badge';
 import { useNetwork } from '../../context/NetworkContext';
 import { useGeofence } from '../../context/GeofenceContext';
+import { useAuth } from '../../context/AuthContext';
+import { LogOut } from 'lucide-react-native';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
@@ -21,6 +23,8 @@ interface HeaderProps {
   showOfflineIndicator?: boolean;
   showBrandLogo?: boolean;
   showPresenceBadge?: boolean;
+  showLogout?: boolean;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,8 +37,11 @@ export const Header: React.FC<HeaderProps> = ({
   showOfflineIndicator = true,
   showBrandLogo = false,
   showPresenceBadge = true,
+  showLogout,
+  onLogout,
 }) => {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, logout } = useAuth();
   const { isOnline, pendingCount } = useNetwork();
   const {
     presenceStatus,
@@ -53,6 +60,29 @@ export const Header: React.FC<HeaderProps> = ({
 
   const [showPresenceModal, setShowPresenceModal] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const shouldShowLogout = showLogout !== undefined ? showLogout : !onBack;
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out of Booran Motors Portal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: () => {
+            if (onLogout) {
+              onLogout();
+            } else {
+              logout();
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     const pulseLoop = Animated.loop(
@@ -175,6 +205,17 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {rightAction}
+
+          {shouldShowLogout && isAuthenticated && (
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={handleLogout}
+              style={styles.logoutBtn}
+              accessibilityLabel="Log Out"
+            >
+              <LogOut size={18} color="#FFFFFF" strokeWidth={2.2} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -375,6 +416,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  logoutBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   roBadge: {
     marginRight: spacing.xs,

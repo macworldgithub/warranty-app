@@ -148,13 +148,15 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Live GPS state
   const [gpsMode, setGpsMode] = useState<'LIVE' | 'SIMULATED'>('LIVE');
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean>(false);
-  const [liveCoords, setLiveCoords] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [liveCoords, setLiveCoords] = useState<LiveGpsCoords | null>(null);
 
   // Active refs to avoid stale closure during intervals/listeners
-  const liveCoordsRef = useRef<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const liveCoordsRef = useRef<LiveGpsCoords | null>(null);
+  const prevGeoPosRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
   const gpsModeRef = useRef<'LIVE' | 'SIMULATED'>('LIVE');
   const simulatedCoordsRef = useRef<{ lat: number; lng: number }>(OFF_SITE_LOCATION);
   const isPingingRef = useRef<boolean>(false);
+  const pingNowRef = useRef<(override?: Partial<PingTelemetryDto>) => Promise<void>>(() => Promise.resolve());
 
   const anchorWorkshopToLocation = useCallback((lat: number, lng: number, name?: string) => {
     const loc = { lat, lng, name: name || 'Local Testing Workshop' };
@@ -363,6 +365,10 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     requestLocationAccess();
   }, [isAuthenticated, user, requestLocationAccess]);
 
+  useEffect(() => {
+    pingNowRef.current = pingNow;
+  }, [pingNow]);
+
   // Start live GPS watchPosition stream
   useEffect(() => {
     if (!isAuthenticated || !user || !hasLocationPermission || !isNativeGeolocationAvailable || !GeolocationModule?.watchPosition) return;
@@ -373,13 +379,43 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         return GeolocationModule.watchPosition(
           (pos: any) => {
-            const speedKmh = pos.coords.speed && pos.coords.speed > 0 ? Math.round(pos.coords.speed * 3.6) : 0;
+            const now = pos.timestamp || Date.now();
+            let speedKmh = 0;
+
+            // 1. Native Doppler speed from GPS chip (if valid and > 0)
+            if (typeof pos?.coords?.speed === 'number' && pos.coords.speed > 0.3) {
+              speedKmh = Math.round(pos.coords.speed * 3.6);
+            }
+
+            // 2. Fallback: calculate speed from delta distance / delta time between consecutive fixes
+            if (speedKmh === 0 && prevGeoPosRef.current) {
+              const dtSec = (now - prevGeoPosRef.current.time) / 1000;
+              if (dtSec >= 0.5 && dtSec <= 15) {
+                const dMeters = calculateDistanceMeters(
+                  prevGeoPosRef.current.lat,
+                  prevGeoPosRef.current.lng,
+                  pos.coords.latitude,
+                  pos.coords.longitude
+                );
+                if (dMeters >= 1.5) {
+                  const calcSpeed = Math.round((dMeters / dtSec) * 3.6);
+                  if (calcSpeed <= 160) {
+                    speedKmh = calcSpeed;
+                  }
+                }
+              }
+            }
+
+            if (!prevGeoPosRef.current || calculateDistanceMeters(prevGeoPosRef.current.lat, prevGeoPosRef.current.lng, pos.coords.latitude, pos.coords.longitude) >= 1.5 || (now - prevGeoPosRef.current.time) > 4000) {
+              prevGeoPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude, time: now };
+            }
+
             const c: LiveGpsCoords = {
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude,
               accuracy: pos.coords.accuracy,
               speedKmh,
-              timestamp: pos.timestamp || Date.now(),
+              timestamp: now,
             };
             liveCoordsRef.current = c;
             setLiveCoords(c);
@@ -403,12 +439,14 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               setInsideGeofence(isInside);
               setPresenceStatus(isInside ? 'ON_SITE' : 'OFF_SITE');
 
-              pingNow({
-                latitude: c.latitude,
-                longitude: c.longitude,
-                accuracy: c.accuracy,
-                speedKmh,
-              });
+              if (pingNowRef.current) {
+                pingNowRef.current({
+                  latitude: c.latitude,
+                  longitude: c.longitude,
+                  accuracy: c.accuracy,
+                  speedKmh,
+                });
+              }
             }
           },
           (err: any) => {
@@ -420,8 +458,10 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           {
             enableHighAccuracy: useHighAccuracy,
             distanceFilter: 0, // Ensure continuous real-time updates even when stationary
-            interval: 2500,
-            fastestInterval: 1200,
+            interval: 1000,
+            fastestInterval: 500,
+            timeout: 10000,
+            maximumAge: 1000,
           }
         );
       } catch (_wErr) {
@@ -437,7 +477,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         GeolocationModule.clearWatch(watchId);
       }
     };
-  }, [isAuthenticated, user, hasLocationPermission, pingNow, radiusMeters]);
+  }, [isAuthenticated, user, hasLocationPermission, radiusMeters]);
 
   // Periodic telemetry fallback heartbeat (5s during active road test, 20s during workshop)
   useEffect(() => {

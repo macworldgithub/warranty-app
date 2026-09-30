@@ -42,11 +42,14 @@ import {
 } from './src/services/notifications.service';
 import { casesApi } from './src/api';
 import { RoadTestScreen } from './src/screens/roadtest/RoadTestScreen';
+import { TechnicianHomeScreen } from './src/screens/home/TechnicianHomeScreen';
+import { GuidedZoneCaptureScreen } from './src/screens/inspection/GuidedZoneCaptureScreen';
+import { RooftopVehicle } from './src/services/rooftopVehicles.service';
 import { RoadTestProvider } from './src/context/RoadTestContext';
 import { GeofenceProvider } from './src/context/GeofenceContext';
 import { WarrantyCase } from './src/types';
 
-type AppScreen = 'LOGIN' | 'LIST' | 'VEHICLES' | 'LOANERS' | 'ROAD_TEST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
+type AppScreen = 'LOGIN' | 'TECH_HOME' | 'LIST' | 'VEHICLES' | 'ZONE_CAPTURE' | 'LOANERS' | 'ROAD_TEST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
 
 function MainNavigator() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -63,14 +66,26 @@ function MainNavigator() {
     completedMandatoryCount,
   } = useCaseWizard();
 
+  const isTechnician =
+    user?.role === 'TECHNICIAN' ||
+    !user?.role ||
+    (user?.role !== 'ADMIN' && user?.role !== 'CLERK' && user?.role !== 'SERVICE_MANAGER');
+
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(
-    isAuthenticated ? 'LIST' : 'LOGIN'
+    isAuthenticated ? (isTechnician ? 'TECH_HOME' : 'LIST') : 'LOGIN'
   );
-  const [previousScreen, setPreviousScreen] = useState<AppScreen>('LIST');
+  const [previousScreen, setPreviousScreen] = useState<AppScreen>(isTechnician ? 'TECH_HOME' : 'LIST');
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
+  const [selectedInspectionVehicle, setSelectedInspectionVehicle] = useState<RooftopVehicle | null>(null);
   const [caseListTab, setCaseListTab] = useState<string>('all');
   const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
   const [submittedReceipt, setSubmittedReceipt] = useState<WarrantyCase | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated && currentScreen === 'LOGIN') {
+      setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+    }
+  }, [isAuthenticated, isTechnician]);
 
   // Deep-Link Navigation when Technician Taps Notification Banner or System Tray Push
   const handleNotificationPress = async (notif: AppNotificationPayload) => {
@@ -150,12 +165,73 @@ function MainNavigator() {
 
   // If user logs out, go to LOGIN
   if (!isAuthenticated && currentScreen !== 'LOGIN') {
-    return <LoginScreen onLoginSuccess={() => setCurrentScreen('LIST')} />;
+    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST')} />;
   }
 
   // 1. Login Screen
   if (currentScreen === 'LOGIN') {
-    return <LoginScreen onLoginSuccess={() => setCurrentScreen('LIST')} />;
+    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST')} />;
+  }
+
+  // 1b. Technician Portal Home Screen (New Figma UI with real data)
+  if (currentScreen === 'TECH_HOME') {
+    return (
+      <View style={{ flex: 1 }}>
+        <NotificationBanner
+          notification={activeNotification}
+          onPress={handleNotificationPress}
+          onDismiss={() => setActiveNotification(null)}
+        />
+        <TechnicianHomeScreen
+          onOpenVehicles={() => {
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('VEHICLES');
+          }}
+          onOpenRoadTest={() => {
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('ROAD_TEST');
+          }}
+          onOpenTickets={(tab) => {
+            setCaseListTab(tab || 'all');
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('LIST');
+          }}
+          onOpenLoaners={() => {
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('LOANERS');
+          }}
+          onOpenProfile={() => {
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('PROFILE');
+          }}
+          onOpenZoneCapture={(veh) => {
+            setSelectedInspectionVehicle(veh || null);
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('ZONE_CAPTURE');
+          }}
+          onStartNewInspection={() => {
+            setSelectedInspectionVehicle(null);
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('ZONE_CAPTURE');
+          }}
+          onOpenCase={(caseItem) => {
+            setSelectedCase(caseItem);
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('DETAIL');
+          }}
+          onResolveFlag={(caseItem) => {
+            setSelectedCase(caseItem);
+            loadExistingCase(caseItem, true);
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('FLAG_RESOLVE');
+          }}
+          onLogout={() => {
+            logout();
+            setCurrentScreen('LOGIN');
+          }}
+        />
+      </View>
+    );
   }
 
   // 2. Case List Dashboard
@@ -171,28 +247,38 @@ function MainNavigator() {
           initialTab={caseListTab}
           onStartNewCase={() => {
             startNewCase();
+            setPreviousScreen('LIST');
             setCurrentScreen('WIZARD');
           }}
           onOpenCase={(caseItem) => {
             setSelectedCase(caseItem);
+            setPreviousScreen('LIST');
             setCurrentScreen('DETAIL');
           }}
           onResolveFlag={(caseItem) => {
             setSelectedCase(caseItem);
             loadExistingCase(caseItem, true);
+            setPreviousScreen('LIST');
             setCurrentScreen('FLAG_RESOLVE');
           }}
           onOpenProfile={() => {
+            setPreviousScreen('LIST');
             setCurrentScreen('PROFILE');
           }}
           onOpenVehicles={() => {
+            setPreviousScreen('LIST');
             setCurrentScreen('VEHICLES');
           }}
           onOpenLoaners={() => {
+            setPreviousScreen('LIST');
             setCurrentScreen('LOANERS');
           }}
           onOpenRoadTest={() => {
+            setPreviousScreen('LIST');
             setCurrentScreen('ROAD_TEST');
+          }}
+          onOpenHome={() => {
+            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
           }}
           onLogout={() => {
             logout();
@@ -228,13 +314,70 @@ function MainNavigator() {
             setCurrentScreen('DETAIL');
           }}
           onOpenProfile={() => {
+            setPreviousScreen('VEHICLES');
             setCurrentScreen('PROFILE');
           }}
           onOpenLoaners={() => {
+            setPreviousScreen('VEHICLES');
             setCurrentScreen('LOANERS');
           }}
           onOpenRoadTest={() => {
+            setPreviousScreen('VEHICLES');
             setCurrentScreen('ROAD_TEST');
+          }}
+          onOpenHome={() => {
+            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+          }}
+          onLogout={() => {
+            logout();
+            setCurrentScreen('LOGIN');
+          }}
+          onOpenZoneCapture={(veh) => {
+            setSelectedInspectionVehicle(veh);
+            setPreviousScreen('VEHICLES');
+            setCurrentScreen('ZONE_CAPTURE');
+          }}
+          onStartNewInspection={() => {
+            setSelectedInspectionVehicle(null);
+            setPreviousScreen('VEHICLES');
+            setCurrentScreen('ZONE_CAPTURE');
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 2b-2. Guided Zone Capture Screen (Exact Match to Figma UI)
+  if (currentScreen === 'ZONE_CAPTURE') {
+    return (
+      <View style={{ flex: 1 }}>
+        <NotificationBanner
+          notification={activeNotification}
+          onPress={handleNotificationPress}
+          onDismiss={() => setActiveNotification(null)}
+        />
+        <GuidedZoneCaptureScreen
+          vehicle={selectedInspectionVehicle}
+          onBack={() => setCurrentScreen(previousScreen || 'VEHICLES')}
+          onOpenHome={() => setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST')}
+          onOpenTickets={() => {
+            setCaseListTab('all');
+            setCurrentScreen('LIST');
+          }}
+          onOpenLoaners={() => {
+            setPreviousScreen('ZONE_CAPTURE');
+            setCurrentScreen('LOANERS');
+          }}
+          onOpenProfile={() => {
+            setPreviousScreen('ZONE_CAPTURE');
+            setCurrentScreen('PROFILE');
+          }}
+          onLogout={() => {
+            logout();
+            setCurrentScreen('LOGIN');
+          }}
+          onCompleteInspection={() => {
+            setCurrentScreen('VEHICLES');
           }}
         />
       </View>
@@ -251,23 +394,34 @@ function MainNavigator() {
           onDismiss={() => setActiveNotification(null)}
         />
         <LoanVehiclesScreen
-          onBack={() => setCurrentScreen('LIST')}
+          onBack={() => setCurrentScreen(previousScreen || (isTechnician ? 'TECH_HOME' : 'LIST'))}
           onOpenTickets={(tab) => {
             setCaseListTab(tab || 'all');
             setCurrentScreen('LIST');
           }}
           onOpenVehicles={() => {
+            setPreviousScreen('LOANERS');
             setCurrentScreen('VEHICLES');
           }}
           onOpenProfile={() => {
+            setPreviousScreen('LOANERS');
             setCurrentScreen('PROFILE');
           }}
           onStartNewCase={() => {
             startNewCase();
+            setPreviousScreen('LOANERS');
             setCurrentScreen('WIZARD');
           }}
           onOpenRoadTest={() => {
+            setPreviousScreen('LOANERS');
             setCurrentScreen('ROAD_TEST');
+          }}
+          onOpenHome={() => {
+            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+          }}
+          onLogout={() => {
+            logout();
+            setCurrentScreen('LOGIN');
           }}
         />
       </View>
@@ -284,13 +438,23 @@ function MainNavigator() {
             setCurrentScreen('LIST');
           }}
           onOpenVehicles={() => {
+            setPreviousScreen('ROAD_TEST');
             setCurrentScreen('VEHICLES');
           }}
           onOpenLoaners={() => {
+            setPreviousScreen('ROAD_TEST');
             setCurrentScreen('LOANERS');
           }}
           onOpenProfile={() => {
+            setPreviousScreen('ROAD_TEST');
             setCurrentScreen('PROFILE');
+          }}
+          onOpenHome={() => {
+            setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
+          }}
+          onLogout={() => {
+            logout();
+            setCurrentScreen('LOGIN');
           }}
         />
       </View>
@@ -302,7 +466,7 @@ function MainNavigator() {
     return (
       <View style={{ flex: 1 }}>
         <ProfileScreen
-          onBack={() => setCurrentScreen('LIST')}
+          onBack={() => setCurrentScreen(previousScreen || (isTechnician ? 'TECH_HOME' : 'LIST'))}
           onLogout={() => {
             logout();
             setCurrentScreen('LOGIN');
@@ -373,7 +537,7 @@ function MainNavigator() {
         return (
           <Step0_StartTicket
             onNext={nextStep}
-            onCancel={() => setCurrentScreen('LIST')}
+            onCancel={() => setCurrentScreen(previousScreen || (isTechnician ? 'TECH_HOME' : 'LIST'))}
           />
         );
       case 1:
@@ -517,7 +681,7 @@ function MainNavigator() {
               style={styles.receiptBtn}
               onPress={() => {
                 setSubmittedReceipt(null);
-                setCurrentScreen('LIST');
+                setCurrentScreen(isTechnician ? 'TECH_HOME' : 'LIST');
               }}
             >
               <Text style={styles.receiptBtnText}>Back to Active Jobs</Text>
