@@ -20,6 +20,9 @@ import {
   MapPin,
   Route,
   CheckCircle2,
+  Car,
+  Clock,
+  Gauge,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { RoutePoint, TripState, DEFAULT_DEMO_ROUTE } from '../../context/RoadTestContext';
@@ -33,6 +36,11 @@ interface RoadTestRouteMapProps {
   siteLng?: number;
   siteName?: string;
   fenceRadius?: number;
+  floatingStats?: {
+    distanceKm: number;
+    durationMin: number;
+    speedKph: number;
+  };
 }
 
 // Slippy Map Web Mercator calculations (EPSG:3857) - 100% Free OpenStreetMap
@@ -76,6 +84,7 @@ export function RoadTestRouteMap({
   siteLng: propSiteLng,
   siteName: propSiteName,
   fenceRadius: propFenceRadius,
+  floatingStats,
 }: RoadTestRouteMapProps) {
   const geofence = useGeofence();
   const workshopLat =
@@ -405,62 +414,78 @@ export function RoadTestRouteMap({
           </G>
         )}
 
-        {/* Current Vehicle Position Marker */}
+        {/* Current Vehicle Position Marker (Blue radar dot matching Figma Image 1) */}
         <G>
           {/* Pulsing telemetry beacon */}
           <Circle
             cx={vehiclePixel.x}
             cy={vehiclePixel.y}
-            r={13}
-            fill={isTripReturned ? colors.success : colors.primary}
-            fillOpacity={0.22}
+            r={16}
+            fill="#3B82F6"
+            fillOpacity={0.25}
           />
           {/* Solid core vehicle dot */}
           <Circle
             cx={vehiclePixel.x}
             cy={vehiclePixel.y}
-            r={6.5}
-            fill={isTripReturned ? colors.success : '#D71920'}
+            r={7.5}
+            fill="#2563EB"
             stroke="#FFFFFF"
-            strokeWidth={2}
+            strokeWidth={2.5}
           />
         </G>
       </Svg>
 
-      {/* Floating Speed & Status Badge above Current Vehicle Position (non-compact) */}
+      {/* Workshop / Start Marker with Car Pin & Dealership Name (Figma Image 1) */}
       {!compact && (
         <View
           style={[
-            styles.vehicleLabelWrap,
+            styles.startPinWrap,
             {
-              left: Math.max(10, Math.min(containerSize.width - 95, vehiclePixel.x - 42)),
-              top: Math.max(10, Math.min(containerSize.height - 40, vehiclePixel.y - 34)),
+              left: Math.max(8, Math.min(containerSize.width - 150, startPixel.x - 70)),
+              top: Math.max(8, Math.min(containerSize.height - 55, startPixel.y - 44)),
             },
           ]}
           pointerEvents="none"
         >
-          <View style={[styles.vehicleSpeedPill, isVehicleOutside && styles.vehicleSpeedPillActive]}>
-            <Navigation size={10} color="#FFFFFF" style={{ transform: [{ rotate: '45deg' }] }} />
-            <Text style={styles.vehicleSpeedText}>
-              {isTripReturned
-                ? 'RETURNED'
-                : currentPoint.speed > 0
-                ? `${currentPoint.speed} km/h`
-                : 'ARMED CAR'}
-            </Text>
+          <View style={styles.startPinBadge}>
+            <Car size={13} color="#FFFFFF" />
+          </View>
+          <View style={styles.startPinLabel}>
+            <Text style={styles.startPinLabelText} numberOfLines={1}>{workshopName}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Top Right: Floating 3-Metric Stats Overlay (Figma Image 1) */}
+      {floatingStats && !compact && (
+        <View style={styles.figmaFloatingStats}>
+          <View style={styles.figmaStatItem}>
+            <MapPin size={13} color="#DC2626" />
+            <Text style={styles.figmaStatVal}>{floatingStats.distanceKm.toFixed(1)} km</Text>
+          </View>
+          <View style={styles.figmaStatDivider} />
+          <View style={styles.figmaStatItem}>
+            <Clock size={13} color="#DC2626" />
+            <Text style={styles.figmaStatVal}>{floatingStats.durationMin} min</Text>
+          </View>
+          <View style={styles.figmaStatDivider} />
+          <View style={styles.figmaStatItem}>
+            <Gauge size={13} color="#DC2626" />
+            <Text style={styles.figmaStatVal}>{floatingStats.speedKph} km/h</Text>
           </View>
         </View>
       )}
 
       {/* Top Left: OpenStreetMap Provider Badge */}
-      {!compact && (
+      {!compact && !floatingStats && (
         <View style={styles.osmBadge}>
           <Text style={styles.osmBadgeText}>🗺️ OpenStreetMap</Text>
         </View>
       )}
 
-      {/* Top Right: Status Badge Pill */}
-      {!compact && (
+      {/* Status Badge Pill (when floatingStats is not active) */}
+      {!compact && !floatingStats && (
         <View style={styles.mapBadge}>
           <View
             style={[
@@ -769,4 +794,141 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 3,
   },
+  startPinWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+    width: 140,
+  },
+  startPinBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  startPinLabel: {
+    marginTop: 3,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  startPinLabelText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  figmaFloatingStats: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  figmaStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  figmaStatVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  figmaStatDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 10,
+  },
+  miniMapWrap: {
+    width: 68,
+    height: 42,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
+
+export function MiniRoutePreview({ points }: { points?: RoutePoint[] }) {
+  const polyPoints = useMemo(() => {
+    if (!points || points.length === 0) {
+      return '10,32 24,18 38,24 56,12';
+    }
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    for (const p of points) {
+      const px = p.x ?? 18;
+      const py = p.y ?? 68;
+      if (px < minX) minX = px;
+      if (px > maxX) maxX = px;
+      if (py < minY) minY = py;
+      if (py > maxY) maxY = py;
+    }
+
+    const spanX = Math.max(0.1, maxX - minX);
+    const spanY = Math.max(0.1, maxY - minY);
+
+    return points
+      .map((p) => {
+        const nx = 8 + (((p.x ?? 18) - minX) / spanX) * 52;
+        const ny = 6 + (((p.y ?? 68) - minY) / spanY) * 28;
+        return `${nx.toFixed(1)},${ny.toFixed(1)}`;
+      })
+      .join(' ');
+  }, [points]);
+
+  return (
+    <View style={styles.miniMapWrap}>
+      <Svg width={68} height={42} viewBox="0 0 68 42">
+        <Line x1={0} y1={14} x2={68} y2={18} stroke="#E2E8F0" strokeWidth={3} />
+        <Line x1={0} y1={28} x2={68} y2={24} stroke="#E2E8F0" strokeWidth={2.5} />
+        <Line x1={22} y1={0} x2={30} y2={42} stroke="#E2E8F0" strokeWidth={3.5} />
+        <Line x1={48} y1={0} x2={44} y2={42} stroke="#E2E8F0" strokeWidth={2} />
+        <Polyline
+          points={polyPoints}
+          fill="none"
+          stroke="#475569"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Circle cx={10} cy={30} r={3} fill="#475569" stroke="#FFFFFF" strokeWidth={1} />
+        <Circle cx={56} cy={12} r={3} fill="#475569" stroke="#FFFFFF" strokeWidth={1} />
+      </Svg>
+    </View>
+  );
+}

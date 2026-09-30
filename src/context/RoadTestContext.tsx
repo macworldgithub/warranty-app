@@ -73,6 +73,54 @@ export const DEFAULT_DEMO_ROUTE: RoutePoint[] = [
 
 export const INITIAL_DEMO_VEHICLES: RoadTestVehicle[] = [
   {
+    id: 'veh-byd-1',
+    registration: '1BY-9EV',
+    repairOrder: 'RO-48901',
+    customerName: 'Internal Dealership Fleet',
+    make: 'BYD',
+    model: 'ATTO 3',
+    year: 2024,
+    variant: 'Extended',
+    colour: 'Surf Blue',
+    odometerKm: 3410,
+    vin: 'LGXCE43C8P0192831',
+    concern: 'Diagnostic pre-delivery verification & telemetry test.',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+  },
+  {
+    id: 'veh-byd-2',
+    registration: '1BY-4EV',
+    repairOrder: 'RO-48872',
+    customerName: 'Service Fleet',
+    make: 'BYD',
+    model: 'SEAL',
+    year: 2024,
+    variant: 'Performance AWD',
+    colour: 'Arctic White',
+    odometerKm: 1820,
+    vin: 'LGXCE43C8P0192452',
+    concern: 'Suspension & regenerative braking diagnostic check.',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+  },
+  {
+    id: 'veh-byd-3',
+    registration: 'CRN-882',
+    repairOrder: 'RO-48740',
+    customerName: 'Demonstrator Vehicle',
+    make: 'BYD',
+    model: 'Dolphin',
+    year: 2023,
+    variant: 'Premium',
+    colour: 'Coral Pink',
+    odometerKm: 8900,
+    vin: 'LGXCE43C8P0181734',
+    concern: 'Pre-handover road test and wheel alignment validation.',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+  },
+  {
     id: 'veh-1',
     registration: 'SGS 274',
     repairOrder: 'RO-48291',
@@ -88,91 +136,59 @@ export const INITIAL_DEMO_VEHICLES: RoadTestVehicle[] = [
     siteId: 'site_cranbourne_byd',
     siteName: 'Booran BYD Cranbourne',
   },
-  {
-    id: 'veh-2',
-    registration: 'BWM 882',
-    repairOrder: 'RO-48305',
-    customerName: 'Sarah Jenkins',
-    make: 'Hyundai',
-    model: 'Tucson',
-    year: 2022,
-    variant: 'Highlander AWD',
-    colour: 'Phantom Black',
-    odometerKm: 32150,
-    vin: 'KMHJ381BBNU842109',
-    concern: 'Rattle from front-right suspension over sharp road joints.',
-    siteId: 'site_dandenong_multi',
-    siteName: 'Booran Dandenong Multi',
-  },
-  {
-    id: 'veh-3',
-    registration: 'VIC 901',
-    repairOrder: 'RO-48319',
-    customerName: 'David Chen',
-    make: 'Kia',
-    model: 'Sportage',
-    year: 2023,
-    variant: 'GT-Line Diesel',
-    colour: 'Steel Grey',
-    odometerKm: 18400,
-    vin: 'KNAFX81ABPT291048',
-    concern: 'Check engine warning lamp illuminated during sustained highway driving.',
-    siteId: 'site_cheltenham_kia',
-    siteName: 'Booran Kia Cheltenham',
-  },
 ];
 
 export const INITIAL_TRIP_RECORDS: RoadTestTripRecord[] = [
   {
-    id: 'trip-1',
-    repairOrder: 'RO-48291',
-    registration: 'SGS 274',
-    vehicleLabel: '2021 Holden Commodore RS-V',
-    dateLabel: 'Today',
-    startTime: '2:18 pm',
-    duration: '12m 48s',
-    distanceKm: 6.8,
-    maxSpeedKph: 76,
+    id: 'trip-figma-1',
+    repairOrder: 'RO-48901',
+    registration: '1BY-9EV',
+    vehicleLabel: '2024 BYD ATTO 3',
+    dateLabel: 'Today 4:42 pm',
+    startTime: '4:42 pm',
+    duration: '18 min',
+    distanceKm: 7.4,
+    maxSpeedKph: 68,
     outcome: 'Passed',
-    technician: 'Senior Tech (A. Miller)',
-    note: 'Shudder duplicated between 64 km/h and 71 km/h on Dandenong Rd test sector. Telemetry confirms lockup clutch slip variance.',
+    technician: 'Shaun H.',
+    note: 'Internal test drive completed. All systems and telemetry verified.',
     siteId: 'site_cranbourne_byd',
     siteName: 'Booran BYD Cranbourne',
     routePoints: DEFAULT_DEMO_ROUTE,
   },
   {
-    id: 'trip-2',
-    repairOrder: 'RO-48190',
-    registration: '1QZ 4AA',
-    vehicleLabel: '2022 Hyundai Tucson Highlander',
-    dateLabel: 'Yesterday',
-    startTime: '10:45 am',
-    duration: '15m 12s',
-    distanceKm: 9.4,
-    maxSpeedKph: 82,
+    id: 'trip-figma-2',
+    repairOrder: 'RO-48872',
+    registration: '1BY-4EV',
+    vehicleLabel: '2024 BYD SEAL',
+    dateLabel: 'Today 2:10 pm',
+    startTime: '2:10 pm',
+    duration: '12 min',
+    distanceKm: 4.1,
+    maxSpeedKph: 72,
     outcome: 'Passed',
-    technician: 'Lead Diagnostics Tech',
-    note: 'Post-sway bar bushing replacement check. Noise resolved across all simulated road undulations.',
-    siteId: 'site_dandenong_multi',
-    siteName: 'Booran Dandenong Multi',
-    routePoints: DEFAULT_DEMO_ROUTE,
+    technician: 'Shaun H.',
+    note: 'Drive cycle normal. Regenerative braking verified within threshold.',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    routePoints: DEFAULT_DEMO_ROUTE.slice(0, 10),
   },
   {
-    id: 'trip-3',
-    repairOrder: 'RO-47952',
-    registration: 'YTX 108',
-    vehicleLabel: '2020 Kia Sorento GT-Line',
-    dateLabel: '24 Sep',
-    startTime: '4:02 pm',
-    duration: '8m 20s',
-    distanceKm: 4.2,
-    maxSpeedKph: 64,
-    outcome: 'Flagged',
-    technician: 'Apprentice / Tech 4',
-    note: 'Road test terminated early. Intermittent brake shudder flagged for mandatory rotor dial-indicator inspection.',
-    siteId: 'site_cheltenham_kia',
-    siteName: 'Booran Kia Cheltenham',
-    routePoints: DEFAULT_DEMO_ROUTE,
+    id: 'trip-figma-3',
+    repairOrder: 'RO-48740',
+    registration: 'CRN-882',
+    vehicleLabel: 'BYD Dolphin',
+    dateLabel: 'Yesterday',
+    startTime: '11:20 am',
+    duration: '9 min',
+    distanceKm: 3.2,
+    maxSpeedKph: 55,
+    outcome: 'Passed',
+    technician: 'Shaun H.',
+    note: 'Internal dealership shakedown test. No steering pull or vibrations detected.',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+    routePoints: DEFAULT_DEMO_ROUTE.slice(0, 8),
   },
 ];
 
@@ -196,8 +212,9 @@ interface RoadTestContextValue {
   disarmVehicle: () => void;
   startDemoDrive: () => void;
   resetDemo: () => void;
-  startLiveDrive: () => void;
+  startLiveDrive: (customVehicle?: Partial<RoadTestVehicle>) => void;
   finishLiveDrive: () => void;
+  stopAndSaveDrive: (notes?: string) => Promise<void>;
   saveDiagnosisAndComplete: (data: { outcome: 'Passed' | 'Flagged'; notes: string }) => Promise<void>;
   cancelPendingCompletion: () => void;
   recordLivePoint: (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => void;
@@ -510,18 +527,92 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, technicianSiteId]);
 
-  const startLiveDrive = useCallback(() => {
+  const stopAndSaveDrive = useCallback(
+    async (notes?: string) => {
+      clearTimer();
+      setIsLiveDrive(false);
+      setDemoRunning(false);
+      setTripState('returned');
+      setSpeedKph(0);
+
+      const v = vehicleRef.current;
+      const minutes = Math.floor(elapsedSecRef.current / 60);
+      const seconds = elapsedSecRef.current % 60;
+      const durationStr = minutes > 0 ? `${minutes} min` : `${seconds}s`;
+      const currentDist = Number(distanceKmRef.current.toFixed(1)) || 0.1;
+      const currentMax = Math.round(maxSpeedKphRef.current) || 0;
+      const currentPoints = pointsBufferRef.current.length > 0 ? [...pointsBufferRef.current] : DEFAULT_DEMO_ROUTE;
+
+      const techName = user?.name || 'Active Technician';
+      const recordId = activeDriveIdRef.current || `trip-${Date.now()}`;
+
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+
+      const newRecord: RoadTestTripRecord = {
+        id: recordId,
+        repairOrder: v?.repairOrder || 'RO-INTERNAL',
+        registration: v?.registration || '1BY-9EV',
+        vehicleLabel: v ? `${v.year} ${v.make} ${v.model}` : '2024 BYD ATTO 3',
+        dateLabel: `Today ${timeStr}`,
+        startTime: timeStr,
+        duration: durationStr,
+        distanceKm: currentDist,
+        maxSpeedKph: currentMax,
+        outcome: 'Passed',
+        technician: techName,
+        note: notes || 'Internal test drive completed.',
+        siteId: v?.siteId || technicianSiteId,
+        siteName: v?.siteName || 'Booran BYD Cranbourne',
+        routePoints: currentPoints,
+      };
+
+      setTripRecords((prev) => [newRecord, ...prev]);
+      setPendingCompletion(false);
+
+      if (activeDriveIdRef.current) {
+        try {
+          await roadTestService.completeDrive(activeDriveIdRef.current, {
+            duration: durationStr,
+            durationSeconds: elapsedSecRef.current,
+            distanceKm: currentDist,
+            maxSpeedKph: currentMax,
+            outcome: 'Passed',
+            technicianNotes: notes || 'Internal test drive completed.',
+            routePoints: currentPoints as any,
+            geofenceAutoVerified: true,
+          });
+        } catch (err) {
+          console.warn('Backend complete drive failed:', err);
+        }
+      }
+      activeDriveIdRef.current = null;
+    },
+    [clearTimer, user, technicianSiteId]
+  );
+
+  const startLiveDrive = useCallback((customVehicle?: Partial<RoadTestVehicle>) => {
     clearTimer();
     setDemoRunning(false);
     setIsLiveDrive(true);
     setArmed(true);
-    setTripState('inside');
+    setTripState('outside');
     setElapsedSec(0);
     setDistanceKm(0);
     setSpeedKph(0);
     setMaxSpeedKph(0);
-    setRoutePoints([{ x: 18, y: 68, speed: 0 }]);
-    pointsBufferRef.current = [{ x: 18, y: 68, speed: 0 }];
+
+    if (customVehicle) {
+      const merged: RoadTestVehicle = {
+        ...(vehicleRef.current || INITIAL_DEMO_VEHICLES[0]),
+        ...customVehicle,
+      };
+      setVehicle(merged);
+      vehicleRef.current = merged;
+    }
+
+    setRoutePoints([{ x: 18, y: 68, speed: 0, latitude: -38.0992, longitude: 145.2813 }]);
+    pointsBufferRef.current = [{ x: 18, y: 68, speed: 0, latitude: -38.0992, longitude: 145.2813 }];
     lastPointRef.current = null;
     wasOutsideRef.current = false;
     setPendingCompletion(false);
@@ -543,7 +634,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
           customerName: v.customerName,
           customerConcern: v.concern,
           technicianId: user?.id || 'tech_byd_01',
-          technicianName: user?.name || 'Active Technician',
+          technicianName: user?.name || 'Shaun H.',
           siteId: activeSiteId || 'site_cranbourne_byd',
           isLiveGps: true,
         })
@@ -562,9 +653,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
   const recordLivePoint = useCallback(
     (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => {
-      const currentSpeed = speedKmh !== undefined && speedKmh > 0 ? Math.round(speedKmh) : 0;
-      setSpeedKph(currentSpeed);
-      setMaxSpeedKph((prev) => Math.max(prev, currentSpeed));
+      let currentSpeed = speedKmh !== undefined && speedKmh > 0 ? Math.round(speedKmh) : 0;
 
       if (lastPointRef.current) {
         const incMeters = calculateDistanceMeters(
@@ -573,11 +662,23 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
           lat,
           lng
         );
-        if (incMeters >= 3 && incMeters <= 500) {
+        // Realistic movement threshold (between 2 meters and 5000 meters)
+        if (incMeters >= 2 && incMeters <= 5000) {
           setDistanceKm((prev) => Number((prev + incMeters / 1000).toFixed(2)));
+
+          // Derive speed if GPS device doesn't report native Doppler speed
+          if (currentSpeed === 0) {
+            const derivedSpeed = Math.min(130, Math.round((incMeters / 2.5) * 3.6));
+            if (derivedSpeed >= 5) {
+              currentSpeed = derivedSpeed;
+            }
+          }
         }
       }
       lastPointRef.current = { lat, lng };
+
+      setSpeedKph(currentSpeed);
+      setMaxSpeedKph((prev) => Math.max(prev, currentSpeed));
 
       // Project real (lat, lng) to SVG map coordinates (0-100) centered around Cranbourne (18, 68)
       const siteLat = -38.0992;
@@ -599,7 +700,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
       setRoutePoints((prev) => {
         const next = [...prev, newPoint];
-        return next.length > 200 ? next.slice(next.length - 200) : next;
+        return next.length > 300 ? next.slice(next.length - 300) : next;
       });
 
       // Stream to backend periodically (every 5 points)
@@ -751,6 +852,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
         resetDemo,
         startLiveDrive,
         finishLiveDrive,
+        stopAndSaveDrive,
         saveDiagnosisAndComplete,
         cancelPendingCompletion,
         recordLivePoint,

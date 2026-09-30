@@ -14,7 +14,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
-import { Bell, FileText, CheckCircle2, Clock, Car, Key, Gauge } from 'lucide-react-native';
+import { Bell, FileText, CheckCircle2, Clock, Car, Key, Gauge, Home } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -643,41 +643,41 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {isAdmin ? (
           <>
-            {/* 1. Test Drive (Extreme Left - Replaces Awaiting) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Gauge size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>
-                Test Drive
-              </Text>
-            </TouchableOpacity>
-
-            {/* 2. Vehicles */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenVehicles}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Vehicles</Text>
-            </TouchableOpacity>
-
-            {/* 3. Tickets (Center) */}
+            {/* 1. Home / Tickets */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setActiveTab('all')}
               style={styles.bottomBarTab}
             >
-              <FileText size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
+              <Home size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
               <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
-                Tickets
+                Home
               </Text>
             </TouchableOpacity>
 
-            {/* 4. Loaners (Left side of Profile) */}
+            {/* 2. Drive (Always visible) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenRoadTest}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>
+                Drive
+              </Text>
+            </TouchableOpacity>
+
+            {/* 3. Vehicles (Center) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenVehicles}
+              style={styles.bottomBarTab}
+            >
+              <FileText size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+            </TouchableOpacity>
+
+            {/* 4. Loaners */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={onOpenLoaners}
@@ -687,7 +687,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               <Text style={styles.bottomBarLabel}>Loaners</Text>
             </TouchableOpacity>
 
-            {/* 5. Logged-in User Profile (Extreme Right) */}
+            {/* 5. Logged-in User Profile */}
             <TouchableOpacity
               activeOpacity={0.75}
               onPress={onOpenProfile}
@@ -700,33 +700,33 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                 </Text>
               </View>
               <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
               </Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
             {/* Technician Layout */}
-            {/* 1. Tickets */}
+            {/* 1. Home */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setActiveTab('all')}
               style={styles.bottomBarTab}
             >
-              <FileText size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
+              <Home size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
               <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
-                Tickets
+                Home
               </Text>
             </TouchableOpacity>
 
-            {/* 2. Vehicles */}
+            {/* 2. Drive (Always visible in bottom navbar) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={onOpenVehicles}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
               <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+              <Text style={styles.bottomBarLabel}>Drive</Text>
             </TouchableOpacity>
 
             {/* 3. Red Primary Action Button (Center) */}
@@ -766,7 +766,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
                 </Text>
               </View>
               <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
               </Text>
             </TouchableOpacity>
           </>

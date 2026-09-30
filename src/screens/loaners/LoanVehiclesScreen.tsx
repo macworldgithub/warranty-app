@@ -19,7 +19,7 @@ import { LoanAgreement, LoanAgreementKpis, WarrantyCase } from '../../types';
 import { loanAgreementsApi } from '../../api';
 import { casesApi } from '../../api/cases.api';
 import { offlineStorage } from '../../services/offlineStorage';
-import { Clock, Car, FileText, Key, Gauge } from 'lucide-react-native';
+import { Clock, Car, FileText, Key, Gauge, Home } from 'lucide-react-native';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
 import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
@@ -826,34 +826,34 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {isAdmin ? (
           <>
-            {/* 1. Test Drive (Extreme Left - Replaces Awaiting) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Gauge size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Test Drive</Text>
-            </TouchableOpacity>
-
-            {/* 2. Vehicles */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenVehicles}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Vehicles</Text>
-            </TouchableOpacity>
-
-            {/* 3. Tickets (Center) */}
+            {/* 1. Home / Tickets */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => onOpenTickets?.('all')}
               style={styles.bottomBarTab}
             >
+              <Home size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Home</Text>
+            </TouchableOpacity>
+
+            {/* 2. Drive (Always visible) */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenRoadTest}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Drive</Text>
+            </TouchableOpacity>
+
+            {/* 3. Vehicles */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenVehicles}
+              style={styles.bottomBarTab}
+            >
               <FileText size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Tickets</Text>
+              <Text style={styles.bottomBarLabel}>Vehicles</Text>
             </TouchableOpacity>
 
             {/* 4. Loaners (ACTIVE) */}
@@ -865,7 +865,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
               <Text style={[styles.bottomBarLabel, { color: colors.primary }]}>Loaners</Text>
             </TouchableOpacity>
 
-            {/* 5. Logged-in User Profile (Extreme Right) */}
+            {/* 5. Logged-in User Profile */}
             <TouchableOpacity
               activeOpacity={0.75}
               onPress={onOpenProfile}
@@ -878,42 +878,42 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                 </Text>
               </View>
               <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
               </Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
             {/* Technician Layout */}
-            {/* 1. Tickets */}
+            {/* 1. Home */}
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => onOpenTickets?.('all')}
               style={styles.bottomBarTab}
             >
-              <FileText size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Tickets</Text>
+              <Home size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Home</Text>
             </TouchableOpacity>
 
-            {/* 2. Vehicles */}
+            {/* 2. Drive (Always visible) */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={onOpenVehicles}
+              onPress={onOpenRoadTest}
               style={styles.bottomBarTab}
             >
               <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+              <Text style={styles.bottomBarLabel}>Drive</Text>
             </TouchableOpacity>
 
             {/* 3. Red Primary Action Button (Center) */}
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={onStartNewCase}
+              onPress={chooseAgreementPurpose}
               style={styles.bottomBarActionBtn}
             >
               <Icon name="plus" size={15} color="#FFFFFF" />
               <Text style={styles.bottomBarActionText} numberOfLines={1}>
-                New Warranty Case
+                New Loaner
               </Text>
             </TouchableOpacity>
 
@@ -939,7 +939,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
                 </Text>
               </View>
               <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0] : 'Profile'}
+                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
               </Text>
             </TouchableOpacity>
           </>
