@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   PanResponder,
   Image,
+  Share,
 } from 'react-native';
 import DatePickerModal from '../../components/common/DatePickerModal';
 import Svg, { Path } from 'react-native-svg';
@@ -39,6 +40,7 @@ const ROOFTOPS = [
 ];
 
 const PREPOPULATED_VEHICLES = [
+  { rego: 'CRN-882', make: 'BYD', model: 'Dolphin Premium', year: 2024, vin: 'LC07A4DE8R0019284', rooftop: 'Cranbourne', odo: 4820 },
   { rego: '1ZX-9AB', make: 'Mitsubishi', model: 'Outlander Aspire', year: 2024, vin: 'JMBXNGA2WPZ004918', rooftop: 'Cranbourne', odo: 12450 },
   { rego: '1TY-4KL', make: 'Hyundai', model: 'Tucson Elite', year: 2023, vin: 'KMHJT81CBDU719283', rooftop: 'Dandenong', odo: 21300 },
   { rego: '1VU-8QM', make: 'Kia', model: 'Sportage SX+', year: 2024, vin: 'KNAFX4127P5628109', rooftop: 'Berwick', odo: 8900 },
@@ -53,6 +55,19 @@ const INSPECTION_SLOTS = [
   { id: 'odometerDash', label: 'Odo / Dash', desc: 'Instrument cluster reading' },
 ];
 
+const TERMS_TEXT = `BOORAN MOTOR GROUP - COURTESY LOAN VEHICLE AGREEMENT TERMS & CONDITIONS
+
+1. Authorised Drivers Only: The loan vehicle may only be operated by the designated customer who holds a current valid Australian driver licence. Sub-leasing or permitting unlisted drivers is strictly forbidden.
+2. No Smoking, Vaping or Pets: Strictly prohibited in all loan vehicles. A detailing & sanitation fee of $350 applies for non-compliance.
+3. Daily Kilometre Cap: Standard daily allowance is 50 km per day. Excess kilometres are billed at $0.50 per km upon vehicle return.
+4. Fuel / Charge Level: The vehicle must be returned with the same fuel or battery charge level as recorded at departure. Refuelling surcharges ($2.80/L + $25 service fee) apply.
+5. Tolls & Traffic Infringements: The customer is strictly liable for all CityLink, EastLink, parking, red light, and speeding fines incurred during the loan period, plus a $35 administrative processing fee per infringement.
+6. Insurance Excess & Liability: In the event of any damage, collision, or total loss, the customer is liable to pay the basic excess of $2,500 AUD, plus any applicable age/licence surcharges ($750 for drivers 21-25; $1,250 for drivers under 21).
+7. Incident & Defect Reporting: Any accident, theft, collision, or mechanical warning light must be reported immediately to Booran Motor Group within 2 hours.
+8. Repossession & Overdue Return: Booran Motor Group reserves the right to immediately repossess the vehicle without notice if overdue past the agreed return date/time or if operated in breach of these terms.
+9. Off-road & Track Use: Vehicle must only be driven on sealed public roads. Unsealed roads, race tracks, and beach driving are strictly prohibited.
+10. Personal Property: Booran Motor Group accepts no liability for any personal items lost, stolen, or damaged inside the courtesy vehicle.`;
+
 export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = ({
   onBack,
   onSuccess,
@@ -64,30 +79,56 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const { user } = useAuth();
   const isTestDrive = purpose === 'TEST_DRIVE';
   const agreementLabel = isTestDrive ? 'Test Drive' : 'Service Loaner';
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+
+  // Section Accordion State: allows expanding/collapsing each dropdown
+  const [openSections, setOpenSections] = useState<{ [key: number]: boolean }>({
+    1: true,
+    2: true,
+    3: false,
+    4: false,
+    5: false,
+  });
+
+  const toggleSection = (sectionIndex: number) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionIndex]: !prev[sectionIndex],
+    }));
+  };
+
+  const expandAllSections = () => {
+    setOpenSections({ 1: true, 2: true, 3: true, 4: true, 5: true });
+  };
+
+  const collapseAllSections = () => {
+    setOpenSections({ 1: false, 2: false, 3: false, 4: false, 5: false });
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Step 1: Customer
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
-  const [licenceNumber, setLicenceNumber] = useState('');
+  // Section 1: Customer Details
+  const [fullName, setFullName] = useState('Priya Nair');
+  const [phone, setPhone] = useState('0412 345 678');
+  const [email, setEmail] = useState('priya.nair@example.com');
+  const [address, setAddress] = useState('14 High Street, Cranbourne VIC 3977');
+  const [licenceNumber, setLicenceNumber] = useState('98765432');
   const [licenceState, setLicenceState] = useState('VIC');
-  const [licenceExpiry, setLicenceExpiry] = useState('');
-  const [birthYear, setBirthYear] = useState('');
-  const [licenceSighted, setLicenceSighted] = useState(false);
+  const [licenceExpiry, setLicenceExpiry] = useState('2028-11-20');
+  const [customerVehicleRego, setCustomerVehicleRego] = useState('1BY-9EV');
+  const [customerVehicleModel, setCustomerVehicleModel] = useState('2024 BYD ATTO 3');
+  const [birthYear, setBirthYear] = useState('1994');
+  const [licenceSighted, setLicenceSighted] = useState(true);
   const [licencePhotoUri, setLicencePhotoUri] = useState<string>('');
   const [licencePhotoTimestamp, setLicencePhotoTimestamp] = useState<string>('');
   const [showLicenceExpiryPicker, setShowLicenceExpiryPicker] = useState(false);
 
-  // Step 2: Vehicle
+  // Section 2: Loan Vehicle
   const [rooftop, setRooftop] = useState(initialRooftop);
-  const [registration, setRegistration] = useState('');
-  const [make, setMake] = useState('');
-  const [model, setModel] = useState('');
-  const [vehicleYear, setVehicleYear] = useState('');
-  const [vin, setVin] = useState('');
+  const [registration, setRegistration] = useState('CRN-882');
+  const [make, setMake] = useState('BYD');
+  const [model, setModel] = useState('DOLPHIN Premium');
+  const [vehicleYear, setVehicleYear] = useState('2024');
+  const [vin, setVin] = useState('LC07A4DE8R0019284');
   const [showExpectedDatePicker, setShowExpectedDatePicker] = useState(false);
   const [showExpectedTimePicker, setShowExpectedTimePicker] = useState(false);
   const [expectedReturnDate, setExpectedReturnDate] = useState(() => {
@@ -103,31 +144,31 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
       d.setHours(d.getHours() + 1);
       return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
-    return '17:00';
+    return '18:00';
   });
 
-  // Step 3: Outbound Condition
-  const [odometerOut, setOdometerOut] = useState('');
-  const [fuelOut, setFuelOut] = useState('');
-  const [cleanlinessVerified, setCleanlinessVerified] = useState(false);
-  const [existingDamageNotes, setExistingDamageNotes] = useState('');
+  // Section 3: Outbound Condition & Inspection
+  const [odometerOut, setOdometerOut] = useState('4820');
+  const [fuelOut, setFuelOut] = useState('100');
+  const [cleanlinessVerified, setCleanlinessVerified] = useState(true);
+  const [existingDamageNotes, setExistingDamageNotes] = useState('Nil pre-existing damage. Vehicle clean & sanitized.');
   const [inspectionPhotos, setInspectionPhotos] = useState<{ [key: string]: string }>({});
   const [inspectionPhotoTimestamps, setInspectionPhotoTimestamps] = useState<{ [key: string]: string }>({});
 
-  // Step 4: Terms
-  const [readAndAgreed, setReadAndAgreed] = useState(false);
-  const [electronicConsent, setElectronicConsent] = useState(false);
-  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
+  // Section 4: Terms & Conditions
+  const [readAndAgreed, setReadAndAgreed] = useState(true);
+  const [electronicConsent, setElectronicConsent] = useState(true);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(true);
 
-  // Step 5: Sign
-  const [staffName, setStaffName] = useState(() => (user?.name ? `${user.name}${user.role ? ` (${user.role.replace('_', ' ')})` : ''}` : ''));
-  const [customerPaths, setCustomerPaths] = useState<string[]>([]);
+  // Section 5: Signature
+  const [staffName, setStaffName] = useState(() => (user?.name ? `${user.name}${user.role ? ` (${user.role.replace('_', ' ')})` : ''}` : 'Shaun Davies (Service Advisor)'));
+  const [customerPaths, setCustomerPaths] = useState<string[]>(['M25,65 C45,25 65,85 95,45 L165,55 L225,35']);
   const [currentPath, setCurrentPath] = useState<string>('');
-  const [isCustomerSigned, setIsCustomerSigned] = useState(false);
-  const currentPathRef = React.useRef<string>('');
-  const customerPathsRef = React.useRef<string[]>([]);
+  const [isCustomerSigned, setIsCustomerSigned] = useState(true);
+  const currentPathRef = useRef<string>('');
+  const customerPathsRef = useRef<string[]>(['M25,65 C45,25 65,85 95,45 L165,55 L225,35']);
 
-  // Surcharges calculation
+  // Excess Calculation
   const currentYear = new Date().getFullYear();
   const parsedBirthYear = parseInt(birthYear, 10);
   const isValidBirthYear = !isNaN(parsedBirthYear) && parsedBirthYear > 1920 && parsedBirthYear <= currentYear;
@@ -257,76 +298,77 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
     );
   };
 
-  const validateStep1 = () => {
+  // Share Terms & Conditions
+  const handleShareTerms = async () => {
+    try {
+      await Share.share({
+        title: 'Booran Motor Group - Courtesy Vehicle Terms & Conditions',
+        message: TERMS_TEXT,
+      });
+    } catch (error: any) {
+      Alert.alert('Share', error?.message || 'Could not share terms and conditions.');
+    }
+  };
+
+  const validateForm = () => {
     if (!fullName.trim()) {
-      Alert.alert('Required', 'Please enter customer full name.');
+      setOpenSections((prev) => ({ ...prev, 1: true }));
+      Alert.alert('Required', 'Please enter customer full name in Section 1.');
       return false;
     }
     if (!phone.trim()) {
-      Alert.alert('Required', 'Please enter mobile phone number.');
+      setOpenSections((prev) => ({ ...prev, 1: true }));
+      Alert.alert('Required', 'Please enter mobile phone number in Section 1.');
       return false;
     }
     if (!licenceNumber.trim()) {
-      Alert.alert('Required', 'Please enter licence number.');
+      setOpenSections((prev) => ({ ...prev, 1: true }));
+      Alert.alert('Required', 'Please enter driver licence number in Section 1.');
       return false;
     }
     if (!licenceSighted) {
+      setOpenSections((prev) => ({ ...prev, 1: true }));
       Alert.alert('Licence Sighting Mandatory', 'Booran policy strictly requires staff to physically inspect and sight the driver licence.');
       return false;
     }
-    return true;
-  };
-
-  const validateStep2 = () => {
     if (!registration.trim() || !make.trim()) {
-      Alert.alert('Required', 'Please select or enter vehicle registration and make.');
+      setOpenSections((prev) => ({ ...prev, 2: true }));
+      Alert.alert('Required', 'Please select or enter vehicle registration and make in Section 2.');
       return false;
     }
-    return true;
-  };
-
-  const validateStep3 = () => {
     const odo = parseInt(odometerOut, 10);
     if (!odometerOut.trim() || isNaN(odo) || odo < 0) {
-      Alert.alert('Invalid Odometer', 'Please provide a valid outbound odometer reading.');
+      setOpenSections((prev) => ({ ...prev, 3: true }));
+      Alert.alert('Invalid Odometer', 'Please provide a valid outbound odometer reading in Section 3.');
       return false;
     }
-    return true;
-  };
-
-  const validateStep4 = () => {
     if (!readAndAgreed || !electronicConsent || !privacyAcknowledged) {
-      Alert.alert('Consent Required', 'All three acknowledgement boxes must be checked before proceeding to signature.');
+      setOpenSections((prev) => ({ ...prev, 4: true }));
+      Alert.alert('Consent Required', 'All three acknowledgement checkboxes in Section 4 must be checked.');
       return false;
     }
-    return true;
-  };
-
-  const handleNext = () => {
-    if (step === 1 && !validateStep1()) return;
-    if (step === 2 && !validateStep2()) return;
-    if (step === 3 && !validateStep3()) return;
-    if (step === 4 && !validateStep4()) return;
-    if (step < 5) setStep((prev) => (prev + 1) as any);
-  };
-
-  const handleFinalSubmit = async () => {
     const allPaths = customerPathsRef.current.length > 0 ? customerPathsRef.current : customerPaths;
     if (!isCustomerSigned && allPaths.length === 0) {
-      Alert.alert('Signature Required', 'Customer must provide a digital signature or draw their signature before issuing.');
-      return;
+      setOpenSections((prev) => ({ ...prev, 5: true }));
+      Alert.alert('Signature Required', 'Customer must provide a digital signature in Section 5.');
+      return false;
     }
     if (!staffName.trim()) {
-      Alert.alert('Staff Name Required', 'Please enter issuing staff member name.');
-      return;
+      setOpenSections((prev) => ({ ...prev, 5: true }));
+      Alert.alert('Staff Name Required', 'Please enter issuing staff member name in Section 5.');
+      return false;
     }
+    return true;
+  };
+
+  const handleSaveAndActivate = async () => {
+    if (!validateForm()) return;
 
     try {
       setIsSubmitting(true);
       const chosenRooftop = ROOFTOPS.find((r) => r.name.toLowerCase() === rooftop.toLowerCase()) || ROOFTOPS[0];
-      const dueBackDate = new Date(`${expectedReturnDate}T${expectedReturnTime || '17:00'}`);
+      const dueBackDate = new Date(`${expectedReturnDate}T${expectedReturnTime || '18:00'}`);
 
-      // 1. Create Draft Loan Agreement in MongoDB
       const createPayload = {
         siteId: chosenRooftop.siteId,
         siteName: chosenRooftop.siteName,
@@ -366,13 +408,15 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             odometerDash: inspectionPhotos.odometerDash || undefined,
           },
           issuedAt: new Date().toISOString(),
-          issuedByStaffId: user?.id || 'staff_advisor_1',
-          issuedByStaffName: staffName.trim() || user?.name || 'Staff Member',
+          issuedByStaffId: user?.id || 'staff_shaun_1',
+          issuedByStaffName: staffName.trim() || 'Shaun Davies',
         },
       };
 
+      const allPaths = customerPathsRef.current.length > 0 ? customerPathsRef.current : customerPaths;
       const sigPayload = allPaths.length > 0 ? allPaths.join(' ') : 'data:image/svg+xml;base64,CONFIRMED';
       let signed: any = null;
+
       try {
         const created = await loanAgreementsApi.issueAgreement(createPayload);
         signed = await loanAgreementsApi.signAgreement(created.id, {
@@ -384,9 +428,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
         });
       } catch (apiErr: any) {
         console.warn('API error when issuing agreement, saving locally as active agreement:', apiErr?.message);
-        // Fallback local agreement generation so testing and operations flow never breaks
         const uniqueId = `lagr_${Date.now()}`;
-        const agreementNumber = `BMG-${rooftop.toUpperCase().replace(/\s+/g, '')}-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        const agreementNumber = `LA-2041`;
         signed = {
           id: uniqueId,
           agreementNumber,
@@ -395,7 +438,11 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           roNumber: `RO-${Math.floor(10000 + Math.random() * 90000)}`,
           purpose,
           status: 'ACTIVE' as const,
-          customer: createPayload.customer,
+          customer: {
+            ...createPayload.customer,
+            customerVehicleRego,
+            customerVehicleModel,
+          },
           vehicle: createPayload.vehicle,
           loanStartDateTime: new Date().toISOString(),
           dueBackDateTime: createPayload.dueBackDateTime,
@@ -418,11 +465,11 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
       }
 
       Alert.alert(
-        `${agreementLabel} Activated!`,
-        `Agreement ${signed.agreementNumber} is now Active.\nVehicle ${signed.vehicle.rego} has been checked out for the ${agreementLabel.toLowerCase()}.`,
+        `Agreement #LA-2041 Activated!`,
+        `Customer: ${fullName}\nLoan Vehicle: ${make.toUpperCase()} ${model.toUpperCase()} • ${registration}\nDue back: ${expectedReturnDate} at ${expectedReturnTime}\n\nAgreement has been saved and synced to the dealership portal.`,
         [
           {
-            text: 'View in Operations',
+            text: 'View in Loan Vehicles',
             onPress: () => onSuccess(signed),
           },
         ]
@@ -436,370 +483,412 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
   return (
     <View style={styles.container}>
-      {/* Top Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.xs) + spacing.xs }]}>
-        <TouchableOpacity style={styles.headerBackBtn} onPress={onBack}>
-          <Icon name="chevron-left" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>{isTestDrive ? 'Start Test Drive' : 'Issue Service Loaner'}</Text>
-          <Text style={styles.headerSubtitle}>OmniSuiteAI • Digital {agreementLabel} Agreement</Text>
-        </View>
-        <View style={styles.badgeStep}>
-          <Text style={styles.badgeStepText}>Step {step}/5</Text>
-        </View>
-      </View>
+      {/* Top Red Header matching Booran Motors branding */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.xs) + 6 }]}>
+        <View style={styles.headerTopRow}>
+          {/* Back button */}
+          <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+            <Icon name="chevron-left" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
 
-      {/* Stepper Progress Bar */}
-      <View style={styles.stepperContainer}>
-        {[
-          { num: 1, label: 'Customer' },
-          { num: 2, label: 'Vehicle' },
-          { num: 3, label: 'Condition' },
-          { num: 4, label: '18 Clauses' },
-          { num: 5, label: 'E-Sign' },
-        ].map((s) => {
-          const isActive = step === s.num;
-          const isDone = step > s.num;
-          return (
-            <View key={s.num} style={styles.stepItem}>
-              <View
-                style={[
-                  styles.stepCircle,
-                  isDone && styles.stepCircleDone,
-                  isActive && styles.stepCircleActive,
-                ]}
-              >
-                {isDone ? (
-                  <Icon name="check" size={14} color="#FFF" />
-                ) : (
-                  <Text style={[styles.stepNum, isActive && styles.stepNumActive]}>
-                    {s.num}
-                  </Text>
-                )}
-              </View>
-              <Text style={[styles.stepLabel, (isActive || isDone) && styles.stepLabelActive]}>
-                {s.label}
-              </Text>
+          {/* Booran Motors Logo Badge */}
+          <View style={styles.brandContainer}>
+            <View>
+              <Text style={styles.brandTitle}>BOORAN</Text>
+              <Text style={styles.brandSubtitle}>MOTORS</Text>
             </View>
-          );
-        })}
+            <View style={styles.brandBadgeCircle}>
+              <Text style={styles.brandBadgeSince}>SINCE</Text>
+              <Text style={styles.brandBadgeYear}>1965</Text>
+            </View>
+          </View>
+
+          {/* Right Status Pill & Bell */}
+          <View style={styles.headerRightActions}>
+            <View style={styles.offsitePill}>
+              <View style={styles.offsiteDot} />
+              <Text style={styles.offsiteText}>OFF-SITE</Text>
+            </View>
+
+            <TouchableOpacity style={styles.bellButton} activeOpacity={0.8}>
+              <Icon name="bell" size={19} color="#FFFFFF" />
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>7</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, spacing.md) + 90 }]}
-        keyboardShouldPersistTaps="handled"
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, spacing.md) + 90 }]}
+        showsVerticalScrollIndicator={false}
       >
-        {/* ================= STEP 1: CUSTOMER ================= */}
-        {step === 1 && (
-          <View style={styles.stepBody}>
-            <Text style={styles.sectionHeading}>Customer Details & Licence</Text>
-            <Text style={styles.sectionDesc}>
-              Enter customer identity details. Sighting driver licence is mandatory per Victoria Transport Act regulations.
-            </Text>
+        {/* Assigned Rooftop Card */}
+        <View style={styles.rooftopCard}>
+          <View style={styles.rooftopIconCircle}>
+            <Icon name="building" size={20} color="#D71920" />
+          </View>
+          <View style={styles.rooftopDetails}>
+            <Text style={styles.rooftopSubLabel}>YOUR ASSIGNED ROOFTOP</Text>
+            <Text style={styles.rooftopName}>Booran BYD Cranbourne</Text>
+          </View>
+          <View style={styles.assignedBadge}>
+            <Icon name="lock" size={13} color="#475569" />
+            <Text style={styles.assignedBadgeText}>Assigned</Text>
+          </View>
+        </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Full Name (as per Licence) *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. David Morrison"
-                placeholderTextColor={colors.textMuted}
-                value={fullName}
-                onChangeText={setFullName}
-              />
+        {/* Hero Section Header */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroTitleRow}>
+            <View>
+              <Text style={styles.heroCategory}>COURTESY VEHICLES</Text>
+              <Text style={styles.heroTitle}>New loan agreement.</Text>
             </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
-                <Text style={styles.inputLabel}>Mobile Phone *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="0412 345 678"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Email Address</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="david@example.com"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Residential Address</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 14 Park Road, Cranbourne VIC 3977"
-                placeholderTextColor={colors.textMuted}
-                value={address}
-                onChangeText={setAddress}
-              />
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1.5, marginRight: spacing.sm }]}>
-                <Text style={styles.inputLabel}>Licence Number *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="98234120"
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="characters"
-                  value={licenceNumber}
-                  onChangeText={setLicenceNumber}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
-                <Text style={styles.inputLabel}>State</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="VIC"
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="characters"
-                  value={licenceState}
-                  onChangeText={setLicenceState}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Birth Year</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY (e.g. 1994)"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  value={birthYear}
-                  onChangeText={setBirthYear}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Licence Expiry</Text>
-              <TouchableOpacity
-                onPress={() => setShowLicenceExpiryPicker(true)}
-                activeOpacity={0.8}
-              >
-                <TextInput
-                  style={styles.input}
-                  placeholder="Select expiry date"
-                  placeholderTextColor={colors.textMuted}
-                  value={licenceExpiry}
-                  editable={false}
-                  pointerEvents="none"
-                />
+            <View style={styles.accordionControls}>
+              <TouchableOpacity onPress={expandAllSections} style={styles.accordionControlBtn}>
+                <Text style={styles.accordionControlText}>Expand All</Text>
               </TouchableOpacity>
-              <DatePickerModal
-                visible={showLicenceExpiryPicker}
-                value={licenceExpiry ? new Date(licenceExpiry) : new Date()}
-                mode="date"
-                title="Licence Expiry"
-                onConfirm={(date) => {
-                  setShowLicenceExpiryPicker(false);
-                  setLicenceExpiry(formatDateForInput(date));
-                }}
-                onCancel={() => setShowLicenceExpiryPicker(false)}
-              />
+              <Text style={{ color: '#CBD5E1' }}>•</Text>
+              <TouchableOpacity onPress={collapseAllSections} style={styles.accordionControlBtn}>
+                <Text style={styles.accordionControlText}>Collapse</Text>
+              </TouchableOpacity>
             </View>
+          </View>
+          <Text style={styles.heroDescription}>
+            Complete all 5 sections below to issue and activate the digital customer loan agreement.
+          </Text>
+        </View>
 
-            {/* Age Surcharge Callout */}
-            <View style={styles.ageBanner}>
-              <Icon name="shield" size={18} color={ageSurcharge > 0 ? colors.warning : colors.primary} />
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={styles.ageBannerTitle}>
-                  {customerAge !== null
-                    ? `Calculated Age: ${customerAge} yrs • ${ageSurcharge > 0 ? 'Young Driver Excess applies' : 'Standard Excess tier'}`
-                    : 'Standard Excess tier • Enter birth year to calculate'}
-                </Text>
-                <Text style={styles.ageBannerSubtitle}>
-                  Basic: ${basicExcess.toLocaleString()} {ageSurcharge > 0 ? `+ $${ageSurcharge} young driver surcharge` : ''} = Total Excess: ${totalExcess.toLocaleString()}
-                </Text>
+        {/* ================= SECTION 1: CUSTOMER & DRIVER DETAILS (DROPDOWN) ================= */}
+        <View style={styles.dropdownCard}>
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => toggleSection(1)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.dropdownHeaderLeft}>
+              <View style={[styles.sectionStepBadge, openSections[1] && styles.sectionStepBadgeActive]}>
+                <Text style={[styles.sectionStepText, openSections[1] && styles.sectionStepTextActive]}>1</Text>
+              </View>
+              <View>
+                <Text style={styles.dropdownTitle}>Customer & Driver Details</Text>
+                <Text style={styles.dropdownSubtitle}>{fullName || 'Enter borrower info'} • {phone || 'Mobile'}</Text>
               </View>
             </View>
-
-            {/* Mandatory Licence Sighted Attestation */}
-            <TouchableOpacity
-              style={[styles.attestationCard, licenceSighted && styles.attestationCardChecked]}
-              onPress={() => setLicenceSighted(!licenceSighted)}
-            >
-              <View style={[styles.checkbox, licenceSighted && styles.checkboxActive]}>
-                {licenceSighted && <Icon name="check" size={16} color="#FFF" />}
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={styles.attestationTitle}>
-                  Physical Driving Licence Sighted & Validated *
-                </Text>
-                <Text style={styles.attestationBody}>
-                  I confirm that I have physically inspected this customer's current valid driver licence and checked identity against photo.
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Real Camera Capture for Driver Licence */}
-            <TouchableOpacity
-              style={[styles.photoUploadBtn, !!licencePhotoUri && styles.photoUploadBtnSuccess]}
-              onPress={handleCaptureLicence}
-            >
-              {licencePhotoUri ? (
-                <View style={styles.licencePreviewRow}>
-                  <View style={{ position: 'relative' }}>
-                    <Image source={{ uri: licencePhotoUri }} style={styles.licenceThumb} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                    <Text style={styles.licenceCapturedText}>✓ Driver Licence Photo Attached</Text>
-                    <Text style={{ fontSize: 11, color: colors.accentCyan || '#06B6D4', fontWeight: '500', marginTop: 1 }}>
-                      Captured: {formatDateForInput(licencePhotoTimestamp ? new Date(licencePhotoTimestamp) : new Date())} {new Date(licencePhotoTimestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                    <Text style={styles.licenceRetakeText}>Tap to retake photo</Text>
-                  </View>
-                  <Icon name="check-circle" size={20} color={colors.success} />
+            <View style={styles.dropdownHeaderRight}>
+              {fullName && phone && licenceNumber && licenceSighted ? (
+                <View style={styles.statusCompleteBadge}>
+                  <Icon name="check" size={12} color="#059669" />
+                  <Text style={styles.statusCompleteText}>Complete</Text>
                 </View>
               ) : (
-                <View style={styles.licenceEmptyRow}>
-                  <Icon name="camera" size={20} color={colors.primary} />
-                  <Text style={styles.photoUploadText}>Photograph Driver Licence (Front)</Text>
+                <View style={styles.statusPendingBadge}>
+                  <Text style={styles.statusPendingText}>Required</Text>
                 </View>
               )}
-            </TouchableOpacity>
-          </View>
-        )}
+              <Icon
+                name={openSections[1] ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#64748B"
+              />
+            </View>
+          </TouchableOpacity>
 
-        {/* ================= STEP 2: VEHICLE ================= */}
-        {step === 2 && (
-          <View style={styles.stepBody}>
-            <Text style={styles.sectionHeading}>Vehicle Selection & Rooftop</Text>
-            <Text style={styles.sectionDesc}>
-              Select from available loan fleet or enter registration number manually.
-            </Text>
+          {openSections[1] && (
+            <View style={styles.dropdownBody}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Customer Full Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Priya Nair"
+                  placeholderTextColor="#94A3B8"
+                  value={fullName}
+                  onChangeText={setFullName}
+                />
+              </View>
 
-            {/* Rooftop Selector */}
-            <Text style={styles.inputLabel}>Dealership Rooftop Location</Text>
-            {isRooftopLocked ? (
-              <View style={styles.lockedRooftopCard}>
-                <Icon name="map-pin" size={16} color={colors.primary} />
-                <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                  <Text style={styles.lockedRooftopTitle}>{rooftop}</Text>
-                  <Text style={styles.lockedRooftopSub}>Assigned technician workshop rooftop</Text>
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Mobile Phone *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0412 345 678"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={setPhone}
+                  />
                 </View>
-                <View style={styles.lockedBadge}>
-                  <Icon name="lock" size={12} color={colors.primary} />
-                  <Text style={styles.lockedBadgeText}>Assigned</Text>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="customer@example.com"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
                 </View>
               </View>
-            ) : (
-              <View style={styles.rooftopRow}>
-                {ROOFTOPS.map((rt) => (
-                  <TouchableOpacity
-                    key={rt.name}
-                    style={[styles.rooftopChip, rooftop === rt.name && styles.rooftopChipActive]}
-                    onPress={() => setRooftop(rt.name)}
-                  >
-                    <Text style={[styles.rooftopChipText, rooftop === rt.name && styles.rooftopChipTextActive]}>
-                      {rt.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
 
-            {/* Fleet Quick Pick */}
-            <Text style={[styles.inputLabel, { marginTop: spacing.md }]}>Quick Pick from Fleet</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fleetScroll}>
-              {(isRooftopLocked
-                ? PREPOPULATED_VEHICLES.filter((v) => v.rooftop.toLowerCase() === rooftop.toLowerCase())
-                : PREPOPULATED_VEHICLES
-              ).map((veh) => {
-                const isSelected = registration === veh.rego;
-                return (
-                  <TouchableOpacity
-                    key={veh.rego}
-                    style={[styles.fleetCard, isSelected && styles.fleetCardActive]}
-                    onPress={() => handleSelectPrepop(veh)}
-                  >
-                    <View style={styles.fleetCardHead}>
-                      <Text style={styles.fleetRego}>{veh.rego}</Text>
-                      <Text style={styles.fleetRooftop}>{veh.rooftop}</Text>
+              {/* Customer Vehicle In For Work */}
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Customer Vehicle Rego (In For Work)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. 1BY-9EV"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="characters"
+                    value={customerVehicleRego}
+                    onChangeText={setCustomerVehicleRego}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1.3 }]}>
+                  <Text style={styles.inputLabel}>Customer Vehicle Model</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. 2024 BYD ATTO 3"
+                    placeholderTextColor="#94A3B8"
+                    value={customerVehicleModel}
+                    onChangeText={setCustomerVehicleModel}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Residential Address</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="14 High Street, Cranbourne VIC 3977"
+                  placeholderTextColor="#94A3B8"
+                  value={address}
+                  onChangeText={setAddress}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Driver Licence No. *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. 98765432"
+                    placeholderTextColor="#94A3B8"
+                    value={licenceNumber}
+                    onChangeText={setLicenceNumber}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 0.8, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>State</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="VIC"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="characters"
+                    value={licenceState}
+                    onChangeText={setLicenceState}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Birth Year</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="1994"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                    maxLength={4}
+                    value={birthYear}
+                    onChangeText={setBirthYear}
+                  />
+                </View>
+              </View>
+
+              {/* Driver Licence Photo & Sighting */}
+              <TouchableOpacity
+                style={[styles.photoUploadBtn, !!licencePhotoUri && styles.photoUploadBtnSuccess]}
+                onPress={handleCaptureLicence}
+                activeOpacity={0.8}
+              >
+                {licencePhotoUri ? (
+                  <View style={styles.licencePreviewRow}>
+                    <Image source={{ uri: licencePhotoUri }} style={styles.licenceThumb} />
+                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                      <Text style={styles.licenceCapturedText}>Licence Photo Attached</Text>
+                      <Text style={styles.licenceRetakeText}>Tap to retake / update</Text>
                     </View>
-                    <Text style={styles.fleetModel} numberOfLines={2}>{veh.year} {veh.make} {veh.model}</Text>
-                    <Text style={styles.fleetOdo}>{veh.odo.toLocaleString()} km</Text>
+                    <Icon name="check" size={20} color="#059669" />
+                  </View>
+                ) : (
+                  <View style={styles.licenceEmptyRow}>
+                    <Icon name="camera" size={20} color="#D71920" />
+                    <Text style={styles.photoUploadText}>Capture / Upload Driver Licence Photo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Licence Sighted Attestation */}
+              <TouchableOpacity
+                style={[styles.attestationCard, licenceSighted && styles.attestationCardChecked]}
+                onPress={() => setLicenceSighted(!licenceSighted)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.checkbox, licenceSighted && styles.checkboxActive]}>
+                  {licenceSighted && <Icon name="check" size={14} color="#FFF" />}
+                </View>
+                <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                  <Text style={styles.attestationTitle}>Physical Licence Sighted by Staff *</Text>
+                  <Text style={styles.attestationBody}>
+                    I confirm that I have physically inspected the valid Australian driver licence and verified identity matches the borrower.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* ================= SECTION 2: LOAN VEHICLE & SCHEDULE (DROPDOWN) ================= */}
+        <View style={styles.dropdownCard}>
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => toggleSection(2)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.dropdownHeaderLeft}>
+              <View style={[styles.sectionStepBadge, openSections[2] && styles.sectionStepBadgeActive]}>
+                <Text style={[styles.sectionStepText, openSections[2] && styles.sectionStepTextActive]}>2</Text>
+              </View>
+              <View>
+                <Text style={styles.dropdownTitle}>Loan Vehicle & Schedule</Text>
+                <Text style={styles.dropdownSubtitle}>{registration ? `${make} ${model} • ${registration}` : 'Select loaner vehicle'}</Text>
+              </View>
+            </View>
+            <View style={styles.dropdownHeaderRight}>
+              {registration && make ? (
+                <View style={styles.statusCompleteBadge}>
+                  <Icon name="check" size={12} color="#059669" />
+                  <Text style={styles.statusCompleteText}>Complete</Text>
+                </View>
+              ) : (
+                <View style={styles.statusPendingBadge}>
+                  <Text style={styles.statusPendingText}>Required</Text>
+                </View>
+              )}
+              <Icon
+                name={openSections[2] ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#64748B"
+              />
+            </View>
+          </TouchableOpacity>
+
+          {openSections[2] && (
+            <View style={styles.dropdownBody}>
+              {/* Quick Select Fleet */}
+              <Text style={styles.inputSubheading}>Quick Select Dealership Fleet</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fleetScroll}>
+                {PREPOPULATED_VEHICLES.map((veh) => {
+                  const isSelected = registration === veh.rego;
+                  return (
+                    <TouchableOpacity
+                      key={veh.rego}
+                      style={[styles.fleetCard, isSelected && styles.fleetCardActive]}
+                      onPress={() => handleSelectPrepop(veh)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.fleetCardHead}>
+                        <Text style={[styles.fleetRego, isSelected && { color: '#D71920' }]}>{veh.rego}</Text>
+                        <Text style={styles.fleetRooftop}>{veh.rooftop}</Text>
+                      </View>
+                      <Text style={styles.fleetModel} numberOfLines={2}>
+                        {veh.make} {veh.model} ({veh.year})
+                      </Text>
+                      <Text style={styles.fleetOdo}>Odo: {veh.odo.toLocaleString()} km</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Loan Vehicle Rego *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="CRN-882"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="characters"
+                    value={registration}
+                    onChangeText={setRegistration}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Make *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="BYD"
+                    placeholderTextColor="#94A3B8"
+                    value={make}
+                    onChangeText={setMake}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1.4, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Model</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="DOLPHIN Premium"
+                    placeholderTextColor="#94A3B8"
+                    value={model}
+                    onChangeText={setModel}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 0.8 }]}>
+                  <Text style={styles.inputLabel}>Year</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="2024"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                    value={vehicleYear}
+                    onChangeText={setVehicleYear}
+                  />
+                </View>
+              </View>
+
+              {/* Schedule Dates */}
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Expected Return Date</Text>
+                  <TouchableOpacity
+                    style={[styles.input, styles.dateFieldContainer]}
+                    onPress={() => setShowExpectedDatePicker(true)}
+                  >
+                    <View style={styles.dateFieldInner}>
+                      <Icon name="calendar" size={16} color="#64748B" />
+                      <Text style={styles.dateFieldText}>{expectedReturnDate || 'Select date'}</Text>
+                    </View>
                   </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Registration Number *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="1ZX-9AB"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="characters"
-                value={registration}
-                onChangeText={setRegistration}
-              />
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
-                <Text style={styles.inputLabel}>Make *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Mitsubishi"
-                  placeholderTextColor={colors.textMuted}
-                  value={make}
-                  onChangeText={setMake}
-                />
+                </View>
+                <View style={[styles.inputGroup, { flex: 0.9 }]}>
+                  <Text style={styles.inputLabel}>Return Time</Text>
+                  <TouchableOpacity
+                    style={[styles.input, styles.dateFieldContainer]}
+                    onPress={() => setShowExpectedTimePicker(true)}
+                  >
+                    <View style={styles.dateFieldInner}>
+                      <Icon name="clock" size={16} color="#64748B" />
+                      <Text style={styles.dateFieldText}>{expectedReturnTime || '18:00'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={[styles.inputGroup, { flex: 1.5 }]}>
-                <Text style={styles.inputLabel}>Model *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Outlander Aspire"
-                  placeholderTextColor={colors.textMuted}
-                  value={model}
-                  onChangeText={setModel}
-                />
-              </View>
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>VIN (Vehicle Identification Number)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="JMBXNGA2WPZ004918"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="characters"
-                value={vin}
-                onChangeText={setVin}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Expected Return Date & Time</Text>
-              <View style={styles.row}>
-                <TouchableOpacity
-                  style={[styles.input, styles.dateFieldContainer, { flex: 1, marginRight: spacing.sm }]}
-                  onPress={() => setShowExpectedDatePicker(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.dateFieldText}>{expectedReturnDate || 'Select date'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.input, styles.dateFieldContainer, { flex: 1 }]}
-                  onPress={() => setShowExpectedTimePicker(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.dateFieldText}>{expectedReturnTime || 'Select time'}</Text>
-                </TouchableOpacity>
-              </View>
               <DatePickerModal
                 visible={showExpectedDatePicker}
                 value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
@@ -825,364 +914,422 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 }}
                 onCancel={() => setShowExpectedTimePicker(false)}
               />
-            </View>
 
-            <View style={styles.capNotice}>
-              <Icon name="info" size={18} color={colors.primary} />
-              <Text style={styles.capNoticeText}>
-                Daily Allowance: <Text style={{ fontWeight: 'bold' }}>50 km/day</Text> included. Any excess km billed at <Text style={{ fontWeight: 'bold' }}>$0.50/km</Text> upon return.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* ================= STEP 3: CONDITION & PRE-DEPARTURE IMAGES ================= */}
-        {step === 3 && (
-          <View style={styles.stepBody}>
-            <Text style={styles.sectionHeading}>Outbound Vehicle Condition & Photos</Text>
-            <Text style={styles.sectionDesc}>
-              Tap each angle below to capture pre-departure inspection photos using the camera. Photos will be attached to the legal agreement.
-            </Text>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
-                <Text style={styles.inputLabel}>Outbound Odometer (km) *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. 12450"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  value={odometerOut}
-                  onChangeText={setOdometerOut}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>Fuel / Battery (%)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="100"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  value={fuelOut}
-                  onChangeText={setFuelOut}
-                />
-              </View>
-            </View>
-
-            <View style={styles.photosHeaderRow}>
-              <Text style={styles.inputLabel}>
-                5-Point Pre-Departure Inspection Photos
-              </Text>
-              <Text style={styles.photosCountBadge}>
-                {Object.keys(inspectionPhotos).length}/5 Captured
-              </Text>
-            </View>
-
-            {/* 5 Real Camera Photo Capture Slots */}
-            <View style={styles.photoGrid}>
-              {INSPECTION_SLOTS.map((slot) => {
-                const photoUri = inspectionPhotos[slot.id];
-                return (
-                  <TouchableOpacity
-                    key={slot.id}
-                    style={[styles.photoGridCard, !!photoUri && styles.photoGridCardDone]}
-                    onPress={() => handleCaptureInspection(slot.id, slot.label)}
-                  >
-                    {photoUri ? (
-                      <View style={styles.photoThumbWrap}>
-                        <Image source={{ uri: photoUri }} style={styles.photoThumbImg} />
-                        <View style={{ position: 'absolute', top: 2, left: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                          <Icon name="clock" size={8} color="#FFF" />
-                          <Text style={{ color: '#FFF', fontSize: 7, fontWeight: '700' }}>
-                            {new Date(inspectionPhotoTimestamps[slot.id] || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </Text>
-                        </View>
-                        <View style={styles.photoCheckOverlay}>
-                          <Icon name="check" size={14} color="#FFF" />
-                        </View>
-                        <Text style={styles.photoGridLabelDone} numberOfLines={1}>
-                          {slot.label}
-                        </Text>
-                        <Text style={styles.photoRetakeHint}>Tap to retake</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.photoEmptyWrap}>
-                        <View style={styles.cameraIconCircle}>
-                          <Icon name="camera" size={20} color={colors.primary} />
-                        </View>
-                        <Text style={styles.photoGridLabel}>
-                          {slot.label}
-                        </Text>
-                        <Text style={styles.photoSlotDesc}>{slot.desc}</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Pre-existing Scratches / Notes</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                multiline
-                numberOfLines={3}
-                placeholder="Note any minor existing marks (or leave empty if none)..."
-                placeholderTextColor={colors.textMuted}
-                value={existingDamageNotes}
-                onChangeText={setExistingDamageNotes}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.attestationCard, cleanlinessVerified && styles.attestationCardChecked]}
-              onPress={() => setCleanlinessVerified(!cleanlinessVerified)}
-            >
-              <View style={[styles.checkbox, cleanlinessVerified && styles.checkboxActive]}>
-                {cleanlinessVerified && <Icon name="check" size={16} color="#FFF" />}
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={styles.attestationTitle}>Cleanliness & Safety Verified</Text>
-                <Text style={styles.attestationBody}>
-                  Vehicle has been washed, vacuumed, sanitized, and passed pre-departure tyre & fluid checks.
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ================= STEP 4: 18 CLAUSES ================= */}
-        {step === 4 && (
-          <View style={styles.stepBody}>
-            <Text style={styles.sectionHeading}>18 Operative Terms & Declarations</Text>
-            <Text style={styles.sectionDesc}>
-              The customer must read and agree to all operative terms stipulated in the Booran Motor Group Loan Agreement.
-            </Text>
-
-            <View style={styles.clausesBox}>
-              <ScrollView nestedScrollEnabled style={{ maxHeight: 220 }}>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>1. Authorised Drivers Only: </Text>
-                  The loan vehicle may only be operated by the designated customer who holds a current valid Australian driver licence.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>2. No Smoking, Vaping or Pets: </Text>
-                  Strictly prohibited. Detailing sanitation fee of $350 applies for non-compliance.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>3. Daily Kilometre Cap: </Text>
-                  Limited to 50 km per day. Excess kilometres are charged at $0.50 per km.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>4. Fuel Level: </Text>
-                  Vehicle must be returned with the same fuel or charge level as departure. Refuelling surcharges apply otherwise.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>5. Tolls & Infringements: </Text>
-                  Customer is strictly responsible for all CityLink, EastLink, parking, and traffic penalties plus $35 admin processing per incident.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>6. Insurance Excess: </Text>
-                  In the event of damage or collision, customer is liable for the basic excess ($2,500) plus any applicable age/licence surcharges.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>7. Incident Reporting: </Text>
-                  Any accident, theft, or mechanical warning must be reported to Booran within 2 hours.
-                </Text>
-                <Text style={styles.clauseItem}>
-                  <Text style={styles.clauseNum}>8. Repossession: </Text>
-                  Booran Motor Group reserves the right to immediately repossess the vehicle if overdue or used in breach of terms.
-                </Text>
-              </ScrollView>
-            </View>
-
-            {/* Checkboxes */}
-            <TouchableOpacity
-              style={[styles.checkboxRow, readAndAgreed && styles.checkboxRowActive]}
-              onPress={() => setReadAndAgreed(!readAndAgreed)}
-            >
-              <View style={[styles.checkbox, readAndAgreed && styles.checkboxActive]}>
-                {readAndAgreed && <Icon name="check" size={16} color="#FFF" />}
-              </View>
-              <Text style={styles.checkboxLabel}>
-                I have read, understood, and accept all 18 operative clauses of this agreement. *
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.checkboxRow, electronicConsent && styles.checkboxRowActive]}
-              onPress={() => setElectronicConsent(!electronicConsent)}
-            >
-              <View style={[styles.checkbox, electronicConsent && styles.checkboxActive]}>
-                {electronicConsent && <Icon name="check" size={16} color="#FFF" />}
-              </View>
-              <Text style={styles.checkboxLabel}>
-                I consent to digital execution and receiving SMS/email delivery of this agreement. *
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.checkboxRow, privacyAcknowledged && styles.checkboxRowActive]}
-              onPress={() => setPrivacyAcknowledged(!privacyAcknowledged)}
-            >
-              <View style={[styles.checkbox, privacyAcknowledged && styles.checkboxActive]}>
-                {privacyAcknowledged && <Icon name="check" size={16} color="#FFF" />}
-              </View>
-              <Text style={styles.checkboxLabel}>
-                I acknowledge the Privacy Act Collection Notice & excess liability structure (${totalExcess}). *
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* ================= STEP 5: REVIEW & SIGN ================= */}
-        {step === 5 && (
-          <View style={styles.stepBody}>
-            <Text style={styles.sectionHeading}>Review & Digital Signatures</Text>
-            <Text style={styles.sectionDesc}>
-              Customer must digitally sign in the box below. Both parties receive a certified copy with SHA-256 integrity hash.
-            </Text>
-
-            {/* Summary Card */}
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Customer</Text>
-                <Text style={styles.summaryValue}>{fullName}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Vehicle</Text>
-                <Text style={styles.summaryValue}>{registration} • {make} {model}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Rooftop</Text>
-                <Text style={styles.summaryValue}>{rooftop}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Odometer Out</Text>
-                <Text style={styles.summaryValue}>
-                  {odometerOut ? `${parseInt(odometerOut, 10).toLocaleString()} km` : 'Not recorded'}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Departure Photos</Text>
-                <Text style={[styles.summaryValue, { color: colors.success }]}>
-                  {Object.keys(inspectionPhotos).length} Attached
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Insurance Excess</Text>
-                <Text style={[styles.summaryValue, { color: colors.warning, fontWeight: '700' }]}>
-                  ${totalExcess.toLocaleString()} AUD
+              {/* Cap Notice */}
+              <View style={styles.capNotice}>
+                <Icon name="info" size={18} color="#D71920" />
+                <Text style={styles.capNoticeText}>
+                  Daily Allowance: <Text style={{ fontWeight: '700', color: '#0F172A' }}>50 km/day</Text> included. Excess km billed at <Text style={{ fontWeight: '700', color: '#0F172A' }}>$0.50/km</Text> upon return.
                 </Text>
               </View>
             </View>
+          )}
+        </View>
 
-            {/* Customer Signature Canvas */}
-            <View style={styles.signatureHeaderRow}>
-              <Text style={styles.inputLabel}>Customer Digital Signature *</Text>
-              {(customerPaths.length > 0 || currentPath) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    customerPathsRef.current = [];
-                    currentPathRef.current = '';
-                    setCustomerPaths([]);
-                    setCurrentPath('');
-                    setIsCustomerSigned(false);
-                  }}
-                >
-                  <Text style={styles.clearBtnText}>Clear</Text>
-                </TouchableOpacity>
-              )}
+        {/* ================= SECTION 3: INSPECTION & CONDITION (DROPDOWN) ================= */}
+        <View style={styles.dropdownCard}>
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => toggleSection(3)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.dropdownHeaderLeft}>
+              <View style={[styles.sectionStepBadge, openSections[3] && styles.sectionStepBadgeActive]}>
+                <Text style={[styles.sectionStepText, openSections[3] && styles.sectionStepTextActive]}>3</Text>
+              </View>
+              <View>
+                <Text style={styles.dropdownTitle}>Condition & 5-Point Photos</Text>
+                <Text style={styles.dropdownSubtitle}>
+                  Odo: {odometerOut || '0'} km • {Object.keys(inspectionPhotos).length}/5 Photos
+                </Text>
+              </View>
             </View>
-
-            <View style={styles.canvasContainer} {...panResponder.panHandlers}>
-              <Svg style={StyleSheet.absoluteFill}>
-                {customerPaths.map((d, index) => (
-                  <Path key={index} d={d} stroke={colors.primary} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                ))}
-                {currentPath ? (
-                  <Path d={currentPath} stroke={colors.primary} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                ) : null}
-              </Svg>
-              {customerPaths.length === 0 && !currentPath && (
-                <View style={styles.canvasPlaceholder}>
-                  <Icon name="sparkles" size={24} color={colors.textMuted} />
-                  <Text style={styles.canvasPlaceholderText}>
-                    Sign here with your finger or stylus
-                  </Text>
+            <View style={styles.dropdownHeaderRight}>
+              {odometerOut && fuelOut ? (
+                <View style={styles.statusCompleteBadge}>
+                  <Icon name="check" size={12} color="#059669" />
+                  <Text style={styles.statusCompleteText}>Complete</Text>
+                </View>
+              ) : (
+                <View style={styles.statusPendingBadge}>
+                  <Text style={styles.statusPendingText}>Required</Text>
                 </View>
               )}
-            </View>
-
-            {/* Tap-to-certify alternative if stylus not desired */}
-            <TouchableOpacity
-              style={styles.certifyAlternative}
-              onPress={() => {
-                const sampleSig = 'M20,60 C40,20 60,80 90,40 L160,50 L220,30';
-                customerPathsRef.current = [sampleSig];
-                setCustomerPaths([sampleSig]);
-                setIsCustomerSigned(true);
-              }}
-            >
-              <Text style={styles.certifyAlternativeText}>
-                ✍️ Tap to Auto-Certify Signature ({fullName || 'Customer'})
-              </Text>
-            </TouchableOpacity>
-
-            {/* Staff Countersignature */}
-            <View style={[styles.inputGroup, { marginTop: spacing.md }]}>
-              <Text style={styles.inputLabel}>Staff / Service Advisor Name *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Service Advisor Name"
-                placeholderTextColor={colors.textMuted}
-                value={staffName}
-                onChangeText={setStaffName}
+              <Icon
+                name={openSections[3] ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#64748B"
               />
             </View>
-          </View>
-        )}
+          </TouchableOpacity>
+
+          {openSections[3] && (
+            <View style={styles.dropdownBody}>
+              <View style={styles.formRow}>
+                <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
+                  <Text style={styles.inputLabel}>Outbound Odometer (km) *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. 4820"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                    value={odometerOut}
+                    onChangeText={setOdometerOut}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Fuel / Battery (%)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="100"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                    value={fuelOut}
+                    onChangeText={setFuelOut}
+                  />
+                </View>
+              </View>
+
+              {/* 5-Point Photo Slots */}
+              <View style={styles.photosHeaderRow}>
+                <Text style={styles.inputLabel}>5-Point Pre-Departure Photos</Text>
+                <Text style={styles.photosCountBadge}>
+                  {Object.keys(inspectionPhotos).length}/5 Captured
+                </Text>
+              </View>
+
+              <View style={styles.photoGrid}>
+                {INSPECTION_SLOTS.map((slot) => {
+                  const photoUri = inspectionPhotos[slot.id];
+                  return (
+                    <TouchableOpacity
+                      key={slot.id}
+                      style={[styles.photoGridCard, !!photoUri && styles.photoGridCardDone]}
+                      onPress={() => handleCaptureInspection(slot.id, slot.label)}
+                      activeOpacity={0.8}
+                    >
+                      {photoUri ? (
+                        <View style={styles.photoThumbWrap}>
+                          <Image source={{ uri: photoUri }} style={styles.photoThumbImg} />
+                          <View style={styles.photoCheckOverlay}>
+                            <Icon name="check" size={13} color="#FFF" />
+                          </View>
+                          <Text style={styles.photoGridLabelDone} numberOfLines={1}>
+                            {slot.label}
+                          </Text>
+                          <Text style={styles.photoRetakeHint}>Tap to retake</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.photoEmptyWrap}>
+                          <View style={styles.cameraIconCircle}>
+                            <Icon name="camera" size={18} color="#D71920" />
+                          </View>
+                          <Text style={styles.photoGridLabel}>{slot.label}</Text>
+                          <Text style={styles.photoSlotDesc}>{slot.desc}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Pre-existing Scratches / Notes</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  multiline
+                  numberOfLines={2}
+                  placeholder="Note any minor marks (or leave empty if none)..."
+                  placeholderTextColor="#94A3B8"
+                  value={existingDamageNotes}
+                  onChangeText={setExistingDamageNotes}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.attestationCard, cleanlinessVerified && styles.attestationCardChecked]}
+                onPress={() => setCleanlinessVerified(!cleanlinessVerified)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.checkbox, cleanlinessVerified && styles.checkboxActive]}>
+                  {cleanlinessVerified && <Icon name="check" size={14} color="#FFF" />}
+                </View>
+                <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                  <Text style={styles.attestationTitle}>Cleanliness & Safety Verified</Text>
+                  <Text style={styles.attestationBody}>
+                    Vehicle has been washed, vacuumed, sanitized, and passed pre-departure tyre & fluid checks.
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* ================= SECTION 4: TERMS & CONDITIONS & SHARE (DROPDOWN) ================= */}
+        <View style={styles.dropdownCard}>
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => toggleSection(4)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.dropdownHeaderLeft}>
+              <View style={[styles.sectionStepBadge, openSections[4] && styles.sectionStepBadgeActive]}>
+                <Text style={[styles.sectionStepText, openSections[4] && styles.sectionStepTextActive]}>4</Text>
+              </View>
+              <View>
+                <Text style={styles.dropdownTitle}>Terms & Conditions</Text>
+                <Text style={styles.dropdownSubtitle}>18 Operative Clauses • Share with customer</Text>
+              </View>
+            </View>
+            <View style={styles.dropdownHeaderRight}>
+              {readAndAgreed && electronicConsent && privacyAcknowledged ? (
+                <View style={styles.statusCompleteBadge}>
+                  <Icon name="check" size={12} color="#059669" />
+                  <Text style={styles.statusCompleteText}>Agreed</Text>
+                </View>
+              ) : (
+                <View style={styles.statusPendingBadge}>
+                  <Text style={styles.statusPendingText}>Required</Text>
+                </View>
+              )}
+              <Icon
+                name={openSections[4] ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#64748B"
+              />
+            </View>
+          </TouchableOpacity>
+
+          {openSections[4] && (
+            <View style={styles.dropdownBody}>
+              {/* Share Terms & Conditions Button */}
+              <TouchableOpacity
+                style={styles.shareTermsBtn}
+                onPress={handleShareTerms}
+                activeOpacity={0.8}
+              >
+                <Icon name="share-2" size={18} color="#D71920" />
+                <Text style={styles.shareTermsBtnText}>Share Terms & Conditions with Customer</Text>
+              </TouchableOpacity>
+
+              <View style={styles.clausesBox}>
+                <ScrollView nestedScrollEnabled style={{ maxHeight: 180 }}>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>1. Authorised Drivers Only: </Text>
+                    The loan vehicle may only be operated by the designated customer who holds a current valid Australian driver licence.
+                  </Text>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>2. No Smoking, Vaping or Pets: </Text>
+                    Strictly prohibited. Detailing sanitation fee of $350 applies for non-compliance.
+                  </Text>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>3. Daily Kilometre Cap: </Text>
+                    Limited to 50 km per day. Excess kilometres are charged at $0.50 per km.
+                  </Text>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>4. Fuel Level: </Text>
+                    Vehicle must be returned with the same fuel or charge level as departure.
+                  </Text>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>5. Tolls & Infringements: </Text>
+                    Customer is strictly responsible for all CityLink, EastLink, parking, and traffic penalties plus $35 admin processing fee.
+                  </Text>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>6. Insurance Excess: </Text>
+                    Basic excess is $2,500 AUD (Total liability with driver age tier: ${totalExcess.toLocaleString()}).
+                  </Text>
+                  <Text style={styles.clauseItem}>
+                    <Text style={styles.clauseNum}>7. Incident Reporting: </Text>
+                    Any accident, theft, or defect must be reported to Booran Motor Group within 2 hours.
+                  </Text>
+                </ScrollView>
+              </View>
+
+              {/* 3 Checkboxes */}
+              <TouchableOpacity
+                style={[styles.checkboxRow, readAndAgreed && styles.checkboxRowActive]}
+                onPress={() => setReadAndAgreed(!readAndAgreed)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.checkbox, readAndAgreed && styles.checkboxActive]}>
+                  {readAndAgreed && <Icon name="check" size={14} color="#FFF" />}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  I have read, understood, and accept all operative clauses of this agreement. *
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.checkboxRow, electronicConsent && styles.checkboxRowActive]}
+                onPress={() => setElectronicConsent(!electronicConsent)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.checkbox, electronicConsent && styles.checkboxActive]}>
+                  {electronicConsent && <Icon name="check" size={14} color="#FFF" />}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  I consent to digital execution and receiving SMS/email delivery of this agreement. *
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.checkboxRow, privacyAcknowledged && styles.checkboxRowActive]}
+                onPress={() => setPrivacyAcknowledged(!privacyAcknowledged)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.checkbox, privacyAcknowledged && styles.checkboxActive]}>
+                  {privacyAcknowledged && <Icon name="check" size={14} color="#FFF" />}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  I acknowledge the Privacy Act Collection Notice & excess liability structure (${totalExcess.toLocaleString()}). *
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* ================= SECTION 5: SIGNATURE & ISSUANCE (DROPDOWN) ================= */}
+        <View style={styles.dropdownCard}>
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => toggleSection(5)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.dropdownHeaderLeft}>
+              <View style={[styles.sectionStepBadge, openSections[5] && styles.sectionStepBadgeActive]}>
+                <Text style={[styles.sectionStepText, openSections[5] && styles.sectionStepTextActive]}>5</Text>
+              </View>
+              <View>
+                <Text style={styles.dropdownTitle}>Customer Signature & Staff</Text>
+                <Text style={styles.dropdownSubtitle}>
+                  {isCustomerSigned ? 'Signature captured' : 'Sign on screen'} • {staffName || 'Staff'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.dropdownHeaderRight}>
+              {isCustomerSigned && staffName ? (
+                <View style={styles.statusCompleteBadge}>
+                  <Icon name="check" size={12} color="#059669" />
+                  <Text style={styles.statusCompleteText}>Signed</Text>
+                </View>
+              ) : (
+                <View style={styles.statusPendingBadge}>
+                  <Text style={styles.statusPendingText}>Required</Text>
+                </View>
+              )}
+              <Icon
+                name={openSections[5] ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color="#64748B"
+              />
+            </View>
+          </TouchableOpacity>
+
+          {openSections[5] && (
+            <View style={styles.dropdownBody}>
+              {/* Summary recap box */}
+              <View style={styles.summaryMiniBox}>
+                <View style={styles.summaryMiniRow}>
+                  <Text style={styles.summaryMiniKey}>Customer</Text>
+                  <Text style={styles.summaryMiniVal}>{fullName}</Text>
+                </View>
+                <View style={styles.summaryMiniRow}>
+                  <Text style={styles.summaryMiniKey}>Loan Vehicle</Text>
+                  <Text style={styles.summaryMiniVal}>{make} {model} • {registration}</Text>
+                </View>
+                <View style={styles.summaryMiniRow}>
+                  <Text style={styles.summaryMiniKey}>Due Back</Text>
+                  <Text style={styles.summaryMiniVal}>{expectedReturnDate} at {expectedReturnTime}</Text>
+                </View>
+                <View style={[styles.summaryMiniRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.summaryMiniKey}>Insurance Excess</Text>
+                  <Text style={[styles.summaryMiniVal, { color: '#D71920', fontWeight: '700' }]}>${totalExcess.toLocaleString()} AUD</Text>
+                </View>
+              </View>
+
+              {/* Customer Signature Canvas */}
+              <View style={styles.signatureHeaderRow}>
+                <Text style={styles.inputLabel}>Customer Digital Signature *</Text>
+                {(customerPaths.length > 0 || currentPath) && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      customerPathsRef.current = [];
+                      currentPathRef.current = '';
+                      setCustomerPaths([]);
+                      setCurrentPath('');
+                      setIsCustomerSigned(false);
+                    }}
+                  >
+                    <Text style={styles.clearBtnText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.canvasContainer} {...panResponder.panHandlers}>
+                <Svg style={StyleSheet.absoluteFill}>
+                  {customerPaths.map((d, index) => (
+                    <Path key={index} d={d} stroke="#D71920" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  ))}
+                  {currentPath ? (
+                    <Path d={currentPath} stroke="#D71920" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  ) : null}
+                </Svg>
+                {customerPaths.length === 0 && !currentPath && (
+                  <View style={styles.canvasPlaceholder}>
+                    <Icon name="edit-3" size={24} color="#94A3B8" />
+                    <Text style={styles.canvasPlaceholderText}>Sign here with your finger or stylus</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Auto-certify button */}
+              <TouchableOpacity
+                style={styles.certifyAlternative}
+                onPress={() => {
+                  const sampleSig = 'M25,65 C45,25 65,85 95,45 L165,55 L225,35';
+                  customerPathsRef.current = [sampleSig];
+                  setCustomerPaths([sampleSig]);
+                  setIsCustomerSigned(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.certifyAlternativeText}>
+                  ✍️ Tap to Auto-Certify Signature ({fullName || 'Customer'})
+                </Text>
+              </TouchableOpacity>
+
+              {/* Staff Member Name */}
+              <View style={[styles.inputGroup, { marginTop: spacing.sm }]}>
+                <Text style={styles.inputLabel}>Staff / Service Advisor Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Shaun Davies"
+                  placeholderTextColor="#94A3B8"
+                  value={staffName}
+                  onChangeText={setStaffName}
+                />
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Primary Save & Activate Agreement Button */}
+        <TouchableOpacity
+          style={styles.primarySaveButton}
+          onPress={handleSaveAndActivate}
+          disabled={isSubmitting}
+          activeOpacity={0.85}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <>
+              <Icon name="check-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.primarySaveButtonText}>Save & Activate Agreement</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </ScrollView>
-
-      {/* Bottom Sticky Action Bar */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-        {step > 1 ? (
-          <TouchableOpacity
-            style={styles.prevBtn}
-            onPress={() => setStep((prev) => (prev - 1) as any)}
-            disabled={isSubmitting}
-          >
-            <Icon name="chevron-left" size={20} color={colors.textSecondary} />
-            <Text style={styles.prevBtnText}>Previous</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.prevBtn} onPress={onBack} disabled={isSubmitting}>
-            <Text style={styles.prevBtnText}>Cancel</Text>
-          </TouchableOpacity>
-        )}
-
-        {step < 5 ? (
-          <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-            <Text style={styles.nextBtnText}>Continue</Text>
-            <Icon name="chevron-right" size={20} color="#FFF" />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.nextBtn, styles.issueBtn]}
-            onPress={handleFinalSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFF" size="small" />
-            ) : (
-              <>
-                <Icon name="check" size={20} color="#FFF" />
-                <Text style={styles.nextBtnText}>Activate {agreementLabel}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
     </View>
   );
 };
@@ -1190,224 +1337,452 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8FAFC',
   },
   header: {
+    backgroundColor: '#D71920',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.headerBg,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.12)',
+    justifyContent: 'space-between',
   },
-  headerBackBtn: {
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  brandTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    lineHeight: 18,
+  },
+  brandSubtitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    lineHeight: 14,
+  },
+  brandBadgeCircle: {
     width: 38,
     height: 38,
-    borderRadius: spacing.borderRadius.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#B91C1C',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  headerTitleWrap: {
+  brandBadgeSince: {
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#D71920',
+    lineHeight: 8,
+  },
+  brandBadgeYear: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#D71920',
+    lineHeight: 12,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offsitePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    gap: 5,
+  },
+  offsiteDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FACC15',
+  },
+  offsiteText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  bellButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    backgroundColor: '#FFFFFF',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#D71920',
+  },
+  bellBadgeText: {
+    color: '#D71920',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  scrollArea: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
-  headerSubtitle: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.85)',
-  },
-  badgeStep: {
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
+  rooftopCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
+    marginBottom: 12,
   },
-  badgeStepText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+  rooftopIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  rooftopDetails: {
+    flex: 1,
+  },
+  rooftopSubLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
+  rooftopName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  assignedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  assignedBadgeText: {
     fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
   },
-  stepperContainer: {
+  heroSection: {
+    marginBottom: 14,
+  },
+  heroTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    alignItems: 'flex-start',
   },
-  stepItem: {
+  heroCategory: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+  },
+  heroDescription: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  accordionControls: {
+    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 6,
+    marginTop: 6,
   },
-  stepCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
+  accordionControlBtn: {
+    paddingVertical: 2,
   },
-  stepCircleActive: {
-    backgroundColor: colors.primary,
-  },
-  stepCircleDone: {
-    backgroundColor: colors.success,
-  },
-  stepNum: {
+  accordionControlText: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: '#D71920',
   },
-  stepNumActive: {
-    color: '#FFF',
+  dropdownCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  stepLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
+  dropdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
   },
-  stepLabelActive: {
-    color: colors.textPrimary,
-    fontWeight: '600',
+  dropdownHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
-  content: {
-    padding: spacing.md,
-    paddingBottom: 100,
+  sectionStepBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
   },
-  stepBody: {},
-  sectionHeading: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 4,
+  sectionStepBadgeActive: {
+    backgroundColor: '#D71920',
+    borderColor: '#D71920',
   },
-  sectionDesc: {
+  sectionStepText: {
     fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: spacing.md,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  sectionStepTextActive: {
+    color: '#FFFFFF',
+  },
+  dropdownTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  dropdownSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  dropdownHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusCompleteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  statusCompleteText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  statusPendingBadge: {
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statusPendingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  dropdownBody: {
+    paddingHorizontal: 14,
+    paddingBottom: 16,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  formRow: {
+    flexDirection: 'row',
   },
   inputGroup: {
-    marginBottom: spacing.md,
+    marginBottom: 12,
   },
   inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 5,
+  },
+  inputSubheading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: colors.textPrimary,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
   },
   dateFieldContainer: {
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 44,
+  },
+  dateFieldInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   dateFieldText: {
-    color: colors.textPrimary,
     fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
   },
   textArea: {
-    minHeight: 70,
+    minHeight: 65,
     textAlignVertical: 'top',
   },
-  row: {
-    flexDirection: 'row',
+  fleetScroll: {
+    marginBottom: 14,
   },
-  ageBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryGlow,
-    borderRadius: 8,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  ageBannerTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  ageBannerSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  attestationCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+  fleetCard: {
+    width: 175,
+    padding: 10,
     borderRadius: 10,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    marginRight: 10,
   },
-  attestationCardChecked: {
-    borderColor: colors.success,
-    backgroundColor: colors.successLight,
+  fleetCardActive: {
+    borderColor: '#D71920',
+    backgroundColor: '#FEF2F2',
   },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
+  fleetCardHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 3,
   },
-  checkboxActive: {
-    backgroundColor: colors.success,
-    borderColor: colors.success,
-  },
-  attestationTitle: {
+  fleetRego: {
     fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontWeight: '800',
+    color: '#0F172A',
   },
-  attestationBody: {
+  fleetRooftop: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  fleetModel: {
     fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 4,
+    height: 30,
+  },
+  fleetOdo: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  capNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  capNoticeText: {
+    fontSize: 12,
+    color: '#475569',
+    flex: 1,
     lineHeight: 16,
   },
   photoUploadBtn: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
     borderRadius: 10,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    padding: 12,
+    marginBottom: 12,
   },
   photoUploadBtnSuccess: {
-    borderColor: colors.success,
-    backgroundColor: colors.successLight,
+    borderColor: '#10B981',
+    borderStyle: 'solid',
+    backgroundColor: '#ECFDF5',
   },
   photoUploadText: {
-    marginLeft: spacing.sm,
+    marginLeft: 8,
     fontSize: 13,
     fontWeight: '700',
-    color: colors.primary,
+    color: '#D71920',
   },
   licenceEmptyRow: {
     flexDirection: 'row',
@@ -1422,135 +1797,57 @@ const styles = StyleSheet.create({
     width: 60,
     height: 40,
     borderRadius: 6,
-    backgroundColor: colors.background,
+    backgroundColor: '#E2E8F0',
   },
   licenceCapturedText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: colors.success,
+    fontWeight: '800',
+    color: '#059669',
   },
   licenceRetakeText: {
     fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  lockedRooftopCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  lockedRooftopTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  lockedRooftopSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
+    color: '#64748B',
     marginTop: 1,
   },
-  lockedBadge: {
+  attestationCard: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 6,
+  },
+  attestationCardChecked: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0, 102, 204, 0.08)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 102, 204, 0.25)',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    marginTop: 1,
   },
-  lockedBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
+  checkboxActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
   },
-  rooftopRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  rooftopChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  rooftopChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  rooftopChipText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  rooftopChipTextActive: {
-    color: '#FFF',
-  },
-  fleetScroll: {
-    marginBottom: spacing.md,
-  },
-  fleetCard: {
-    width: 190,
-    padding: spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    marginRight: spacing.sm,
-  },
-  fleetCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryGlow,
-  },
-  fleetCardHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  fleetRego: {
+  attestationTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#0F172A',
   },
-  fleetRooftop: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  fleetModel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-    height: 32,
-  },
-  fleetOdo: {
+  attestationBody: {
     fontSize: 11,
-    color: colors.textMuted,
-  },
-  capNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: spacing.md,
-  },
-  capNoticeText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-    flex: 1,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 15,
   },
   photosHeaderRow: {
     flexDirection: 'row',
@@ -1560,30 +1857,31 @@ const styles = StyleSheet.create({
   },
   photosCountBadge: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-    backgroundColor: colors.primaryGlow,
+    fontWeight: '800',
+    color: '#D71920',
+    backgroundColor: '#FEF2F2',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 8,
   },
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
+    gap: 6,
+    marginBottom: 12,
   },
   photoGridCard: {
-    width: '31%',
-    minHeight: 105,
-    backgroundColor: colors.surface,
+    width: '31.5%',
+    minHeight: 100,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: '#CBD5E1',
     borderRadius: 10,
     overflow: 'hidden',
   },
   photoGridCardDone: {
-    borderColor: colors.success,
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
   },
   photoEmptyWrap: {
     flex: 1,
@@ -1592,121 +1890,141 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   cameraIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryGlow,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   photoGridLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#0F172A',
     textAlign: 'center',
   },
   photoSlotDesc: {
     fontSize: 9,
-    color: colors.textMuted,
+    color: '#94A3B8',
     textAlign: 'center',
-    marginTop: 2,
+    marginTop: 1,
   },
   photoThumbWrap: {
     flex: 1,
     position: 'relative',
-    backgroundColor: colors.background,
+    backgroundColor: '#000',
   },
   photoThumbImg: {
     width: '100%',
-    height: 65,
+    height: 60,
     resizeMode: 'cover',
   },
   photoCheckOverlay: {
     position: 'absolute',
     top: 4,
     right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.success,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
   },
   photoGridLabelDone: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.success,
+    color: '#059669',
     textAlign: 'center',
     marginTop: 3,
   },
   photoRetakeHint: {
     fontSize: 8,
-    color: colors.textMuted,
+    color: '#64748B',
     textAlign: 'center',
     marginBottom: 3,
   },
+  shareTermsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  shareTermsBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#D71920',
+  },
   clausesBox: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
   },
   clauseItem: {
     fontSize: 12,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: spacing.sm,
+    color: '#475569',
+    lineHeight: 17,
+    marginBottom: 8,
   },
   clauseNum: {
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
   },
   checkboxRowActive: {
-    borderColor: colors.primary,
+    borderColor: '#D71920',
+    backgroundColor: '#FEF2F2',
   },
   checkboxLabel: {
     fontSize: 12,
-    color: colors.textPrimary,
-    marginLeft: spacing.sm,
+    color: '#0F172A',
+    marginLeft: 10,
     flex: 1,
-    lineHeight: 17,
+    lineHeight: 16,
+    fontWeight: '500',
   },
-  summaryCard: {
-    backgroundColor: colors.surface,
+  summaryMiniBox: {
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     borderRadius: 10,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    padding: 12,
+    marginBottom: 12,
   },
-  summaryRow: {
+  summaryMiniRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
   },
-  summaryLabel: {
+  summaryMiniKey: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#64748B',
   },
-  summaryValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textPrimary,
+  summaryMiniVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   signatureHeaderRow: {
     flexDirection: 'row',
@@ -1715,16 +2033,16 @@ const styles = StyleSheet.create({
   },
   clearBtnText: {
     fontSize: 12,
-    color: colors.danger,
-    fontWeight: '600',
+    color: '#DC2626',
+    fontWeight: '700',
   },
   canvasContainer: {
-    height: 140,
+    height: 125,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: colors.border,
-    borderRadius: 8,
-    marginBottom: spacing.sm,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    marginBottom: 8,
     overflow: 'hidden',
   },
   canvasPlaceholder: {
@@ -1738,67 +2056,43 @@ const styles = StyleSheet.create({
   },
   canvasPlaceholderText: {
     fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 6,
+    color: '#94A3B8',
+    marginTop: 4,
   },
   certifyAlternative: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 6,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
     paddingVertical: 8,
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: 10,
   },
   certifyAlternativeText: {
     fontSize: 12,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    flexDirection: 'row',
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  prevBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: 8,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  prevBtnText: {
-    color: colors.textSecondary,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  nextBtn: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    gap: spacing.xs,
-  },
-  issueBtn: {
-    backgroundColor: colors.success,
-  },
-  nextBtnText: {
-    color: '#FFF',
+    color: '#0F172A',
     fontWeight: '700',
-    fontSize: 14,
+  },
+  primarySaveButton: {
+    backgroundColor: '#D71920',
+    borderRadius: 12,
+    paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 16,
+    shadowColor: '#D71920',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  primarySaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

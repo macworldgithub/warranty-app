@@ -4,6 +4,8 @@ import { colors } from '../../theme/colors';
 import {
   AlertCircle,
   Barcode,
+  Bell,
+  Calendar,
   Camera,
   Car,
   Check,
@@ -11,11 +13,14 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Clock,
+  Edit,
   Eye,
   EyeOff,
   FileText,
   Flag,
+  Home,
   Info,
   Lock,
   LogIn,
@@ -31,6 +36,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Share2,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -60,10 +66,13 @@ export type IconName =
   | 'check-circle'
   | 'alert-circle'
   | 'close'
+  | 'x'
   | 'refresh'
   | 'chevron-left'
   | 'chevron-right'
   | 'chevron-down'
+  | 'chevron-up'
+  | 'calendar'
   | 'car'
   | 'shield'
   | 'barcode'
@@ -98,7 +107,12 @@ export type IconName =
   | 'building'
   | 'zap'
   | 'zap-off'
-  | 'edit';
+  | 'bell'
+  | 'home'
+  | 'share'
+  | 'share-2'
+  | 'edit'
+  | 'edit-3';
 
 interface IconProps {
   name: IconName;
@@ -116,10 +130,13 @@ const icons: Record<IconName, React.ComponentType<LucideProps>> = {
   'check-circle': CheckCircle,
   'alert-circle': AlertCircle,
   close: X,
+  x: X,
   refresh: RefreshCw,
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
   'chevron-down': ChevronDown,
+  'chevron-up': ChevronUp,
+  calendar: Calendar,
   car: Car,
   shield: Shield,
   barcode: Barcode,
@@ -154,7 +171,12 @@ const icons: Record<IconName, React.ComponentType<LucideProps>> = {
   building: Building,
   zap: Zap,
   'zap-off': ZapOff,
-  edit: SlidersHorizontal,
+  bell: Bell,
+  home: Home,
+  share: Share2,
+  'share-2': Share2,
+  edit: Edit,
+  'edit-3': Edit,
 };
 
 export const Icon: React.FC<IconProps> = ({
