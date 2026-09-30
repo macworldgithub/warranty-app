@@ -11,6 +11,7 @@ import {
   PanResponder,
   Image,
   Share,
+  Linking,
 } from 'react-native';
 import DatePickerModal from '../../components/common/DatePickerModal';
 import Svg, { Path } from 'react-native-svg';
@@ -22,7 +23,9 @@ import { cameraService } from '../../services/cameraService';
 import { loanAgreementsApi } from '../../api';
 import { LoanAgreement } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { useGeofence } from '../../context/GeofenceContext';
 import { formatDateForInput, pad } from '../../utils/date';
+import { ENV } from '../../config/env';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
@@ -79,6 +82,8 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { presenceStatus } = useGeofence();
+  const isOnSite = presenceStatus === 'ON_SITE';
   const isTestDrive = purpose === 'TEST_DRIVE';
   const agreementLabel = isTestDrive ? 'Test Drive' : 'Service Loaner';
 
@@ -305,10 +310,20 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
     try {
       await Share.share({
         title: 'Booran Motor Group - Courtesy Vehicle Terms & Conditions',
-        message: TERMS_TEXT,
+        message: `${TERMS_TEXT}\n\nFull agreement: ${ENV.API_URL}/legal-documents/test-drive-loan-agreement\nPrivacy policy: ${ENV.API_URL}/legal-documents/privacy-policy`,
       });
     } catch (error: any) {
       Alert.alert('Share', error?.message || 'Could not share terms and conditions.');
+    }
+  };
+
+  const handleOpenLegalDocument = async (
+    document: 'test-drive-loan-agreement' | 'privacy-policy'
+  ) => {
+    try {
+      await Linking.openURL(`${ENV.API_URL}/legal-documents/${document}`);
+    } catch {
+      Alert.alert('Document unavailable', 'Could not open the document. Please check your connection and try again.');
     }
   };
 
@@ -500,9 +515,16 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
           {/* Right Status Pill & Bell */}
           <View style={styles.headerRightActions}>
-            <View style={styles.offsitePill}>
-              <View style={styles.offsiteDot} />
-              <Text style={styles.offsiteText}>OFF-SITE</Text>
+            <View style={styles.presencePill}>
+              <View
+                style={[
+                  styles.presenceDot,
+                  isOnSite ? styles.presenceDotOnSite : styles.presenceDotOffSite,
+                ]}
+              />
+              <Text style={styles.presenceText}>
+                {isOnSite ? 'ON-SITE' : 'OFF-SITE'}
+              </Text>
             </View>
 
             <TouchableOpacity style={styles.bellButton} activeOpacity={0.8}>
@@ -1097,6 +1119,26 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
           {openSections[4] && (
             <View style={styles.dropdownBody}>
+              <View style={styles.legalDocumentsRow}>
+                <TouchableOpacity
+                  style={styles.legalDocumentBtn}
+                  onPress={() => handleOpenLegalDocument('test-drive-loan-agreement')}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="file-text" size={17} color="#0F172A" />
+                  <Text style={styles.legalDocumentBtnText}>View Full Agreement</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.legalDocumentBtn}
+                  onPress={() => handleOpenLegalDocument('privacy-policy')}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="shield" size={17} color="#0F172A" />
+                  <Text style={styles.legalDocumentBtnText}>View Privacy Policy</Text>
+                </TouchableOpacity>
+              </View>
+
               {/* Share Terms & Conditions Button */}
               <TouchableOpacity
                 style={styles.shareTermsBtn}
@@ -1365,7 +1407,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  offsitePill: {
+  presencePill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.25)',
@@ -1374,13 +1416,18 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     gap: 5,
   },
-  offsiteDot: {
+  presenceDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  presenceDotOnSite: {
+    backgroundColor: '#10B981',
+  },
+  presenceDotOffSite: {
     backgroundColor: '#FACC15',
   },
-  offsiteText: {
+  presenceText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
@@ -1913,6 +1960,33 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 12,
+  },
+  legalDocumentsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  legalDocumentBtn: {
+    flex: 1,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+  },
+  legalDocumentBtnText: {
+    flexShrink: 1,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
   },
   shareTermsBtnText: {
     fontSize: 13,

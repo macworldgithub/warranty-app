@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   TextInput,
-  ScrollView,
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +14,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
-import { Bell, FileText, CheckCircle2, Clock, Car, Key, Gauge, Home } from 'lucide-react-native';
+import { Bell, FileText, CheckCircle2, Clock, Car, Key, Home } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -86,14 +85,14 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onOpenLoaners,
   onOpenRoadTest,
   onOpenHome,
-  onLogout,
+  onLogout: _onLogout,
 }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { startNewCase } = useCaseWizard();
 
   const [cases, setCases] = useState<WarrantyCase[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,6 +106,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   }, [initialTab]);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
+  const isClerk = user?.role === 'CLERK';
 
   useEffect(() => {
     setUnreadNotifCount(notificationsService.getUnreadCount());
@@ -124,7 +124,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         filters.technicianName = user.name;
       }
       const data = await casesApi.getCases(filters);
-      const pending = offlineStorage.getPendingUploads();
+      const pending = isAdmin ? [] : offlineStorage.getPendingUploads();
       const serverList: WarrantyCase[] = Array.isArray(data) ? data : ((data as any)?.data ?? []);
       const serverIds = new Set(serverList.map((c: WarrantyCase) => c.id));
       const merged: WarrantyCase[] = [
@@ -151,9 +151,9 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       });
 
       setCases(mergedWithLocal);
-    } catch (_err) {
+    } catch {
       // Load offline pending drafts with local evidence items
-      const pending = offlineStorage.getPendingUploads();
+      const pending = isAdmin ? [] : offlineStorage.getPendingUploads();
       const pendingWithLocal = pending.map((c) => {
         if (!c.vin) return c;
         const localInsp = offlineStorage.getVehicleInspection(c.vin);
@@ -242,7 +242,6 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const flaggedCount = myCases.filter(c => c.status === 'Flagged').length;
   const awaitingCount = myCases.filter(c => c.status === 'Awaiting Review').length;
   const submittedCount = myCases.filter(c => c.status === 'Submitted').length;
-  const inProgressCount = myCases.filter(c => c.status === 'Draft' || c.status === 'Uploading').length;
 
   const tabs: TabItem[] = [
     { key: 'all', label: 'All Cases', count: myCases.length },
@@ -732,7 +731,47 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
       {/* Website-Style 5-Item Symmetrical Bottom Bar */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
-        {isAdmin ? (
+        {isClerk ? (
+          <>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setActiveTab('all')}
+              style={styles.bottomBarTab}
+            >
+              <Home size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
+              <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>Cases</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenRoadTest}
+              style={styles.bottomBarTab}
+            >
+              <Car size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Drive</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onOpenLoaners}
+              style={styles.bottomBarTab}
+            >
+              <Key size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Loaners</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={onOpenProfile}
+              style={styles.bottomBarUserTab}
+              accessibilityLabel="Account Profile"
+            >
+              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
+                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
+                  {getUserInitials(user?.name)}
+                </Text>
+              </View>
+              <Text style={styles.bottomBarLabel} numberOfLines={1}>Profile</Text>
+            </TouchableOpacity>
+          </>
+        ) : isAdmin ? (
           <>
             {/* 1. Home / Tickets */}
             <TouchableOpacity

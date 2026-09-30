@@ -18,7 +18,6 @@ import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
 import { Badge } from '../../components/common/Badge';
-import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useNetwork } from '../../context/NetworkContext';
 import { Header } from '../../components/common/Header';
@@ -42,13 +41,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const { user, refreshMe } = useAuth();
   const { isOnline, pendingCount } = useNetwork();
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
   // Registered Users Directory State
   const [usersList, setUsersList] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | 'ADMIN' | 'TECHNICIAN'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'ADMIN' | 'CLERK' | 'TECHNICIAN'>('ALL');
 
   // Add User Modal State
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -57,6 +54,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [createPassword, setCreatePassword] = useState('Booran2026!');
   const [createRole, setCreateRole] = useState<UserRole>('TECHNICIAN');
   const [createSiteId, setCreateSiteId] = useState('site_cranbourne_byd');
+  const [createAuthorizedSiteIds, setCreateAuthorizedSiteIds] = useState<string[]>(['site_cranbourne_byd']);
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
   // Edit User Modal State
@@ -66,13 +64,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('TECHNICIAN');
   const [editSiteId, setEditSiteId] = useState('site_cranbourne_byd');
+  const [editAuthorizedSiteIds, setEditAuthorizedSiteIds] = useState<string[]>(['site_cranbourne_byd']);
   const [editPassword, setEditPassword] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   // Action Loading
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
+  const isAdmin = user?.role === 'ADMIN';
+  const isClerk = user?.role === 'CLERK';
 
   // Load registered users from backend
   const loadUsers = async () => {
@@ -104,35 +104,24 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     return name.slice(0, 2).toUpperCase();
   };
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const promises: Promise<any>[] = [refreshMe()];
-      if (isAdmin) {
-        promises.push(loadUsers());
-      }
-      await Promise.all(promises);
-      Alert.alert('Profile Updated', 'Your profile details have been refreshed.');
-    } catch {
-      // Ignore
-    } finally {
-      setIsRefreshing(false);
-    }
+  const toggleCreateSite = (siteId: string) => {
+    setCreateAuthorizedSiteIds((current) => {
+      const next = current.includes(siteId)
+        ? current.filter((id) => id !== siteId)
+        : [...current, siteId];
+      if (!next.includes(createSiteId)) setCreateSiteId(next[0] || '');
+      return next;
+    });
   };
 
-  const handleLogoutPress = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of your Booran Warranty account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: onLogout,
-        },
-      ]
-    );
+  const toggleEditSite = (siteId: string) => {
+    setEditAuthorizedSiteIds((current) => {
+      const next = current.includes(siteId)
+        ? current.filter((id) => id !== siteId)
+        : [...current, siteId];
+      if (!next.includes(editSiteId)) setEditSiteId(next[0] || '');
+      return next;
+    });
   };
 
   // Filtered Users List
@@ -156,6 +145,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     setEditEmail(targetUser.email || '');
     setEditRole(targetUser.role || 'TECHNICIAN');
     setEditSiteId(targetUser.defaultSiteId || 'site_cranbourne_byd');
+    setEditAuthorizedSiteIds(
+      targetUser.authorizedSiteIds?.length
+        ? targetUser.authorizedSiteIds
+        : [targetUser.defaultSiteId || 'site_cranbourne_byd'],
+    );
     setEditPassword('');
     setEditModalVisible(true);
   };
@@ -170,6 +164,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       Alert.alert('Validation Error', 'Please enter a valid work email address.');
       return;
     }
+    if (createRole === 'CLERK' && createAuthorizedSiteIds.length === 0) {
+      Alert.alert('Validation Error', 'Select at least one dealership site for this Warranty Clerk.');
+      return;
+    }
 
     setCreateSubmitting(true);
     try {
@@ -179,6 +177,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         password: createPassword.trim() || 'Booran2026!',
         role: createRole,
         siteId: createSiteId,
+        authorizedSiteIds: createRole === 'CLERK' ? createAuthorizedSiteIds : [createSiteId],
       });
 
       Alert.alert('User Created', `Account for ${createName} (${createRole}) has been created successfully.`);
@@ -187,6 +186,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       setCreateEmail('');
       setCreatePassword('Booran2026!');
       setCreateRole('TECHNICIAN');
+      setCreateSiteId('site_cranbourne_byd');
+      setCreateAuthorizedSiteIds(['site_cranbourne_byd']);
       loadUsers();
     } catch (err: any) {
       Alert.alert('Failed to Create User', err?.message || 'Could not register user account.');
@@ -202,6 +203,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       Alert.alert('Validation Error', 'Please enter the user full name.');
       return;
     }
+    if (editRole === 'CLERK' && editAuthorizedSiteIds.length === 0) {
+      Alert.alert('Validation Error', 'Select at least one dealership site for this Warranty Clerk.');
+      return;
+    }
 
     setEditSubmitting(true);
     try {
@@ -210,6 +215,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         email: editEmail.trim(),
         role: editRole,
         siteId: editSiteId,
+        authorizedSiteIds: editRole === 'CLERK' ? editAuthorizedSiteIds : [editSiteId],
         ...(editPassword?.trim() ? { password: editPassword.trim() } : {}),
       });
 
@@ -226,6 +232,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               email: editEmail.trim(),
               role: editRole,
               defaultSiteId: editSiteId,
+              authorizedSiteIds: editRole === 'CLERK' ? editAuthorizedSiteIds : [editSiteId],
             }
             : u
         )
@@ -319,6 +326,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                 size="md"
                 icon={<Icon name="shield" size={14} color="#B45309" />}
               />
+            ) : isClerk ? (
+              <Badge
+                label="WARRANTY CLERK"
+                variant="warning"
+                size="md"
+                icon={<Icon name="shield" size={14} color="#B45309" />}
+              />
             ) : (
               <Badge
                 label="TECHNICIAN"
@@ -342,13 +356,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
             <Text style={styles.sectionTitle}>Role Permissions & Access</Text>
           </View>
 
-          <View style={[styles.permissionBanner, isAdmin ? styles.adminBanner : styles.techBanner]}>
+          <View style={[styles.permissionBanner, (isAdmin || isClerk) ? styles.adminBanner : styles.techBanner]}>
             <Text style={styles.permissionTitle}>
-              {isAdmin ? 'System Administrator' : 'Workshop Technician'}
+              {isAdmin ? 'System Administrator' : isClerk ? 'Warranty Clerk' : 'Workshop Technician'}
             </Text>
             <Text style={styles.permissionDesc}>
               {isAdmin
                 ? 'Full Administrative Oversight: You have access to view, audit, and monitor all warranty evidence submissions across all technicians and workshop rooftops.'
+                : isClerk
+                ? `Assigned-Site Review: You can review and process warranty claims for ${user?.authorizedSiteIds?.length || 0} assigned dealership site(s).`
                 : 'Technician Access: You have permission to capture OEM-compliant evidence, record voice notes, and submit warranty claims. Only your own warranty cases are displayed.'}
             </Text>
           </View>
@@ -422,7 +438,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
 
             {/* Role Filter Chips */}
             <View style={styles.filterChipRow}>
-              {(['ALL', 'ADMIN', 'TECHNICIAN'] as const).map((r) => {
+              {(['ALL', 'ADMIN', 'CLERK', 'TECHNICIAN'] as const).map((r) => {
                 const isSelected = roleFilter === r;
                 return (
                   <TouchableOpacity
@@ -432,7 +448,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.filterChipText, isSelected && styles.filterChipTextSelected]}>
-                      {r === 'ALL' ? 'All Roles' : r === 'ADMIN' ? 'Admins' : 'Technicians'}
+                      {r === 'ALL' ? 'All Roles' : r === 'ADMIN' ? 'Admins' : r === 'CLERK' ? 'Clerks' : 'Technicians'}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -453,6 +469,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               <View style={styles.usersListContainer}>
                 {filteredUsers.map((item) => {
                   const itemIsAdmin = item.role === 'ADMIN';
+                  const itemIsClerk = item.role === 'CLERK';
                   const isCurrentSelf = item.id === user?.id;
 
                   return (
@@ -480,12 +497,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                           </Text>
                           <View style={styles.userItemMetaRow}>
                             <Badge
-                              label={itemIsAdmin ? 'ADMIN' : 'TECH'}
-                              variant={itemIsAdmin ? 'warning' : 'primary'}
+                              label={itemIsAdmin ? 'ADMIN' : itemIsClerk ? 'CLERK' : 'TECH'}
+                              variant={(itemIsAdmin || itemIsClerk) ? 'warning' : 'primary'}
                               size="sm"
                             />
                             <Text style={styles.userItemSite} numberOfLines={1}>
-                              {item.defaultSiteId ? item.defaultSiteId.replace(/site_|_/g, ' ').toUpperCase() : 'CRANBOURNE BYD'}
+                              {itemIsAdmin
+                                ? 'ALL SITES'
+                                : (item.authorizedSiteIds || [item.defaultSiteId])
+                                    .filter(Boolean)
+                                    .map((siteId) => ROOFTOP_OPTIONS.find((site) => site.id === siteId)?.name || siteId)
+                                    .join(', ')}
                             </Text>
                           </View>
                         </View>
@@ -546,7 +568,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.modalOverlay}
             >
-              <View style={styles.modalContent}>
+              <ScrollView
+                style={styles.modalContent}
+                contentContainerStyle={styles.modalContentInner}
+                keyboardShouldPersistTaps="handled"
+              >
                 <View style={styles.modalHeader}>
                   <View style={styles.modalIconCircle}>
                     <Icon name="user-plus" size={20} color={colors.primary} />
@@ -634,20 +660,55 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                         Administrator
                       </Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.rolePickBtn, createRole === 'CLERK' && styles.rolePickBtnActiveAdmin]}
+                      onPress={() => {
+                        setCreateRole('CLERK');
+                        if (createAuthorizedSiteIds.length === 0) {
+                          setCreateAuthorizedSiteIds([createSiteId || 'site_cranbourne_byd']);
+                        }
+                      }}
+                    >
+                      <Icon
+                        name="file-text"
+                        size={14}
+                        color={createRole === 'CLERK' ? '#FFFFFF' : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.rolePickBtnText,
+                          createRole === 'CLERK' && styles.rolePickBtnTextActive,
+                        ]}
+                      >
+                        Clerk
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
                 {/* Dealership Site Selector */}
                 <View style={styles.modalInputGroup}>
-                  <Text style={styles.modalInputLabel}>Primary Dealership Rooftop</Text>
+                  <Text style={styles.modalInputLabel}>
+                    {createRole === 'CLERK' ? 'Assigned Dealership Sites' : 'Primary Dealership Rooftop'}
+                  </Text>
                   <View style={styles.sitePickerList}>
                     {ROOFTOP_OPTIONS.map((site) => {
-                      const isChosen = createSiteId === site.id;
+                      const isChosen = createRole === 'CLERK'
+                        ? createAuthorizedSiteIds.includes(site.id)
+                        : createSiteId === site.id;
                       return (
                         <TouchableOpacity
                           key={site.id}
                           style={[styles.siteOption, isChosen && styles.siteOptionActive]}
-                          onPress={() => setCreateSiteId(site.id)}
+                          onPress={() => {
+                            if (createRole === 'CLERK') {
+                              toggleCreateSite(site.id);
+                            } else {
+                              setCreateSiteId(site.id);
+                              setCreateAuthorizedSiteIds([site.id]);
+                            }
+                          }}
                         >
                           <Icon
                             name={isChosen ? 'check' : 'building'}
@@ -661,6 +722,29 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                       );
                     })}
                   </View>
+                  {createRole === 'CLERK' && createAuthorizedSiteIds.length > 0 && (
+                    <>
+                      <Text style={[styles.modalInputLabel, { marginTop: spacing.md }]}>Default Site</Text>
+                      <View style={styles.sitePickerList}>
+                        {createAuthorizedSiteIds.map((siteId) => {
+                          const site = ROOFTOP_OPTIONS.find((option) => option.id === siteId);
+                          const isChosen = createSiteId === siteId;
+                          return (
+                            <TouchableOpacity
+                              key={siteId}
+                              style={[styles.siteOption, isChosen && styles.siteOptionActive]}
+                              onPress={() => setCreateSiteId(siteId)}
+                            >
+                              <Icon name={isChosen ? 'check' : 'building'} size={14} color={isChosen ? colors.primary : colors.textSecondary} />
+                              <Text style={[styles.siteOptionText, isChosen && styles.siteOptionTextActive]}>
+                                {site?.name || siteId}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
                 </View>
 
                 {/* Action Buttons */}
@@ -688,7 +772,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                     )}
                   </TouchableOpacity>
                 </View>
-              </View>
+              </ScrollView>
             </KeyboardAvoidingView>
           </Modal>
 
@@ -705,7 +789,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
               style={styles.modalOverlay}
             >
-              <View style={styles.modalContent}>
+              <ScrollView
+                style={styles.modalContent}
+                contentContainerStyle={styles.modalContentInner}
+                keyboardShouldPersistTaps="handled"
+              >
                 <View style={styles.modalHeader}>
                   <View style={[styles.modalIconCircle, { backgroundColor: '#FEF3C7' }]}>
                     <Icon name="sliders" size={20} color="#D97706" />
@@ -780,20 +868,55 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                         Administrator
                       </Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.rolePickBtn, editRole === 'CLERK' && styles.rolePickBtnActiveAdmin]}
+                      onPress={() => {
+                        setEditRole('CLERK');
+                        if (editAuthorizedSiteIds.length === 0) {
+                          setEditAuthorizedSiteIds([editSiteId || 'site_cranbourne_byd']);
+                        }
+                      }}
+                    >
+                      <Icon
+                        name="file-text"
+                        size={14}
+                        color={editRole === 'CLERK' ? '#FFFFFF' : colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.rolePickBtnText,
+                          editRole === 'CLERK' && styles.rolePickBtnTextActive,
+                        ]}
+                      >
+                        Clerk
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
                 {/* Dealership Site Selector */}
                 <View style={styles.modalInputGroup}>
-                  <Text style={styles.modalInputLabel}>Primary Leadership Rooftop (Dealership)</Text>
+                  <Text style={styles.modalInputLabel}>
+                    {editRole === 'CLERK' ? 'Assigned Dealership Sites' : 'Primary Dealership Rooftop'}
+                  </Text>
                   <View style={styles.sitePickerList}>
                     {ROOFTOP_OPTIONS.map((site) => {
-                      const isChosen = editSiteId === site.id;
+                      const isChosen = editRole === 'CLERK'
+                        ? editAuthorizedSiteIds.includes(site.id)
+                        : editSiteId === site.id;
                       return (
                         <TouchableOpacity
                           key={site.id}
                           style={[styles.siteOption, isChosen && styles.siteOptionActive]}
-                          onPress={() => setEditSiteId(site.id)}
+                          onPress={() => {
+                            if (editRole === 'CLERK') {
+                              toggleEditSite(site.id);
+                            } else {
+                              setEditSiteId(site.id);
+                              setEditAuthorizedSiteIds([site.id]);
+                            }
+                          }}
                         >
                           <Icon
                             name={isChosen ? 'check' : 'building'}
@@ -807,6 +930,29 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                       );
                     })}
                   </View>
+                  {editRole === 'CLERK' && editAuthorizedSiteIds.length > 0 && (
+                    <>
+                      <Text style={[styles.modalInputLabel, { marginTop: spacing.md }]}>Default Site</Text>
+                      <View style={styles.sitePickerList}>
+                        {editAuthorizedSiteIds.map((siteId) => {
+                          const site = ROOFTOP_OPTIONS.find((option) => option.id === siteId);
+                          const isChosen = editSiteId === siteId;
+                          return (
+                            <TouchableOpacity
+                              key={siteId}
+                              style={[styles.siteOption, isChosen && styles.siteOptionActive]}
+                              onPress={() => setEditSiteId(siteId)}
+                            >
+                              <Icon name={isChosen ? 'check' : 'building'} size={14} color={isChosen ? colors.primary : colors.textSecondary} />
+                              <Text style={[styles.siteOptionText, isChosen && styles.siteOptionTextActive]}>
+                                {site?.name || siteId}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
                 </View>
 
                 {/* Action Buttons */}
@@ -834,7 +980,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                     )}
                   </TouchableOpacity>
                 </View>
-              </View>
+              </ScrollView>
             </KeyboardAvoidingView>
           </Modal>
         </>
@@ -1222,7 +1368,6 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadius.xl,
-    padding: spacing.xl,
     width: '100%',
     maxWidth: 420,
     maxHeight: '90%',
@@ -1231,6 +1376,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 10,
+  },
+  modalContentInner: {
+    padding: spacing.xl,
   },
   modalHeader: {
     flexDirection: 'row',

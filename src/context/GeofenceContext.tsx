@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Platform, PermissionsAndroid, NativeModules } from 'react-native';
+import { AppState, Platform, PermissionsAndroid } from 'react-native';
 import { useAuth } from './AuthContext';
 import { mobileGeofenceService, PingTelemetryDto, GeofencePingResponse } from '../services/geofence.service';
 
@@ -19,9 +19,9 @@ try {
         authorizationLevel: 'whenInUse',
         locationProvider: 'auto',
       });
-    } catch (_cfgErr) { }
+    } catch { }
   }
-} catch (_e) {
+} catch {
   isNativeGeolocationAvailable = false;
   GeolocationModule = null;
 }
@@ -149,6 +149,9 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [gpsMode, setGpsMode] = useState<'LIVE' | 'SIMULATED'>('LIVE');
   const [hasLocationPermission, setHasLocationPermission] = useState<boolean>(false);
   const [liveCoords, setLiveCoords] = useState<LiveGpsCoords | null>(null);
+  // Incrementing this value deliberately tears down and recreates watchPosition.
+  // Permission can remain granted while Android silently removes an old watcher.
+  const [gpsWatchRevision, setGpsWatchRevision] = useState(0);
 
   // Active refs to avoid stale closure during intervals/listeners
   const liveCoordsRef = useRef<LiveGpsCoords | null>(null);
@@ -202,6 +205,13 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       coords = simulatedCoordsRef.current;
     }
 
+    // A custom workshop is an app-local anchor (used when the configured backend
+    // site is not the physical workshop being tested). Keep a snapshot for this
+    // ping so the backend cannot overwrite the locally calculated presence with
+    // a result based on different site coordinates.
+    const localWorkshop =
+      gpsModeRef.current === 'LIVE' ? customWorkshopRef.current : null;
+
     const payload: PingTelemetryDto = {
       technicianId: user.id,
       technicianName: user.name,
@@ -219,20 +229,36 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const res: GeofencePingResponse = await mobileGeofenceService.ping(payload);
       if (res) {
-        setPresenceStatus(res.status);
-        setInsideGeofence(res.insideGeofence);
-        setDistanceMeters(res.distanceMeters);
-        if (res.siteName) setSiteName(res.siteName);
+        if (localWorkshop) {
+          const localDistance = calculateDistanceMeters(
+            coords.lat,
+            coords.lng,
+            localWorkshop.lat,
+            localWorkshop.lng,
+          );
+          const isInsideLocalWorkshop = localDistance <= radiusMeters;
+          setPresenceStatus(isInsideLocalWorkshop ? 'ON_SITE' : 'OFF_SITE');
+          setInsideGeofence(isInsideLocalWorkshop);
+          setDistanceMeters(localDistance);
+          setSiteName(localWorkshop.name);
+        } else {
+          setPresenceStatus(res.status);
+          setInsideGeofence(res.insideGeofence);
+          setDistanceMeters(res.distanceMeters);
+          if (res.siteName) setSiteName(res.siteName);
+        }
         if (res.radiusMeters) setRadiusMeters(res.radiusMeters);
         setLastPingAt(new Date());
       }
-    } catch (pingErr) {
+    } catch {
       // Local fallback in case backend is unreachable: Compute true Haversine distance
-      const dist = calculateDistanceMeters(coords.lat, coords.lng, SITE_CRANBOURNE.lat, SITE_CRANBOURNE.lng);
+      const fallbackSite = localWorkshop ?? SITE_CRANBOURNE;
+      const dist = calculateDistanceMeters(coords.lat, coords.lng, fallbackSite.lat, fallbackSite.lng);
       const isInside = dist <= radiusMeters;
       setDistanceMeters(dist);
       setInsideGeofence(isInside);
       setPresenceStatus(isInside ? 'ON_SITE' : 'OFF_SITE');
+      if (localWorkshop) setSiteName(localWorkshop.name);
       setLastPingAt(new Date());
     } finally {
       isPingingRef.current = false;
@@ -246,6 +272,8 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setHasLocationPermission(granted);
     if (granted && isNativeGeolocationAvailable && GeolocationModule?.getCurrentPosition) {
       setGpsMode('LIVE');
+      setGpsWatchRevision((revision) => revision + 1);
+      prevGeoPosRef.current = null;
       const handlePos = (pos: any) => {
         const speedKmh = pos.coords.speed && pos.coords.speed > 0 ? Math.round(pos.coords.speed * 3.6) : 0;
         const c: LiveGpsCoords = {
@@ -258,18 +286,8 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         liveCoordsRef.current = c;
         setLiveCoords(c);
 
-        let refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
-        let refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
-
-        // Auto-anchor workshop to user's location if testing in Pakistan / outside Australia
-        if (customWorkshopRef.current === null && c.latitude > 0) {
-          const autoLoc = { lat: c.latitude, lng: c.longitude, name: 'Local Pakistan Workshop' };
-          customWorkshopRef.current = autoLoc;
-          setCustomWorkshop(autoLoc);
-          setSiteName(autoLoc.name);
-          refLat = c.latitude;
-          refLng = c.longitude;
-        }
+        const refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
+        const refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
 
         const realDist = calculateDistanceMeters(c.latitude, c.longitude, refLat, refLng);
         const isInside = realDist <= radiusMeters;
@@ -298,7 +316,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 },
                 { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
               );
-            } catch (_err2) { }
+            } catch { }
           },
           { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
         );
@@ -365,6 +383,21 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     requestLocationAccess();
   }, [isAuthenticated, user, requestLocationAccess]);
 
+  // Android may remove a location subscription after the app is backgrounded,
+  // even though the runtime permission still appears granted. Reacquire it on
+  // every foreground transition so a resumed road test does not stay at 0 km/h.
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        requestLocationAccess();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [isAuthenticated, user, requestLocationAccess]);
+
   useEffect(() => {
     pingNowRef.current = pingNow;
   }, [pingNow]);
@@ -421,17 +454,8 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setLiveCoords(c);
 
             if (gpsModeRef.current === 'LIVE') {
-              let refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
-              let refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
-
-              if (customWorkshopRef.current === null && c.latitude > 0) {
-                const autoLoc = { lat: c.latitude, lng: c.longitude, name: 'Local Pakistan Workshop' };
-                customWorkshopRef.current = autoLoc;
-                setCustomWorkshop(autoLoc);
-                setSiteName(autoLoc.name);
-                refLat = c.latitude;
-                refLng = c.longitude;
-              }
+              const refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
+              const refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
 
               const liveDist = calculateDistanceMeters(c.latitude, c.longitude, refLat, refLng);
               const isInside = liveDist <= radiusMeters;
@@ -464,7 +488,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             maximumAge: 1000,
           }
         );
-      } catch (_wErr) {
+      } catch {
         console.warn('Geolocation watchPosition unavailable');
         return null;
       }
@@ -477,7 +501,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         GeolocationModule.clearWatch(watchId);
       }
     };
-  }, [isAuthenticated, user, hasLocationPermission, radiusMeters]);
+  }, [isAuthenticated, user, hasLocationPermission, radiusMeters, gpsWatchRevision]);
 
   // Periodic telemetry fallback heartbeat (5s during active road test, 20s during workshop)
   useEffect(() => {

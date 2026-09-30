@@ -184,7 +184,7 @@ export const authApi = {
         message: resData?.message || 'Password reset OTP sent to your email',
         devOtp: resData?.devOtp || resData?.otp,
       };
-    } catch (err: any) {
+    } catch {
       const mockOtp = '123456';
       return {
         success: true,
@@ -204,7 +204,7 @@ export const authApi = {
         success: true,
         message: resData?.message || 'Password updated successfully.',
       };
-    } catch (err: any) {
+    } catch {
       return {
         success: true,
         message: 'Password updated successfully.',
@@ -234,6 +234,7 @@ export const authApi = {
     password?: string;
     role?: UserRole;
     siteId?: string;
+    authorizedSiteIds?: string[];
   }): Promise<User> => {
     return apiClient.post<User>('/auth/users', {
       name: dto.name,
@@ -241,6 +242,7 @@ export const authApi = {
       password: dto.password || 'Booran2026!',
       role: dto.role || 'TECHNICIAN',
       siteId: dto.siteId || 'site_cranbourne_byd',
+      authorizedSiteIds: dto.authorizedSiteIds,
     });
   },
 
@@ -251,35 +253,11 @@ export const authApi = {
       email?: string;
       role?: UserRole;
       siteId?: string;
+      authorizedSiteIds?: string[];
       password?: string;
     }
   ): Promise<User> => {
-    try {
-      return await apiClient.patch<User>(`/auth/users/${id}`, dto);
-    } catch (err: any) {
-      // If remote server has not yet deployed PATCH, fallback to PUT
-      if (
-        err?.statusCode === 404 ||
-        err?.message?.includes('Cannot PATCH') ||
-        err?.message?.includes('404')
-      ) {
-        try {
-          return await apiClient.put<User>(`/auth/users/${id}`, dto);
-        } catch (putErr: any) {
-          // If remote cloud host does not have PATCH/PUT deployed, return optimistic updated user
-          // so rooftop assignment takes effect immediately on the client
-          return {
-            id,
-            name: dto.name || 'Technician',
-            email: dto.email || '',
-            role: dto.role || 'TECHNICIAN',
-            defaultSiteId: dto.siteId,
-            authorizedSiteIds: dto.siteId ? [dto.siteId] : undefined,
-          };
-        }
-      }
-      throw err;
-    }
+    return apiClient.patch<User>(`/auth/users/${id}`, dto);
   },
 
   deleteUser: async (id: string): Promise<{ success: boolean; message: string }> => {

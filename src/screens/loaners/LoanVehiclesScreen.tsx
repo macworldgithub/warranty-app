@@ -26,6 +26,7 @@ import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
 import { EditLoanerModal } from './EditLoanerModal';
 import { LoanVehicleDetailsModal } from './LoanVehicleDetailsModal';
 import { useAuth } from '../../context/AuthContext';
+import { useGeofence } from '../../context/GeofenceContext';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
@@ -84,6 +85,8 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId, logout } = useAuth();
+  const { presenceStatus } = useGeofence();
+  const isOnSite = presenceStatus === 'ON_SITE';
 
   const handleLogout = () => {
     Alert.alert(
@@ -104,6 +107,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'CLERK' || user?.role === 'SERVICE_MANAGER';
   const isTechnician = user?.role === 'TECHNICIAN';
+  const isClerk = user?.role === 'CLERK';
   const technicianSiteId = user?.defaultSiteId || activeSiteId || 'site_cranbourne_byd';
   const technicianSiteObj = ROOFTOPS.find((r) => r.siteId === technicianSiteId) || ROOFTOPS[1];
 
@@ -138,7 +142,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
     return name.slice(0, 2).toUpperCase();
   };
 
-  const [selectedSiteId, setSelectedSiteId] = useState(isTechnician ? technicianSiteId : 'site_cranbourne_byd');
+  const [selectedSiteId, setSelectedSiteId] = useState(isTechnician ? technicianSiteId : isClerk ? 'all' : 'site_cranbourne_byd');
   const [activeTab, setActiveTab] = useState<'ALL' | 'ON_LOAN' | 'RETURNED' | 'TODAY'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -184,8 +188,10 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   useEffect(() => {
     if (isTechnician) {
       setSelectedSiteId(technicianSiteId);
+    } else if (isClerk) {
+      setSelectedSiteId('all');
     }
-  }, [isTechnician, technicianSiteId]);
+  }, [isTechnician, isClerk, technicianSiteId]);
 
   const fetchLoanData = useCallback(async () => {
     try {
@@ -194,6 +200,10 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       if (Array.isArray(data) && data.length > 0) {
         setAgreements(data);
       } else {
+        if (isClerk) {
+          setAgreements([]);
+          return;
+        }
         // High fidelity mock agreements matching the design screenshot
         const fallbackAgreements: LoanAgreement[] = [
           {
@@ -394,7 +404,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isClerk, selectedSiteId]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -465,7 +475,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   // If Wizard open, render it full screen
   if (isWizardOpen) {
-    const activeLabel = isTechnician
+    const activeLabel = isTechnician || isClerk
       ? technicianSiteObj.label
       : (ROOFTOPS.find((r) => r.siteId === selectedSiteId && r.siteId !== 'all')?.label || 'Cranbourne');
 
@@ -494,8 +504,15 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
         <View style={styles.headerRight}>
           <View style={styles.locationPill}>
-            <View style={styles.locationDot} />
-            <Text style={styles.locationPillText}>OFF-SITE</Text>
+            <View
+              style={[
+                styles.locationDot,
+                isOnSite ? styles.locationDotOnSite : styles.locationDotOffSite,
+              ]}
+            />
+            <Text style={styles.locationPillText}>
+              {isOnSite ? 'ON-SITE' : 'OFF-SITE'}
+            </Text>
           </View>
 
           <TouchableOpacity style={styles.bellBtn} onPress={() => { }} activeOpacity={0.75}>
@@ -863,6 +880,11 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
+  },
+  locationDotOnSite: {
+    backgroundColor: '#10B981',
+  },
+  locationDotOffSite: {
     backgroundColor: '#F59E0B',
   },
   locationPillText: {

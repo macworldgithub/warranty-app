@@ -11,6 +11,7 @@ import {
   Modal,
   Animated,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -115,6 +116,8 @@ export function RoadTestScreen({
     radiusMeters,
     liveCoords,
     customWorkshop,
+    requestLocationAccess,
+    setPresenceActivity,
   } = useGeofence();
 
   // State
@@ -200,7 +203,7 @@ export function RoadTestScreen({
   }, [technicianSiteId, siteName]);
 
   // Handle Starting the Drive
-  const handleStartDrive = () => {
+  const handleStartDrive = async () => {
     Keyboard.dismiss();
     const cleanRego = regoInput.trim().toUpperCase() || '1BY-9EV';
     const found = workshopVehicles.find(
@@ -224,6 +227,16 @@ export function RoadTestScreen({
       siteName: siteName || 'Booran BYD Cranbourne',
     };
 
+    const locationGranted = await requestLocationAccess();
+    if (!locationGranted) {
+      Alert.alert(
+        'Location required',
+        'Enable precise location while using the app so live speed and route tracking can work.'
+      );
+      return;
+    }
+
+    setPresenceActivity('ROAD_TEST', vehicleToDrive.repairOrder);
     setVehicle(vehicleToDrive);
     startLiveDrive(vehicleToDrive);
   };
@@ -255,6 +268,7 @@ export function RoadTestScreen({
   // Handle Stopping the Drive (Auto-saves to Previous drives)
   const handleStopDrive = async () => {
     await stopAndSaveDrive('Internal test drive completed.');
+    setPresenceActivity('WORKSHOP');
   };
 
   const currentVehicleRego = vehicle?.registration || regoInput || '1BY-9EV';
