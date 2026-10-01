@@ -258,9 +258,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <TouchableOpacity onPress={() => switchTab('SIGN_IN')} style={[styles.modeButton, activeTab === 'SIGN_IN' && styles.modeButtonActive]}>
           <Text style={[styles.modeText, activeTab === 'SIGN_IN' && styles.modeTextActive]}>Sign in</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => switchTab('SIGN_UP')} style={[styles.modeButton, activeTab === 'SIGN_UP' && styles.modeButtonActive]}>
-          <Text style={[styles.modeText, activeTab === 'SIGN_UP' && styles.modeTextActive]}>Register</Text>
-        </TouchableOpacity>
       </View>
 
       {authError && (
