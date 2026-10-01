@@ -24,7 +24,7 @@ import { loanAgreementsApi } from '../../api';
 import { LoanAgreement } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useGeofence } from '../../context/GeofenceContext';
-import { formatDateForInput, pad } from '../../utils/date';
+import { formatDateForInput } from '../../utils/date';
 import { ENV } from '../../config/env';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
@@ -39,26 +39,90 @@ interface IssueLoanerWizardScreenProps {
 }
 
 const ROOFTOPS = [
-  { name: 'Cranbourne', siteId: 'site_cranbourne_byd', siteName: 'Booran BYD Cranbourne' },
-  { name: 'Dandenong', siteId: 'site_dandenong_multi', siteName: 'Booran Dandenong Multi-Franchise' },
-  { name: 'Berwick', siteId: 'site_berwick_toyota_ford', siteName: 'Booran Berwick Commercials' },
-  { name: 'Cheltenham', siteId: 'site_cheltenham_mg', siteName: 'Booran MG & Chery Cheltenham' },
+  {
+    name: 'Cranbourne',
+    siteId: 'site_cranbourne_byd',
+    siteName: 'Booran BYD Cranbourne',
+  },
+  {
+    name: 'Dandenong',
+    siteId: 'site_dandenong_multi',
+    siteName: 'Booran Dandenong Multi-Franchise',
+  },
+  {
+    name: 'Berwick',
+    siteId: 'site_berwick_toyota_ford',
+    siteName: 'Booran Berwick Commercials',
+  },
+  {
+    name: 'Cheltenham',
+    siteId: 'site_cheltenham_mg',
+    siteName: 'Booran MG & Chery Cheltenham',
+  },
 ];
 
 const PREPOPULATED_VEHICLES = [
-  { rego: 'CRN-882', make: 'BYD', model: 'Dolphin Premium', year: 2024, vin: 'LC07A4DE8R0019284', rooftop: 'Cranbourne', odo: 4820 },
-  { rego: '1ZX-9AB', make: 'Mitsubishi', model: 'Outlander Aspire', year: 2024, vin: 'JMBXNGA2WPZ004918', rooftop: 'Cranbourne', odo: 12450 },
-  { rego: '1TY-4KL', make: 'Hyundai', model: 'Tucson Elite', year: 2023, vin: 'KMHJT81CBDU719283', rooftop: 'Dandenong', odo: 21300 },
-  { rego: '1VU-8QM', make: 'Kia', model: 'Sportage SX+', year: 2024, vin: 'KNAFX4127P5628109', rooftop: 'Berwick', odo: 8900 },
-  { rego: '1WR-2XP', make: 'MG', model: 'ZS EV Essence', year: 2023, vin: 'LSJGB83W5NZ489123', rooftop: 'Cranbourne', odo: 15400 },
+  {
+    rego: 'CRN-882',
+    make: 'BYD',
+    model: 'Dolphin Premium',
+    year: 2024,
+    vin: 'LC07A4DE8R0019284',
+    rooftop: 'Cranbourne',
+    odo: 4820,
+  },
+  {
+    rego: '1ZX-9AB',
+    make: 'Mitsubishi',
+    model: 'Outlander Aspire',
+    year: 2024,
+    vin: 'JMBXNGA2WPZ004918',
+    rooftop: 'Cranbourne',
+    odo: 12450,
+  },
+  {
+    rego: '1TY-4KL',
+    make: 'Hyundai',
+    model: 'Tucson Elite',
+    year: 2023,
+    vin: 'KMHJT81CBDU719283',
+    rooftop: 'Dandenong',
+    odo: 21300,
+  },
+  {
+    rego: '1VU-8QM',
+    make: 'Kia',
+    model: 'Sportage SX+',
+    year: 2024,
+    vin: 'KNAFX4127P5628109',
+    rooftop: 'Berwick',
+    odo: 8900,
+  },
+  {
+    rego: '1WR-2XP',
+    make: 'MG',
+    model: 'ZS EV Essence',
+    year: 2023,
+    vin: 'LSJGB83W5NZ489123',
+    rooftop: 'Cranbourne',
+    odo: 15400,
+  },
 ];
 
 const INSPECTION_SLOTS = [
   { id: 'front', label: 'Front 45°', desc: 'Front bumper & bonnet' },
   { id: 'rear', label: 'Rear 45°', desc: 'Rear tailgate & bumper' },
   { id: 'driverSide', label: 'Driver Side', desc: 'Full length side panels' },
-  { id: 'passengerSide', label: 'Passenger Side', desc: 'Full length side panels' },
-  { id: 'odometerDash', label: 'Odo / Dash', desc: 'Instrument cluster reading' },
+  {
+    id: 'passengerSide',
+    label: 'Passenger Side',
+    desc: 'Full length side panels',
+  },
+  {
+    id: 'odometerDash',
+    label: 'Odo / Dash',
+    desc: 'Instrument cluster reading',
+  },
 ];
 
 const TERMS_TEXT = `BOORAN MOTOR GROUP - COURTESY LOAN VEHICLE AGREEMENT TERMS & CONDITIONS
@@ -74,7 +138,9 @@ const TERMS_TEXT = `BOORAN MOTOR GROUP - COURTESY LOAN VEHICLE AGREEMENT TERMS &
 9. Off-road & Track Use: Vehicle must only be driven on sealed public roads. Unsealed roads, race tracks, and beach driving are strictly prohibited.
 10. Personal Property: Booran Motor Group accepts no liability for any personal items lost, stolen, or damaged inside the courtesy vehicle.`;
 
-export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = ({
+export const IssueLoanerWizardScreen: React.FC<
+  IssueLoanerWizardScreenProps
+> = ({
   onBack,
   onSuccess,
   initialRooftop = 'Cranbourne',
@@ -89,11 +155,13 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const isTestDrive = purpose === 'TEST_DRIVE';
   const agreementLabel = isTestDrive ? 'Test Drive' : 'Service Loaner';
   const allowedRooftops = allowedSiteIds?.length
-    ? ROOFTOPS.filter((r) => allowedSiteIds.includes(r.siteId))
+    ? ROOFTOPS.filter(r => allowedSiteIds.includes(r.siteId))
     : ROOFTOPS;
   const fleetVehicles = allowedSiteIds?.length
-    ? PREPOPULATED_VEHICLES.filter((veh) =>
-        allowedRooftops.some((site) => site.name.toLowerCase() === veh.rooftop.toLowerCase())
+    ? PREPOPULATED_VEHICLES.filter(veh =>
+        allowedRooftops.some(
+          site => site.name.toLowerCase() === veh.rooftop.toLowerCase(),
+        ),
       )
     : PREPOPULATED_VEHICLES;
 
@@ -107,7 +175,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   });
 
   const toggleSection = (sectionIndex: number) => {
-    setOpenSections((prev) => ({
+    setOpenSections(prev => ({
       ...prev,
       [sectionIndex]: !prev[sectionIndex],
     }));
@@ -124,75 +192,77 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Section 1: Customer Details
-  const [fullName, setFullName] = useState('Priya Nair');
-  const [phone, setPhone] = useState('0412 345 678');
-  const [email, setEmail] = useState('priya.nair@example.com');
-  const [address, setAddress] = useState('14 High Street, Cranbourne VIC 3977');
-  const [licenceNumber, setLicenceNumber] = useState('98765432');
-  const [licenceState, setLicenceState] = useState('VIC');
-  const [licenceExpiry, setLicenceExpiry] = useState('2028-11-20');
-  const [customerVehicleRego, setCustomerVehicleRego] = useState('1BY-9EV');
-  const [customerVehicleModel, setCustomerVehicleModel] = useState('2024 BYD ATTO 3');
-  const [birthYear, setBirthYear] = useState('1994');
-  const [licenceSighted, setLicenceSighted] = useState(true);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [licenceNumber, setLicenceNumber] = useState('');
+  const [licenceState, setLicenceState] = useState('');
+  const [licenceExpiry, setLicenceExpiry] = useState('');
+  const [customerVehicleRego, setCustomerVehicleRego] = useState('');
+  const [customerVehicleModel, setCustomerVehicleModel] = useState('');
+  const [birthYear, setBirthYear] = useState('');
+  const [licenceSighted, setLicenceSighted] = useState(false);
   const [licencePhotoUri, setLicencePhotoUri] = useState<string>('');
-  const [licencePhotoTimestamp, setLicencePhotoTimestamp] = useState<string>('');
+  const [licencePhotoTimestamp, setLicencePhotoTimestamp] =
+    useState<string>('');
   const [showLicenceExpiryPicker, setShowLicenceExpiryPicker] = useState(false);
 
   // Section 2: Loan Vehicle
   const [rooftop, setRooftop] = useState(
-    allowedRooftops.some((r) => r.name.toLowerCase() === initialRooftop.toLowerCase())
+    allowedRooftops.some(
+      r => r.name.toLowerCase() === initialRooftop.toLowerCase(),
+    )
       ? initialRooftop
-      : (allowedRooftops[0]?.name || initialRooftop)
+      : allowedRooftops[0]?.name || initialRooftop,
   );
-  const [registration, setRegistration] = useState('CRN-882');
-  const [make, setMake] = useState('BYD');
-  const [model, setModel] = useState('DOLPHIN Premium');
-  const [vehicleYear, setVehicleYear] = useState('2024');
-  const [vin, setVin] = useState('LC07A4DE8R0019284');
+  const [registration, setRegistration] = useState('');
+  const [make, setMake] = useState('');
+  const [model, setModel] = useState('');
+  const [vehicleYear, setVehicleYear] = useState('');
+  const [vin, setVin] = useState('');
   const [showExpectedDatePicker, setShowExpectedDatePicker] = useState(false);
   const [showExpectedTimePicker, setShowExpectedTimePicker] = useState(false);
-  const [expectedReturnDate, setExpectedReturnDate] = useState(() => {
-    const d = new Date();
-    if (!isTestDrive) {
-      d.setDate(d.getDate() + 1);
-    }
-    return formatDateForInput(d);
-  });
-  const [expectedReturnTime, setExpectedReturnTime] = useState(() => {
-    if (isTestDrive) {
-      const d = new Date();
-      d.setHours(d.getHours() + 1);
-      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    }
-    return '18:00';
-  });
+  const [expectedReturnDate, setExpectedReturnDate] = useState('');
+  const [expectedReturnTime, setExpectedReturnTime] = useState('');
+  const datePickerValue = new Date(
+    expectedReturnDate && expectedReturnTime
+      ? `${expectedReturnDate}T${expectedReturnTime}`
+      : Date.now(),
+  );
 
   // Section 3: Outbound Condition & Inspection
-  const [odometerOut, setOdometerOut] = useState('4820');
-  const [fuelOut, setFuelOut] = useState('100');
-  const [cleanlinessVerified, setCleanlinessVerified] = useState(true);
-  const [existingDamageNotes, setExistingDamageNotes] = useState('Nil pre-existing damage. Vehicle clean & sanitized.');
-  const [inspectionPhotos, setInspectionPhotos] = useState<{ [key: string]: string }>({});
-  const [inspectionPhotoTimestamps, setInspectionPhotoTimestamps] = useState<{ [key: string]: string }>({});
+  const [odometerOut, setOdometerOut] = useState('');
+  const [fuelOut, setFuelOut] = useState('');
+  const [cleanlinessVerified, setCleanlinessVerified] = useState(false);
+  const [existingDamageNotes, setExistingDamageNotes] = useState('');
+  const [inspectionPhotos, setInspectionPhotos] = useState<{
+    [key: string]: string;
+  }>({});
+  const [inspectionPhotoTimestamps, setInspectionPhotoTimestamps] = useState<{
+    [key: string]: string;
+  }>({});
 
   // Section 4: Terms & Conditions
-  const [readAndAgreed, setReadAndAgreed] = useState(true);
-  const [electronicConsent, setElectronicConsent] = useState(true);
-  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(true);
+  const [readAndAgreed, setReadAndAgreed] = useState(false);
+  const [electronicConsent, setElectronicConsent] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
 
   // Section 5: Signature
-  const [staffName, setStaffName] = useState(() => (user?.name ? `${user.name}${user.role ? ` (${user.role.replace('_', ' ')})` : ''}` : 'Shaun Davies (Service Advisor)'));
-  const [customerPaths, setCustomerPaths] = useState<string[]>(['M25,65 C45,25 65,85 95,45 L165,55 L225,35']);
+  const [staffName, setStaffName] = useState('');
+  const [customerPaths, setCustomerPaths] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string>('');
-  const [isCustomerSigned, setIsCustomerSigned] = useState(true);
+  const [isCustomerSigned, setIsCustomerSigned] = useState(false);
   const currentPathRef = useRef<string>('');
-  const customerPathsRef = useRef<string[]>(['M25,65 C45,25 65,85 95,45 L165,55 L225,35']);
+  const customerPathsRef = useRef<string[]>([]);
 
   // Excess Calculation
   const currentYear = new Date().getFullYear();
   const parsedBirthYear = parseInt(birthYear, 10);
-  const isValidBirthYear = !isNaN(parsedBirthYear) && parsedBirthYear > 1920 && parsedBirthYear <= currentYear;
+  const isValidBirthYear =
+    !isNaN(parsedBirthYear) &&
+    parsedBirthYear > 1920 &&
+    parsedBirthYear <= currentYear;
   const customerAge = isValidBirthYear ? currentYear - parsedBirthYear : null;
   let basicExcess = 2500;
   let ageSurcharge = 0;
@@ -211,15 +281,17 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt) => {
+        onPanResponderGrant: evt => {
           const { locationX, locationY } = evt.nativeEvent;
           const startPt = `M${Math.round(locationX)},${Math.round(locationY)}`;
           currentPathRef.current = startPt;
           setCurrentPath(startPt);
         },
-        onPanResponderMove: (evt) => {
+        onPanResponderMove: evt => {
           const { locationX, locationY } = evt.nativeEvent;
-          const nextPt = `${currentPathRef.current} L${Math.round(locationX)},${Math.round(locationY)}`;
+          const nextPt = `${currentPathRef.current} L${Math.round(
+            locationX,
+          )},${Math.round(locationY)}`;
           currentPathRef.current = nextPt;
           setCurrentPath(nextPt);
         },
@@ -234,7 +306,10 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 finalStroke = `M${px},${py} L${px + 1},${py + 1}`;
               }
             }
-            customerPathsRef.current = [...customerPathsRef.current, finalStroke];
+            customerPathsRef.current = [
+              ...customerPathsRef.current,
+              finalStroke,
+            ];
             setCustomerPaths([...customerPathsRef.current]);
             currentPathRef.current = '';
             setCurrentPath('');
@@ -242,10 +317,10 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           }
         },
       }),
-    []
+    [],
   );
 
-  const handleSelectPrepop = (veh: typeof PREPOPULATED_VEHICLES[0]) => {
+  const handleSelectPrepop = (veh: (typeof PREPOPULATED_VEHICLES)[0]) => {
     setRegistration(veh.rego);
     setMake(veh.make);
     setModel(veh.model);
@@ -282,7 +357,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           },
         },
         { text: 'Cancel', style: 'cancel' },
-      ]
+      ],
     );
   };
 
@@ -298,8 +373,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             const res = await cameraService.capturePhoto(`loaner_${slotId}`);
             if (res.success && res.fileUri) {
               const nowIso = new Date().toISOString();
-              setInspectionPhotos((prev) => ({ ...prev, [slotId]: res.fileUri! }));
-              setInspectionPhotoTimestamps((prev) => ({ ...prev, [slotId]: nowIso }));
+              setInspectionPhotos(prev => ({
+                ...prev,
+                [slotId]: res.fileUri!,
+              }));
+              setInspectionPhotoTimestamps(prev => ({
+                ...prev,
+                [slotId]: nowIso,
+              }));
             }
           },
         },
@@ -309,13 +390,19 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             const res = await cameraService.pickFromGallery();
             if (res.success && res.fileUri) {
               const nowIso = new Date().toISOString();
-              setInspectionPhotos((prev) => ({ ...prev, [slotId]: res.fileUri! }));
-              setInspectionPhotoTimestamps((prev) => ({ ...prev, [slotId]: nowIso }));
+              setInspectionPhotos(prev => ({
+                ...prev,
+                [slotId]: res.fileUri!,
+              }));
+              setInspectionPhotoTimestamps(prev => ({
+                ...prev,
+                [slotId]: nowIso,
+              }));
             }
           },
         },
         { text: 'Cancel', style: 'cancel' },
-      ]
+      ],
     );
   };
 
@@ -327,66 +414,104 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
         message: `${TERMS_TEXT}\n\nFull agreement: ${ENV.API_URL}/legal-documents/test-drive-loan-agreement\nPrivacy policy: ${ENV.API_URL}/legal-documents/privacy-policy`,
       });
     } catch (error: any) {
-      Alert.alert('Share', error?.message || 'Could not share terms and conditions.');
+      Alert.alert(
+        'Share',
+        error?.message || 'Could not share terms and conditions.',
+      );
     }
   };
 
   const handleOpenLegalDocument = async (
-    document: 'test-drive-loan-agreement' | 'privacy-policy'
+    document: 'test-drive-loan-agreement' | 'privacy-policy',
   ) => {
     try {
       await Linking.openURL(`${ENV.API_URL}/legal-documents/${document}`);
     } catch {
-      Alert.alert('Document unavailable', 'Could not open the document. Please check your connection and try again.');
+      Alert.alert(
+        'Document unavailable',
+        'Could not open the document. Please check your connection and try again.',
+      );
     }
   };
 
   const validateForm = () => {
     if (!fullName.trim()) {
-      setOpenSections((prev) => ({ ...prev, 1: true }));
+      setOpenSections(prev => ({ ...prev, 1: true }));
       Alert.alert('Required', 'Please enter customer full name in Section 1.');
       return false;
     }
     if (!phone.trim()) {
-      setOpenSections((prev) => ({ ...prev, 1: true }));
+      setOpenSections(prev => ({ ...prev, 1: true }));
       Alert.alert('Required', 'Please enter mobile phone number in Section 1.');
       return false;
     }
     if (!licenceNumber.trim()) {
-      setOpenSections((prev) => ({ ...prev, 1: true }));
-      Alert.alert('Required', 'Please enter driver licence number in Section 1.');
+      setOpenSections(prev => ({ ...prev, 1: true }));
+      Alert.alert(
+        'Required',
+        'Please enter driver licence number in Section 1.',
+      );
       return false;
     }
     if (!licenceSighted) {
-      setOpenSections((prev) => ({ ...prev, 1: true }));
-      Alert.alert('Licence Sighting Mandatory', 'Booran policy strictly requires staff to physically inspect and sight the driver licence.');
+      setOpenSections(prev => ({ ...prev, 1: true }));
+      Alert.alert(
+        'Licence Sighting Mandatory',
+        'Booran policy strictly requires staff to physically inspect and sight the driver licence.',
+      );
       return false;
     }
     if (!registration.trim() || !make.trim()) {
-      setOpenSections((prev) => ({ ...prev, 2: true }));
-      Alert.alert('Required', 'Please select or enter vehicle registration and make in Section 2.');
+      setOpenSections(prev => ({ ...prev, 2: true }));
+      Alert.alert(
+        'Required',
+        'Please select or enter vehicle registration and make in Section 2.',
+      );
+      return false;
+    }
+    if (!expectedReturnDate || !expectedReturnTime) {
+      setOpenSections(prev => ({ ...prev, 2: true }));
+      Alert.alert(
+        'Required',
+        'Please select an expected return date and time in Section 2.',
+      );
       return false;
     }
     const odo = parseInt(odometerOut, 10);
     if (!odometerOut.trim() || isNaN(odo) || odo < 0) {
-      setOpenSections((prev) => ({ ...prev, 3: true }));
-      Alert.alert('Invalid Odometer', 'Please provide a valid outbound odometer reading in Section 3.');
+      setOpenSections(prev => ({ ...prev, 3: true }));
+      Alert.alert(
+        'Invalid Odometer',
+        'Please provide a valid outbound odometer reading in Section 3.',
+      );
       return false;
     }
     if (!readAndAgreed || !electronicConsent || !privacyAcknowledged) {
-      setOpenSections((prev) => ({ ...prev, 4: true }));
-      Alert.alert('Consent Required', 'All three acknowledgement checkboxes in Section 4 must be checked.');
+      setOpenSections(prev => ({ ...prev, 4: true }));
+      Alert.alert(
+        'Consent Required',
+        'All three acknowledgement checkboxes in Section 4 must be checked.',
+      );
       return false;
     }
-    const allPaths = customerPathsRef.current.length > 0 ? customerPathsRef.current : customerPaths;
+    const allPaths =
+      customerPathsRef.current.length > 0
+        ? customerPathsRef.current
+        : customerPaths;
     if (!isCustomerSigned && allPaths.length === 0) {
-      setOpenSections((prev) => ({ ...prev, 5: true }));
-      Alert.alert('Signature Required', 'Customer must provide a digital signature in Section 5.');
+      setOpenSections(prev => ({ ...prev, 5: true }));
+      Alert.alert(
+        'Signature Required',
+        'Customer must provide a digital signature in Section 5.',
+      );
       return false;
     }
     if (!staffName.trim()) {
-      setOpenSections((prev) => ({ ...prev, 5: true }));
-      Alert.alert('Staff Name Required', 'Please enter issuing staff member name in Section 5.');
+      setOpenSections(prev => ({ ...prev, 5: true }));
+      Alert.alert(
+        'Staff Name Required',
+        'Please enter issuing staff member name in Section 5.',
+      );
       return false;
     }
     return true;
@@ -397,8 +522,15 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
     try {
       setIsSubmitting(true);
-      const chosenRooftop = allowedRooftops.find((r) => r.name.toLowerCase() === rooftop.toLowerCase()) || allowedRooftops[0] || ROOFTOPS[0];
-      const dueBackDate = new Date(`${expectedReturnDate}T${expectedReturnTime || '18:00'}`);
+      const chosenRooftop =
+        allowedRooftops.find(
+          r => r.name.toLowerCase() === rooftop.toLowerCase(),
+        ) ||
+        allowedRooftops[0] ||
+        ROOFTOPS[0];
+      const dueBackDate = new Date(
+        `${expectedReturnDate}T${expectedReturnTime || '18:00'}`,
+      );
 
       const createPayload = {
         siteId: chosenRooftop.siteId,
@@ -425,7 +557,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           vin: vin.trim() || undefined,
         },
         dailyKmCap: 50,
-        excessKmRate: 0.50,
+        excessKmRate: 0.5,
         basicInsuranceExcess: basicExcess,
         outbound: {
           odometerOut: parseInt(odometerOut, 10) || 0,
@@ -444,8 +576,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
         },
       };
 
-      const allPaths = customerPathsRef.current.length > 0 ? customerPathsRef.current : customerPaths;
-      const sigPayload = allPaths.length > 0 ? allPaths.join(' ') : 'data:image/svg+xml;base64,CONFIRMED';
+      const allPaths =
+        customerPathsRef.current.length > 0
+          ? customerPathsRef.current
+          : customerPaths;
+      const sigPayload =
+        allPaths.length > 0
+          ? allPaths.join(' ')
+          : 'data:image/svg+xml;base64,CONFIRMED';
       let signed: any = null;
 
       try {
@@ -455,10 +593,14 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           readAndAgreed,
           electronicConsent,
           privacyNoticeAcknowledged: privacyAcknowledged,
-          staffSignatureDataUrl: 'STAFF_VERIFIED_' + staffName.toUpperCase().replace(/\s+/g, '_'),
+          staffSignatureDataUrl:
+            'STAFF_VERIFIED_' + staffName.toUpperCase().replace(/\s+/g, '_'),
         });
       } catch (apiErr: any) {
-        console.warn('API error when issuing agreement, saving locally as active agreement:', apiErr?.message);
+        console.warn(
+          'API error when issuing agreement, saving locally as active agreement:',
+          apiErr?.message,
+        );
         const uniqueId = `lagr_${Date.now()}`;
         const agreementNumber = `LA-2041`;
         signed = {
@@ -478,7 +620,7 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           loanStartDateTime: new Date().toISOString(),
           dueBackDateTime: createPayload.dueBackDateTime,
           dailyKmCap: 50,
-          excessKmRate: 0.50,
+          excessKmRate: 0.5,
           basicInsuranceExcess: 2500,
           outbound: createPayload.outbound,
           signatures: {
@@ -503,10 +645,13 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           {
             text: 'OK',
           },
-        ]
+        ],
       );
     } catch (err: any) {
-      Alert.alert('Issue Failed', err?.message || 'Failed to submit loan agreement.');
+      Alert.alert(
+        'Issue Failed',
+        err?.message || 'Failed to submit loan agreement.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -515,16 +660,29 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
   return (
     <View style={styles.container}>
       {/* Top Red Header matching Booran Motors branding */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.xs) + 6 }]}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top, spacing.xs) + 6 },
+        ]}
+      >
         <View style={styles.headerTopRow}>
           {/* Back button */}
-          <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={onBack}
+            activeOpacity={0.8}
+          >
             <Icon name="chevron-left" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
           {/* Booran Motors Logo */}
           <View style={styles.brandContainer}>
-            <Image source={booranLogo} style={styles.brandLogoImg} resizeMode="contain" />
+            <Image
+              source={booranLogo}
+              style={styles.brandLogoImg}
+              resizeMode="contain"
+            />
           </View>
 
           {/* Right Status Pill & Bell */}
@@ -533,7 +691,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <View
                 style={[
                   styles.presenceDot,
-                  isOnSite ? styles.presenceDotOnSite : styles.presenceDotOffSite,
+                  isOnSite
+                    ? styles.presenceDotOnSite
+                    : styles.presenceDotOffSite,
                 ]}
               />
               <Text style={styles.presenceText}>
@@ -553,7 +713,10 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
       <ScrollView
         style={styles.scrollArea}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, spacing.md) + 90 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, spacing.md) + 90 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Assigned Rooftop Card */}
@@ -564,7 +727,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           <View style={styles.rooftopDetails}>
             <Text style={styles.rooftopSubLabel}>YOUR ASSIGNED ROOFTOP</Text>
             <Text style={styles.rooftopName}>
-              {allowedRooftops.find((r) => r.name.toLowerCase() === rooftop.toLowerCase())?.siteName || rooftop}
+              {allowedRooftops.find(
+                r => r.name.toLowerCase() === rooftop.toLowerCase(),
+              )?.siteName || rooftop}
             </Text>
           </View>
           <View style={styles.assignedBadge}>
@@ -581,17 +746,24 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <Text style={styles.heroTitle}>New loan agreement.</Text>
             </View>
             <View style={styles.accordionControls}>
-              <TouchableOpacity onPress={expandAllSections} style={styles.accordionControlBtn}>
+              <TouchableOpacity
+                onPress={expandAllSections}
+                style={styles.accordionControlBtn}
+              >
                 <Text style={styles.accordionControlText}>Expand All</Text>
               </TouchableOpacity>
               <Text style={{ color: '#CBD5E1' }}>•</Text>
-              <TouchableOpacity onPress={collapseAllSections} style={styles.accordionControlBtn}>
+              <TouchableOpacity
+                onPress={collapseAllSections}
+                style={styles.accordionControlBtn}
+              >
                 <Text style={styles.accordionControlText}>Collapse</Text>
               </TouchableOpacity>
             </View>
           </View>
           <Text style={styles.heroDescription}>
-            Complete all 5 sections below to issue and activate the digital customer loan agreement.
+            Complete all 5 sections below to issue and activate the digital
+            customer loan agreement.
           </Text>
         </View>
 
@@ -603,12 +775,28 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             activeOpacity={0.8}
           >
             <View style={styles.dropdownHeaderLeft}>
-              <View style={[styles.sectionStepBadge, openSections[1] && styles.sectionStepBadgeActive]}>
-                <Text style={[styles.sectionStepText, openSections[1] && styles.sectionStepTextActive]}>1</Text>
+              <View
+                style={[
+                  styles.sectionStepBadge,
+                  openSections[1] && styles.sectionStepBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sectionStepText,
+                    openSections[1] && styles.sectionStepTextActive,
+                  ]}
+                >
+                  1
+                </Text>
               </View>
               <View>
-                <Text style={styles.dropdownTitle}>Customer & Driver Details</Text>
-                <Text style={styles.dropdownSubtitle}>{fullName || 'Enter borrower info'} • {phone || 'Mobile'}</Text>
+                <Text style={styles.dropdownTitle}>
+                  Customer & Driver Details
+                </Text>
+                <Text style={styles.dropdownSubtitle}>
+                  {fullName || 'Enter borrower info'} • {phone || 'Mobile'}
+                </Text>
               </View>
             </View>
             <View style={styles.dropdownHeaderRight}>
@@ -644,7 +832,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
 
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1, marginRight: spacing.sm },
+                  ]}
+                >
                   <Text style={styles.inputLabel}>Mobile Phone *</Text>
                   <TextInput
                     style={styles.input}
@@ -671,8 +864,15 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
               {/* Customer Vehicle In For Work */}
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
-                  <Text style={styles.inputLabel}>Customer Vehicle Rego (In For Work)</Text>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1, marginRight: spacing.sm },
+                  ]}
+                >
+                  <Text style={styles.inputLabel}>
+                    Customer Vehicle Rego (In For Work)
+                  </Text>
                   <TextInput
                     style={styles.input}
                     placeholder="e.g. 1BY-9EV"
@@ -706,7 +906,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
 
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1.2, marginRight: spacing.sm },
+                  ]}
+                >
                   <Text style={styles.inputLabel}>Driver Licence No. *</Text>
                   <TextInput
                     style={styles.input}
@@ -716,7 +921,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                     onChangeText={setLicenceNumber}
                   />
                 </View>
-                <View style={[styles.inputGroup, { flex: 0.8, marginRight: spacing.sm }]}>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 0.8, marginRight: spacing.sm },
+                  ]}
+                >
                   <Text style={styles.inputLabel}>State</Text>
                   <TextInput
                     style={styles.input}
@@ -743,40 +953,66 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
               {/* Driver Licence Photo & Sighting */}
               <TouchableOpacity
-                style={[styles.photoUploadBtn, !!licencePhotoUri && styles.photoUploadBtnSuccess]}
+                style={[
+                  styles.photoUploadBtn,
+                  !!licencePhotoUri && styles.photoUploadBtnSuccess,
+                ]}
                 onPress={handleCaptureLicence}
                 activeOpacity={0.8}
               >
                 {licencePhotoUri ? (
                   <View style={styles.licencePreviewRow}>
-                    <Image source={{ uri: licencePhotoUri }} style={styles.licenceThumb} />
+                    <Image
+                      source={{ uri: licencePhotoUri }}
+                      style={styles.licenceThumb}
+                    />
                     <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                      <Text style={styles.licenceCapturedText}>Licence Photo Attached</Text>
-                      <Text style={styles.licenceRetakeText}>Tap to retake / update</Text>
+                      <Text style={styles.licenceCapturedText}>
+                        Licence Photo Attached
+                      </Text>
+                      <Text style={styles.licenceRetakeText}>
+                        Tap to retake / update
+                      </Text>
                     </View>
                     <Icon name="check" size={20} color="#059669" />
                   </View>
                 ) : (
                   <View style={styles.licenceEmptyRow}>
                     <Icon name="camera" size={20} color="#D71920" />
-                    <Text style={styles.photoUploadText}>Capture / Upload Driver Licence Photo</Text>
+                    <Text style={styles.photoUploadText}>
+                      Capture / Upload Driver Licence Photo
+                    </Text>
                   </View>
                 )}
               </TouchableOpacity>
 
               {/* Licence Sighted Attestation */}
               <TouchableOpacity
-                style={[styles.attestationCard, licenceSighted && styles.attestationCardChecked]}
+                style={[
+                  styles.attestationCard,
+                  licenceSighted && styles.attestationCardChecked,
+                ]}
                 onPress={() => setLicenceSighted(!licenceSighted)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.checkbox, licenceSighted && styles.checkboxActive]}>
-                  {licenceSighted && <Icon name="check" size={14} color="#FFF" />}
+                <View
+                  style={[
+                    styles.checkbox,
+                    licenceSighted && styles.checkboxActive,
+                  ]}
+                >
+                  {licenceSighted && (
+                    <Icon name="check" size={14} color="#FFF" />
+                  )}
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                  <Text style={styles.attestationTitle}>Physical Licence Sighted by Staff *</Text>
+                  <Text style={styles.attestationTitle}>
+                    Physical Licence Sighted by Staff *
+                  </Text>
                   <Text style={styles.attestationBody}>
-                    I confirm that I have physically inspected the valid Australian driver licence and verified identity matches the borrower.
+                    I confirm that I have physically inspected the valid
+                    Australian driver licence and verified identity matches the
+                    borrower.
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -792,12 +1028,30 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             activeOpacity={0.8}
           >
             <View style={styles.dropdownHeaderLeft}>
-              <View style={[styles.sectionStepBadge, openSections[2] && styles.sectionStepBadgeActive]}>
-                <Text style={[styles.sectionStepText, openSections[2] && styles.sectionStepTextActive]}>2</Text>
+              <View
+                style={[
+                  styles.sectionStepBadge,
+                  openSections[2] && styles.sectionStepBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sectionStepText,
+                    openSections[2] && styles.sectionStepTextActive,
+                  ]}
+                >
+                  2
+                </Text>
               </View>
               <View>
-                <Text style={styles.dropdownTitle}>Loan Vehicle & Schedule</Text>
-                <Text style={styles.dropdownSubtitle}>{registration ? `${make} ${model} • ${registration}` : 'Select loaner vehicle'}</Text>
+                <Text style={styles.dropdownTitle}>
+                  Loan Vehicle & Schedule
+                </Text>
+                <Text style={styles.dropdownSubtitle}>
+                  {registration
+                    ? `${make} ${model} • ${registration}`
+                    : 'Select loaner vehicle'}
+                </Text>
               </View>
             </View>
             <View style={styles.dropdownHeaderRight}>
@@ -822,32 +1076,55 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           {openSections[2] && (
             <View style={styles.dropdownBody}>
               {/* Quick Select Fleet */}
-              <Text style={styles.inputSubheading}>Quick Select Dealership Fleet</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.fleetScroll}>
-                {fleetVehicles.map((veh) => {
+              <Text style={styles.inputSubheading}>
+                Quick Select Dealership Fleet
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.fleetScroll}
+              >
+                {fleetVehicles.map(veh => {
                   const isSelected = registration === veh.rego;
                   return (
                     <TouchableOpacity
                       key={veh.rego}
-                      style={[styles.fleetCard, isSelected && styles.fleetCardActive]}
+                      style={[
+                        styles.fleetCard,
+                        isSelected && styles.fleetCardActive,
+                      ]}
                       onPress={() => handleSelectPrepop(veh)}
                       activeOpacity={0.8}
                     >
                       <View style={styles.fleetCardHead}>
-                        <Text style={[styles.fleetRego, isSelected && { color: '#D71920' }]}>{veh.rego}</Text>
+                        <Text
+                          style={[
+                            styles.fleetRego,
+                            isSelected && { color: '#D71920' },
+                          ]}
+                        >
+                          {veh.rego}
+                        </Text>
                         <Text style={styles.fleetRooftop}>{veh.rooftop}</Text>
                       </View>
                       <Text style={styles.fleetModel} numberOfLines={2}>
                         {veh.make} {veh.model} ({veh.year})
                       </Text>
-                      <Text style={styles.fleetOdo}>Odo: {veh.odo.toLocaleString()} km</Text>
+                      <Text style={styles.fleetOdo}>
+                        Odo: {veh.odo.toLocaleString()} km
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </ScrollView>
 
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: spacing.sm }]}>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1, marginRight: spacing.sm },
+                  ]}
+                >
                   <Text style={styles.inputLabel}>Loan Vehicle Rego *</Text>
                   <TextInput
                     style={styles.input}
@@ -871,7 +1148,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
 
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1.4, marginRight: spacing.sm }]}>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1.4, marginRight: spacing.sm },
+                  ]}
+                >
                   <Text style={styles.inputLabel}>Model</Text>
                   <TextInput
                     style={styles.input}
@@ -896,7 +1178,12 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
               {/* Schedule Dates */}
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1.2, marginRight: spacing.sm },
+                  ]}
+                >
                   <Text style={styles.inputLabel}>Expected Return Date</Text>
                   <TouchableOpacity
                     style={[styles.input, styles.dateFieldContainer]}
@@ -904,7 +1191,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                   >
                     <View style={styles.dateFieldInner}>
                       <Icon name="calendar" size={16} color="#64748B" />
-                      <Text style={styles.dateFieldText}>{expectedReturnDate || 'Select date'}</Text>
+                      <Text style={styles.dateFieldText}>
+                        {expectedReturnDate || 'Select date'}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -916,7 +1205,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                   >
                     <View style={styles.dateFieldInner}>
                       <Icon name="clock" size={16} color="#64748B" />
-                      <Text style={styles.dateFieldText}>{expectedReturnTime || '18:00'}</Text>
+                      <Text style={styles.dateFieldText}>
+                        {expectedReturnTime || 'Select time'}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 </View>
@@ -924,11 +1215,11 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
               <DatePickerModal
                 visible={showExpectedDatePicker}
-                value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
+                value={datePickerValue}
                 mode="date"
                 minimumDate={new Date()}
                 title="Return Date"
-                onConfirm={(date) => {
+                onConfirm={date => {
                   setShowExpectedDatePicker(false);
                   setExpectedReturnDate(formatDateForInput(date));
                 }}
@@ -936,13 +1227,16 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               />
               <DatePickerModal
                 visible={showExpectedTimePicker}
-                value={new Date(`${expectedReturnDate}T${expectedReturnTime}`)}
+                value={datePickerValue}
                 mode="time"
                 title="Return Time"
-                onConfirm={(date) => {
+                onConfirm={date => {
                   setShowExpectedTimePicker(false);
                   const nextHour = date.getHours().toString().padStart(2, '0');
-                  const nextMinute = date.getMinutes().toString().padStart(2, '0');
+                  const nextMinute = date
+                    .getMinutes()
+                    .toString()
+                    .padStart(2, '0');
                   setExpectedReturnTime(`${nextHour}:${nextMinute}`);
                 }}
                 onCancel={() => setShowExpectedTimePicker(false)}
@@ -952,7 +1246,15 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <View style={styles.capNotice}>
                 <Icon name="info" size={18} color="#D71920" />
                 <Text style={styles.capNoticeText}>
-                  Daily Allowance: <Text style={{ fontWeight: '700', color: '#0F172A' }}>50 km/day</Text> included. Excess km billed at <Text style={{ fontWeight: '700', color: '#0F172A' }}>$0.50/km</Text> upon return.
+                  Daily Allowance:{' '}
+                  <Text style={{ fontWeight: '700', color: '#0F172A' }}>
+                    50 km/day
+                  </Text>{' '}
+                  included. Excess km billed at{' '}
+                  <Text style={{ fontWeight: '700', color: '#0F172A' }}>
+                    $0.50/km
+                  </Text>{' '}
+                  upon return.
                 </Text>
               </View>
             </View>
@@ -967,13 +1269,28 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             activeOpacity={0.8}
           >
             <View style={styles.dropdownHeaderLeft}>
-              <View style={[styles.sectionStepBadge, openSections[3] && styles.sectionStepBadgeActive]}>
-                <Text style={[styles.sectionStepText, openSections[3] && styles.sectionStepTextActive]}>3</Text>
+              <View
+                style={[
+                  styles.sectionStepBadge,
+                  openSections[3] && styles.sectionStepBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sectionStepText,
+                    openSections[3] && styles.sectionStepTextActive,
+                  ]}
+                >
+                  3
+                </Text>
               </View>
               <View>
-                <Text style={styles.dropdownTitle}>Condition & 5-Point Photos</Text>
+                <Text style={styles.dropdownTitle}>
+                  Condition & 5-Point Photos
+                </Text>
                 <Text style={styles.dropdownSubtitle}>
-                  Odo: {odometerOut || '0'} km • {Object.keys(inspectionPhotos).length}/5 Photos
+                  Odo: {odometerOut || '0'} km •{' '}
+                  {Object.keys(inspectionPhotos).length}/5 Photos
                 </Text>
               </View>
             </View>
@@ -999,8 +1316,15 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           {openSections[3] && (
             <View style={styles.dropdownBody}>
               <View style={styles.formRow}>
-                <View style={[styles.inputGroup, { flex: 1.2, marginRight: spacing.sm }]}>
-                  <Text style={styles.inputLabel}>Outbound Odometer (km) *</Text>
+                <View
+                  style={[
+                    styles.inputGroup,
+                    { flex: 1.2, marginRight: spacing.sm },
+                  ]}
+                >
+                  <Text style={styles.inputLabel}>
+                    Outbound Odometer (km) *
+                  </Text>
                   <TextInput
                     style={styles.input}
                     placeholder="e.g. 4820"
@@ -1025,39 +1349,56 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
               {/* 5-Point Photo Slots */}
               <View style={styles.photosHeaderRow}>
-                <Text style={styles.inputLabel}>5-Point Pre-Departure Photos</Text>
+                <Text style={styles.inputLabel}>
+                  5-Point Pre-Departure Photos
+                </Text>
                 <Text style={styles.photosCountBadge}>
                   {Object.keys(inspectionPhotos).length}/5 Captured
                 </Text>
               </View>
 
               <View style={styles.photoGrid}>
-                {INSPECTION_SLOTS.map((slot) => {
+                {INSPECTION_SLOTS.map(slot => {
                   const photoUri = inspectionPhotos[slot.id];
                   return (
                     <TouchableOpacity
                       key={slot.id}
-                      style={[styles.photoGridCard, !!photoUri && styles.photoGridCardDone]}
-                      onPress={() => handleCaptureInspection(slot.id, slot.label)}
+                      style={[
+                        styles.photoGridCard,
+                        !!photoUri && styles.photoGridCardDone,
+                      ]}
+                      onPress={() =>
+                        handleCaptureInspection(slot.id, slot.label)
+                      }
                       activeOpacity={0.8}
                     >
                       {photoUri ? (
                         <View style={styles.photoThumbWrap}>
-                          <Image source={{ uri: photoUri }} style={styles.photoThumbImg} />
+                          <Image
+                            source={{ uri: photoUri }}
+                            style={styles.photoThumbImg}
+                          />
                           <View style={styles.photoCheckOverlay}>
                             <Icon name="check" size={13} color="#FFF" />
                           </View>
-                          <Text style={styles.photoGridLabelDone} numberOfLines={1}>
+                          <Text
+                            style={styles.photoGridLabelDone}
+                            numberOfLines={1}
+                          >
                             {slot.label}
                           </Text>
-                          <Text style={styles.photoRetakeHint}>Tap to retake</Text>
+                          <Text style={styles.photoRetakeHint}>
+                            Tap to retake
+                          </Text>
                         </View>
                       ) : (
                         <View style={styles.photoEmptyWrap}>
                           <View style={styles.cameraIconCircle}>
                             <Icon name="camera" size={18} color="#D71920" />
                           </View>
-                          <Text style={styles.photoGridLabel}>{slot.label}</Text>
+                          <Text style={styles.photoGridLabel}>
+                            {slot.label}
+                          </Text>
                           <Text style={styles.photoSlotDesc}>{slot.desc}</Text>
                         </View>
                       )}
@@ -1067,7 +1408,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Pre-existing Scratches / Notes</Text>
+                <Text style={styles.inputLabel}>
+                  Pre-existing Scratches / Notes
+                </Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   multiline
@@ -1080,17 +1423,30 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               </View>
 
               <TouchableOpacity
-                style={[styles.attestationCard, cleanlinessVerified && styles.attestationCardChecked]}
+                style={[
+                  styles.attestationCard,
+                  cleanlinessVerified && styles.attestationCardChecked,
+                ]}
                 onPress={() => setCleanlinessVerified(!cleanlinessVerified)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.checkbox, cleanlinessVerified && styles.checkboxActive]}>
-                  {cleanlinessVerified && <Icon name="check" size={14} color="#FFF" />}
+                <View
+                  style={[
+                    styles.checkbox,
+                    cleanlinessVerified && styles.checkboxActive,
+                  ]}
+                >
+                  {cleanlinessVerified && (
+                    <Icon name="check" size={14} color="#FFF" />
+                  )}
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                  <Text style={styles.attestationTitle}>Cleanliness & Safety Verified</Text>
+                  <Text style={styles.attestationTitle}>
+                    Cleanliness & Safety Verified
+                  </Text>
                   <Text style={styles.attestationBody}>
-                    Vehicle has been washed, vacuumed, sanitized, and passed pre-departure tyre & fluid checks.
+                    Vehicle has been washed, vacuumed, sanitized, and passed
+                    pre-departure tyre & fluid checks.
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -1106,12 +1462,26 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             activeOpacity={0.8}
           >
             <View style={styles.dropdownHeaderLeft}>
-              <View style={[styles.sectionStepBadge, openSections[4] && styles.sectionStepBadgeActive]}>
-                <Text style={[styles.sectionStepText, openSections[4] && styles.sectionStepTextActive]}>4</Text>
+              <View
+                style={[
+                  styles.sectionStepBadge,
+                  openSections[4] && styles.sectionStepBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sectionStepText,
+                    openSections[4] && styles.sectionStepTextActive,
+                  ]}
+                >
+                  4
+                </Text>
               </View>
               <View>
                 <Text style={styles.dropdownTitle}>Terms & Conditions</Text>
-                <Text style={styles.dropdownSubtitle}>18 Operative Clauses • Share with customer</Text>
+                <Text style={styles.dropdownSubtitle}>
+                  18 Operative Clauses • Share with customer
+                </Text>
               </View>
             </View>
             <View style={styles.dropdownHeaderRight}>
@@ -1138,11 +1508,15 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
               <View style={styles.legalDocumentsRow}>
                 <TouchableOpacity
                   style={styles.legalDocumentBtn}
-                  onPress={() => handleOpenLegalDocument('test-drive-loan-agreement')}
+                  onPress={() =>
+                    handleOpenLegalDocument('test-drive-loan-agreement')
+                  }
                   activeOpacity={0.8}
                 >
                   <Icon name="file-text" size={17} color="#0F172A" />
-                  <Text style={styles.legalDocumentBtnText}>View Full Agreement</Text>
+                  <Text style={styles.legalDocumentBtnText}>
+                    View Full Agreement
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1151,7 +1525,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                   activeOpacity={0.8}
                 >
                   <Icon name="shield" size={17} color="#0F172A" />
-                  <Text style={styles.legalDocumentBtnText}>View Privacy Policy</Text>
+                  <Text style={styles.legalDocumentBtnText}>
+                    View Privacy Policy
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -1162,79 +1538,133 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 activeOpacity={0.8}
               >
                 <Icon name="share-2" size={18} color="#D71920" />
-                <Text style={styles.shareTermsBtnText}>Share Terms & Conditions with Customer</Text>
+                <Text style={styles.shareTermsBtnText}>
+                  Share Terms & Conditions with Customer
+                </Text>
               </TouchableOpacity>
 
               <View style={styles.clausesBox}>
                 <ScrollView nestedScrollEnabled style={{ maxHeight: 180 }}>
                   <Text style={styles.clauseItem}>
-                    <Text style={styles.clauseNum}>1. Authorised Drivers Only: </Text>
-                    The loan vehicle may only be operated by the designated customer who holds a current valid Australian driver licence.
+                    <Text style={styles.clauseNum}>
+                      1. Authorised Drivers Only:{' '}
+                    </Text>
+                    The loan vehicle may only be operated by the designated
+                    customer who holds a current valid Australian driver
+                    licence.
                   </Text>
                   <Text style={styles.clauseItem}>
-                    <Text style={styles.clauseNum}>2. No Smoking, Vaping or Pets: </Text>
-                    Strictly prohibited. Detailing sanitation fee of $350 applies for non-compliance.
+                    <Text style={styles.clauseNum}>
+                      2. No Smoking, Vaping or Pets:{' '}
+                    </Text>
+                    Strictly prohibited. Detailing sanitation fee of $350
+                    applies for non-compliance.
                   </Text>
                   <Text style={styles.clauseItem}>
-                    <Text style={styles.clauseNum}>3. Daily Kilometre Cap: </Text>
-                    Limited to 50 km per day. Excess kilometres are charged at $0.50 per km.
+                    <Text style={styles.clauseNum}>
+                      3. Daily Kilometre Cap:{' '}
+                    </Text>
+                    Limited to 50 km per day. Excess kilometres are charged at
+                    $0.50 per km.
                   </Text>
                   <Text style={styles.clauseItem}>
                     <Text style={styles.clauseNum}>4. Fuel Level: </Text>
-                    Vehicle must be returned with the same fuel or charge level as departure.
+                    Vehicle must be returned with the same fuel or charge level
+                    as departure.
                   </Text>
                   <Text style={styles.clauseItem}>
-                    <Text style={styles.clauseNum}>5. Tolls & Infringements: </Text>
-                    Customer is strictly responsible for all CityLink, EastLink, parking, and traffic penalties plus $35 admin processing fee.
+                    <Text style={styles.clauseNum}>
+                      5. Tolls & Infringements:{' '}
+                    </Text>
+                    Customer is strictly responsible for all CityLink, EastLink,
+                    parking, and traffic penalties plus $35 admin processing
+                    fee.
                   </Text>
                   <Text style={styles.clauseItem}>
                     <Text style={styles.clauseNum}>6. Insurance Excess: </Text>
-                    Basic excess is $2,500 AUD (Total liability with driver age tier: ${totalExcess.toLocaleString()}).
+                    Basic excess is $2,500 AUD (Total liability with driver age
+                    tier: ${totalExcess.toLocaleString()}).
                   </Text>
                   <Text style={styles.clauseItem}>
-                    <Text style={styles.clauseNum}>7. Incident Reporting: </Text>
-                    Any accident, theft, or defect must be reported to Booran Motor Group within 2 hours.
+                    <Text style={styles.clauseNum}>
+                      7. Incident Reporting:{' '}
+                    </Text>
+                    Any accident, theft, or defect must be reported to Booran
+                    Motor Group within 2 hours.
                   </Text>
                 </ScrollView>
               </View>
 
               {/* 3 Checkboxes */}
               <TouchableOpacity
-                style={[styles.checkboxRow, readAndAgreed && styles.checkboxRowActive]}
+                style={[
+                  styles.checkboxRow,
+                  readAndAgreed && styles.checkboxRowActive,
+                ]}
                 onPress={() => setReadAndAgreed(!readAndAgreed)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.checkbox, readAndAgreed && styles.checkboxActive]}>
-                  {readAndAgreed && <Icon name="check" size={14} color="#FFF" />}
+                <View
+                  style={[
+                    styles.checkbox,
+                    readAndAgreed && styles.checkboxActive,
+                  ]}
+                >
+                  {readAndAgreed && (
+                    <Icon name="check" size={14} color="#FFF" />
+                  )}
                 </View>
                 <Text style={styles.checkboxLabel}>
-                  I have read, understood, and accept all operative clauses of this agreement. *
+                  I have read, understood, and accept all operative clauses of
+                  this agreement. *
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.checkboxRow, electronicConsent && styles.checkboxRowActive]}
+                style={[
+                  styles.checkboxRow,
+                  electronicConsent && styles.checkboxRowActive,
+                ]}
                 onPress={() => setElectronicConsent(!electronicConsent)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.checkbox, electronicConsent && styles.checkboxActive]}>
-                  {electronicConsent && <Icon name="check" size={14} color="#FFF" />}
+                <View
+                  style={[
+                    styles.checkbox,
+                    electronicConsent && styles.checkboxActive,
+                  ]}
+                >
+                  {electronicConsent && (
+                    <Icon name="check" size={14} color="#FFF" />
+                  )}
                 </View>
                 <Text style={styles.checkboxLabel}>
-                  I consent to digital execution and receiving SMS/email delivery of this agreement. *
+                  I consent to digital execution and receiving SMS/email
+                  delivery of this agreement. *
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.checkboxRow, privacyAcknowledged && styles.checkboxRowActive]}
+                style={[
+                  styles.checkboxRow,
+                  privacyAcknowledged && styles.checkboxRowActive,
+                ]}
                 onPress={() => setPrivacyAcknowledged(!privacyAcknowledged)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.checkbox, privacyAcknowledged && styles.checkboxActive]}>
-                  {privacyAcknowledged && <Icon name="check" size={14} color="#FFF" />}
+                <View
+                  style={[
+                    styles.checkbox,
+                    privacyAcknowledged && styles.checkboxActive,
+                  ]}
+                >
+                  {privacyAcknowledged && (
+                    <Icon name="check" size={14} color="#FFF" />
+                  )}
                 </View>
                 <Text style={styles.checkboxLabel}>
-                  I acknowledge the Privacy Act Collection Notice & excess liability structure (${totalExcess.toLocaleString()}). *
+                  I acknowledge the Privacy Act Collection Notice & excess
+                  liability structure (${totalExcess.toLocaleString()}). *
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1249,13 +1679,28 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
             activeOpacity={0.8}
           >
             <View style={styles.dropdownHeaderLeft}>
-              <View style={[styles.sectionStepBadge, openSections[5] && styles.sectionStepBadgeActive]}>
-                <Text style={[styles.sectionStepText, openSections[5] && styles.sectionStepTextActive]}>5</Text>
+              <View
+                style={[
+                  styles.sectionStepBadge,
+                  openSections[5] && styles.sectionStepBadgeActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sectionStepText,
+                    openSections[5] && styles.sectionStepTextActive,
+                  ]}
+                >
+                  5
+                </Text>
               </View>
               <View>
-                <Text style={styles.dropdownTitle}>Customer Signature & Staff</Text>
+                <Text style={styles.dropdownTitle}>
+                  Customer Signature & Staff
+                </Text>
                 <Text style={styles.dropdownSubtitle}>
-                  {isCustomerSigned ? 'Signature captured' : 'Sign on screen'} • {staffName || 'Staff'}
+                  {isCustomerSigned ? 'Signature captured' : 'Sign on screen'} •{' '}
+                  {staffName || 'Staff'}
                 </Text>
               </View>
             </View>
@@ -1288,21 +1733,34 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 </View>
                 <View style={styles.summaryMiniRow}>
                   <Text style={styles.summaryMiniKey}>Loan Vehicle</Text>
-                  <Text style={styles.summaryMiniVal}>{make} {model} • {registration}</Text>
+                  <Text style={styles.summaryMiniVal}>
+                    {make} {model} • {registration}
+                  </Text>
                 </View>
                 <View style={styles.summaryMiniRow}>
                   <Text style={styles.summaryMiniKey}>Due Back</Text>
-                  <Text style={styles.summaryMiniVal}>{expectedReturnDate} at {expectedReturnTime}</Text>
+                  <Text style={styles.summaryMiniVal}>
+                    {expectedReturnDate} at {expectedReturnTime}
+                  </Text>
                 </View>
                 <View style={[styles.summaryMiniRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.summaryMiniKey}>Insurance Excess</Text>
-                  <Text style={[styles.summaryMiniVal, { color: '#D71920', fontWeight: '700' }]}>${totalExcess.toLocaleString()} AUD</Text>
+                  <Text
+                    style={[
+                      styles.summaryMiniVal,
+                      { color: '#D71920', fontWeight: '700' },
+                    ]}
+                  >
+                    ${totalExcess.toLocaleString()} AUD
+                  </Text>
                 </View>
               </View>
 
               {/* Customer Signature Canvas */}
               <View style={styles.signatureHeaderRow}>
-                <Text style={styles.inputLabel}>Customer Digital Signature *</Text>
+                <Text style={styles.inputLabel}>
+                  Customer Digital Signature *
+                </Text>
                 {(customerPaths.length > 0 || currentPath) && (
                   <TouchableOpacity
                     onPress={() => {
@@ -1318,19 +1776,39 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
                 )}
               </View>
 
-              <View style={styles.canvasContainer} {...panResponder.panHandlers}>
+              <View
+                style={styles.canvasContainer}
+                {...panResponder.panHandlers}
+              >
                 <Svg style={StyleSheet.absoluteFill}>
                   {customerPaths.map((d, index) => (
-                    <Path key={index} d={d} stroke="#D71920" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    <Path
+                      key={index}
+                      d={d}
+                      stroke="#D71920"
+                      strokeWidth={3}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   ))}
                   {currentPath ? (
-                    <Path d={currentPath} stroke="#D71920" strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    <Path
+                      d={currentPath}
+                      stroke="#D71920"
+                      strokeWidth={3}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   ) : null}
                 </Svg>
                 {customerPaths.length === 0 && !currentPath && (
                   <View style={styles.canvasPlaceholder}>
                     <Icon name="edit-3" size={24} color="#94A3B8" />
-                    <Text style={styles.canvasPlaceholderText}>Sign here with your finger or stylus</Text>
+                    <Text style={styles.canvasPlaceholderText}>
+                      Sign here with your finger or stylus
+                    </Text>
                   </View>
                 )}
               </View>
@@ -1353,7 +1831,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
 
               {/* Staff Member Name */}
               <View style={[styles.inputGroup, { marginTop: spacing.sm }]}>
-                <Text style={styles.inputLabel}>Staff / Service Advisor Name *</Text>
+                <Text style={styles.inputLabel}>
+                  Staff / Service Advisor Name *
+                </Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. Shaun Davies"
@@ -1378,7 +1858,9 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
           ) : (
             <>
               <Icon name="check-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.primarySaveButtonText}>Save & Activate Agreement</Text>
+              <Text style={styles.primarySaveButtonText}>
+                Save & Activate Agreement
+              </Text>
             </>
           )}
         </TouchableOpacity>
