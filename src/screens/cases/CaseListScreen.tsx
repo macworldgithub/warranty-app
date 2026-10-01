@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   TextInput,
@@ -100,6 +101,8 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
   const [assignedSites, setAssignedSites] = useState<Site[]>([]);
+  const [siteOptions, setSiteOptions] = useState<Site[]>([]);
+  const [selectedAdminSiteId, setSelectedAdminSiteId] = useState<string>('all');
 
   useEffect(() => {
     if (initialTab) {
@@ -110,22 +113,30 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const isClerk = user?.role === 'CLERK';
   const clerkSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0];
   const isAdmin = user?.role === 'ADMIN' || isClerk || user?.role === 'SERVICE_MANAGER';
+  const isNetworkAdmin = user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER';
 
   useEffect(() => {
-    if (!isClerk) return;
+    if (!isClerk && !isNetworkAdmin) return;
     const authorizedIds = user?.authorizedSiteIds || [];
     sitesApi.getSites()
       .then((siteList) => {
-        setAssignedSites(siteList.filter((site) => authorizedIds.includes(site.id) && site.isActive !== false));
+        const activeSites = siteList.filter((site) => site.isActive !== false);
+        setSiteOptions(activeSites);
+        if (isClerk) {
+          setAssignedSites(activeSites.filter((site) => authorizedIds.includes(site.id)));
+        }
       })
       .catch(() => {
-        setAssignedSites(authorizedIds.map((id) => ({
-          id,
-          code: id,
-          name: id.replace(/^site_/, '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
-        })));
+        setSiteOptions([]);
+        if (isClerk) {
+          setAssignedSites(authorizedIds.map((id) => ({
+            id,
+            code: id,
+            name: id.replace(/^site_/, '').split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+          })));
+        }
       });
-  }, [isClerk, user?.authorizedSiteIds]);
+  }, [isClerk, isNetworkAdmin, user?.authorizedSiteIds]);
 
   useEffect(() => {
     setUnreadNotifCount(notificationsService.getUnreadCount());
@@ -240,6 +251,10 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
 
     if (!matchesSearch) return false;
 
+    if (isNetworkAdmin && selectedAdminSiteId !== 'all' && item.siteId !== selectedAdminSiteId) {
+      return false;
+    }
+
     if (activeTab === 'all') return true;
     if (activeTab === 'flagged') return item.status === 'Flagged';
     if (activeTab === 'awaiting') return item.status === 'Awaiting Review';
@@ -256,6 +271,9 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         (user.name && item.technicianName?.toLowerCase() === user.name.toLowerCase()) ||
         (!item.technicianId && !item.technicianName);
       if (!isMyCase) return false;
+    }
+    if (isNetworkAdmin && selectedAdminSiteId !== 'all' && item.siteId !== selectedAdminSiteId) {
+      return false;
     }
     return true;
   });
@@ -347,6 +365,70 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.listHeaderArea}>
+            {isNetworkAdmin && (
+              <View style={styles.rooftopSwitcherCard}>
+                <View style={styles.rooftopSwitcherHeader}>
+                  <View>
+                    <Text style={styles.rooftopSwitcherEyebrow}>ADMIN NETWORK VIEW</Text>
+                    <Text style={styles.rooftopSwitcherTitle}>Filter by rooftop</Text>
+                  </View>
+                  <Text style={styles.rooftopSwitcherCount}>
+                    {selectedAdminSiteId === 'all' ? 'All sites' : 'Filtered'}
+                  </Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.adminRooftopFilterOptions}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setSelectedAdminSiteId('all')}
+                    style={[
+                      styles.adminRooftopOption,
+                      selectedAdminSiteId === 'all' && styles.rooftopOptionActive,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: selectedAdminSiteId === 'all' }}
+                    accessibilityLabel="Show all rooftops"
+                  >
+                    <Home size={14} color={selectedAdminSiteId === 'all' ? '#FFFFFF' : colors.textSecondary} />
+                    <Text
+                      style={[
+                        styles.rooftopOptionText,
+                        selectedAdminSiteId === 'all' && styles.rooftopOptionTextActive,
+                      ]}
+                    >
+                      All Rooftops
+                    </Text>
+                  </TouchableOpacity>
+
+                  {siteOptions.map((site) => {
+                    const selected = selectedAdminSiteId === site.id;
+                    return (
+                      <TouchableOpacity
+                        key={site.id}
+                        activeOpacity={0.8}
+                        onPress={() => setSelectedAdminSiteId(site.id)}
+                        style={[
+                          styles.adminRooftopOption,
+                          selected && styles.rooftopOptionActive,
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Filter to ${site.name}`}
+                      >
+                        <Home size={14} color={selected ? '#FFFFFF' : colors.textSecondary} />
+                        <Text style={[styles.rooftopOptionText, selected && styles.rooftopOptionTextActive]} numberOfLines={1}>
+                          {site.name.replace(/^Booran\s+/i, '')}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
             {isClerk && assignedSites.length > 0 && (
               <View style={styles.rooftopSwitcherCard}>
                 <View style={styles.rooftopSwitcherHeader}>
@@ -1031,10 +1113,26 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
+  adminRooftopFilterOptions: {
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
+  },
   rooftopOption: {
     minWidth: '47%',
     flexGrow: 1,
     flexBasis: 145,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  adminRooftopOption: {
+    maxWidth: 220,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,

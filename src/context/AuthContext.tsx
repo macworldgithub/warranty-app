@@ -34,17 +34,21 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function getInitialSiteId(user: User | null): string {
+  if (user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER') {
+    return 'all';
+  }
+
   return (
     user?.defaultSiteId ||
     user?.authorizedSiteIds?.[0] ||
-    'site_cranbourne_byd'
+    ''
   );
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [activeSiteId, setActiveSiteId] = useState<string>('site_cranbourne_byd');
+  const [activeSiteId, setActiveSiteId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const logout = () => {

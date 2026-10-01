@@ -127,7 +127,7 @@ export const authApi = {
     dto: VerifyRegisterOtpDto
   ): Promise<AuthResponse> => {
     let response: any;
-    const siteId = dto.defaultSiteId || (dto as any).siteId || 'site_cranbourne_byd';
+    const siteId = dto.defaultSiteId || (dto as any).siteId;
     try {
       response = await apiClient.post<any>('/auth/register/verify-otp', {
         ...dto,
@@ -241,7 +241,7 @@ export const authApi = {
       email: dto.email,
       password: dto.password || 'Booran2026!',
       role: dto.role || 'TECHNICIAN',
-      siteId: dto.siteId || 'site_cranbourne_byd',
+      siteId: dto.siteId,
       authorizedSiteIds: dto.authorizedSiteIds,
     });
   },

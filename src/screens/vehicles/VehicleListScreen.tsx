@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   RefreshControl,
   TextInput,
@@ -62,13 +63,6 @@ interface VehicleListScreenProps {
   onStartNewInspection?: () => void;
 }
 
-const FALLBACK_SITES: Site[] = [
-  { id: 'site_cranbourne_byd', name: 'Booran BYD Cranbourne', code: 'CRANBOURNE_BYD' },
-  { id: 'site_dandenong_multi', name: 'Booran Dandenong Multi', code: 'DANDENONG_MULTI' },
-  { id: 'site_cheltenham_mg', name: 'Booran MG & Chery Cheltenham', code: 'CHELTENHAM_MG' },
-  { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Commercials', code: 'BERWICK_COMMERCIALS' },
-];
-
 export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onOpenTickets,
   onStartNewCase,
@@ -84,11 +78,15 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   const { user, activeSiteId } = useAuth();
   const { startNewCase } = useCaseWizard();
 
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER';
   const isClerk = user?.role === 'CLERK';
-  const technicianSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || 'site_cranbourne_byd';
+  const technicianSiteId = isAdmin
+    ? 'all'
+    : activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || '';
   const canCaptureInspection = !isClerk;
 
-  const [sites, setSites] = useState<Site[]>(FALLBACK_SITES);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedAdminSiteId, setSelectedAdminSiteId] = useState<string>('all');
   const [cases, setCases] = useState<WarrantyCase[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -117,11 +115,10 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     const loadSites = async () => {
       try {
         const s = await sitesApi.getSites();
-        if (s && s.length > 0) {
-          setSites(s);
-        }
-      } catch {
-        // Fallback to default
+        setSites((s || []).filter((site) => site.isActive !== false));
+      } catch (err) {
+        console.warn('Failed to load live rooftop sites', err);
+        setSites([]);
       }
     };
     loadSites();
@@ -162,20 +159,31 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     fetchCases();
   };
 
+  const effectiveSiteId = isAdmin ? selectedAdminSiteId : technicianSiteId;
+
   const currentSite = useMemo(() => {
+    if (isAdmin && effectiveSiteId === 'all') {
+      return {
+        id: 'all',
+        name: 'All Rooftops & Dealerships',
+        code: 'ALL',
+      };
+    }
+
     return (
-      sites.find((s) => s.id === technicianSiteId) ||
-      sites[0] || {
-        id: 'site_cranbourne_byd',
-        name: 'Booran BYD Cranbourne',
-        code: 'CRANBOURNE_BYD',
+      sites.find((s) => s.id === effectiveSiteId) ||
+      sites[0] ||
+      {
+        id: effectiveSiteId,
+        name: effectiveSiteId || 'No rooftop assigned',
+        code: effectiveSiteId || '',
       }
     );
-  }, [sites, technicianSiteId]);
+  }, [effectiveSiteId, isAdmin, sites]);
 
   const vehicles = useMemo(() => {
-    return rooftopVehiclesService.getVehiclesForRooftop(technicianSiteId, cases);
-  }, [technicianSiteId, cases, syncTimestamp]);
+    return rooftopVehiclesService.getVehiclesForRooftop(effectiveSiteId, cases);
+  }, [effectiveSiteId, cases, syncTimestamp]);
 
   // Dynamic Zone Metrics Calculator for each vehicle
   const getVehicleZoneMetrics = useCallback((veh: RooftopVehicle) => {
@@ -443,7 +451,9 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                   <Building2 size={18} color="#DC2626" />
                 </View>
                 <View style={styles.rooftopDetails}>
-                  <Text style={styles.rooftopEyebrow}>YOUR ASSIGNED ROOFTOP</Text>
+                  <Text style={styles.rooftopEyebrow}>
+                    {isAdmin ? 'ADMIN NETWORK VIEW' : 'YOUR ASSIGNED ROOFTOP'}
+                  </Text>
                   <Text style={styles.rooftopTitle} numberOfLines={1}>
                     {currentSite.name}
                   </Text>
@@ -451,9 +461,61 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
               </View>
               <View style={styles.rooftopLockedBadge}>
                 <Lock size={12} color="#64748B" />
-                <Text style={styles.rooftopLockedText}>Assigned</Text>
+                <Text style={styles.rooftopLockedText}>{isAdmin ? 'All Sites' : 'Assigned'}</Text>
               </View>
             </View>
+
+            {isAdmin && (
+              <View style={styles.adminSiteFilterBlock}>
+                <Text style={styles.adminSiteFilterLabel}>Filter by rooftop</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.adminSiteFilterRow}
+                >
+                  <TouchableOpacity
+                    onPress={() => setSelectedAdminSiteId('all')}
+                    style={[
+                      styles.siteFilterChip,
+                      selectedAdminSiteId === 'all' ? styles.siteFilterChipActive : styles.siteFilterChipInactive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.siteFilterChipText,
+                        selectedAdminSiteId === 'all' && styles.siteFilterChipTextActive,
+                      ]}
+                    >
+                      All Rooftops
+                    </Text>
+                  </TouchableOpacity>
+
+                  {sites.map((site) => {
+                    const isSelected = selectedAdminSiteId === site.id;
+                    return (
+                      <TouchableOpacity
+                        key={site.id}
+                        onPress={() => setSelectedAdminSiteId(site.id)}
+                        style={[
+                          styles.siteFilterChip,
+                          isSelected ? styles.siteFilterChipActive : styles.siteFilterChipInactive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.siteFilterChipText,
+                            isSelected && styles.siteFilterChipTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {site.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Hero Header Card */}
             <View style={styles.heroCard}>
@@ -1141,6 +1203,44 @@ const styles = StyleSheet.create({
   filterPillTextActive: {
     color: '#DC2626',
     fontWeight: '800',
+  },
+  adminSiteFilterBlock: {
+    marginBottom: 14,
+  },
+  adminSiteFilterLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  adminSiteFilterRow: {
+    gap: 8,
+    paddingRight: 6,
+  },
+  siteFilterChip: {
+    maxWidth: 220,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  siteFilterChipActive: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+  },
+  siteFilterChipInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+  },
+  siteFilterChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  siteFilterChipTextActive: {
+    color: '#FFFFFF',
   },
   sectionHeaderRow: {
     flexDirection: 'row',

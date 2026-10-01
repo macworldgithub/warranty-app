@@ -22,19 +22,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useNetwork } from '../../context/NetworkContext';
 import { Header } from '../../components/common/Header';
 import { authApi } from '../../api/auth.api';
-import { User, UserRole } from '../../types';
+import { sitesApi } from '../../api/sites.api';
+import { Site, User, UserRole } from '../../types';
 
 interface ProfileScreenProps {
   onBack: () => void;
   onLogout: () => void;
 }
-
-const ROOFTOP_OPTIONS = [
-  { id: 'site_cranbourne_byd', name: 'Booran BYD Cranbourne' },
-  { id: 'site_dandenong_multi', name: 'Booran Dandenong Multi' },
-  { id: 'site_cheltenham_mg', name: 'Booran MG Cheltenham' },
-  { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Multi' },
-];
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }) => {
   const insets = useSafeAreaInsets();
@@ -43,6 +37,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
 
   // Registered Users Directory State
   const [usersList, setUsersList] = useState<User[]>([]);
+  const [siteOptions, setSiteOptions] = useState<Site[]>([]);
+  const [loadingSites, setLoadingSites] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'ADMIN' | 'CLERK' | 'TECHNICIAN'>('ALL');
@@ -53,8 +49,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [createEmail, setCreateEmail] = useState('');
   const [createPassword, setCreatePassword] = useState('Booran2026!');
   const [createRole, setCreateRole] = useState<UserRole>('TECHNICIAN');
-  const [createSiteId, setCreateSiteId] = useState('site_cranbourne_byd');
-  const [createAuthorizedSiteIds, setCreateAuthorizedSiteIds] = useState<string[]>(['site_cranbourne_byd']);
+  const [createSiteId, setCreateSiteId] = useState('');
+  const [createAuthorizedSiteIds, setCreateAuthorizedSiteIds] = useState<string[]>([]);
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
   // Edit User Modal State
@@ -63,8 +59,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('TECHNICIAN');
-  const [editSiteId, setEditSiteId] = useState('site_cranbourne_byd');
-  const [editAuthorizedSiteIds, setEditAuthorizedSiteIds] = useState<string[]>(['site_cranbourne_byd']);
+  const [editSiteId, setEditSiteId] = useState('');
+  const [editAuthorizedSiteIds, setEditAuthorizedSiteIds] = useState<string[]>([]);
   const [editPassword, setEditPassword] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
 
@@ -95,6 +91,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     }
   }, [isAdmin]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    let mounted = true;
+    setLoadingSites(true);
+    sitesApi.getSites()
+      .then((sites) => {
+        if (!mounted) return;
+        const activeSites = (sites || []).filter((site) => site.isActive !== false);
+        setSiteOptions(activeSites);
+        setCreateSiteId((current) => current || activeSites[0]?.id || '');
+        setCreateAuthorizedSiteIds((current) => current.length ? current : (activeSites[0]?.id ? [activeSites[0].id] : []));
+      })
+      .catch((err) => {
+        console.log('Failed to fetch dealership sites:', err?.message || err);
+        if (mounted) setSiteOptions([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingSites(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [isAdmin]);
+
   const getInitials = (name?: string) => {
     if (!name) return 'U';
     const parts = name.trim().split(/\s+/);
@@ -103,6 +123,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     }
     return name.slice(0, 2).toUpperCase();
   };
+
+  const getSiteName = (siteId?: string) =>
+    siteOptions.find((site) => site.id === siteId)?.name || siteId || 'Unassigned rooftop';
 
   const toggleCreateSite = (siteId: string) => {
     setCreateAuthorizedSiteIds((current) => {
@@ -144,11 +167,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     setEditName(targetUser.name || '');
     setEditEmail(targetUser.email || '');
     setEditRole(targetUser.role || 'TECHNICIAN');
-    setEditSiteId(targetUser.defaultSiteId || 'site_cranbourne_byd');
+    setEditSiteId(targetUser.defaultSiteId || siteOptions[0]?.id || '');
     setEditAuthorizedSiteIds(
       targetUser.authorizedSiteIds?.length
         ? targetUser.authorizedSiteIds
-        : [targetUser.defaultSiteId || 'site_cranbourne_byd'],
+        : [targetUser.defaultSiteId || siteOptions[0]?.id || ''].filter(Boolean),
     );
     setEditPassword('');
     setEditModalVisible(true);
@@ -166,6 +189,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     }
     if (createRole === 'CLERK' && createAuthorizedSiteIds.length === 0) {
       Alert.alert('Validation Error', 'Select at least one dealership site for this Warranty Clerk.');
+      return;
+    }
+    if (!createSiteId) {
+      Alert.alert('Validation Error', 'Dealership sites are still loading or unavailable. Please try again.');
       return;
     }
 
@@ -186,8 +213,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       setCreateEmail('');
       setCreatePassword('Booran2026!');
       setCreateRole('TECHNICIAN');
-      setCreateSiteId('site_cranbourne_byd');
-      setCreateAuthorizedSiteIds(['site_cranbourne_byd']);
+      setCreateSiteId(siteOptions[0]?.id || '');
+      setCreateAuthorizedSiteIds(siteOptions[0]?.id ? [siteOptions[0].id] : []);
       loadUsers();
     } catch (err: any) {
       Alert.alert('Failed to Create User', err?.message || 'Could not register user account.');
@@ -207,6 +234,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       Alert.alert('Validation Error', 'Select at least one dealership site for this Warranty Clerk.');
       return;
     }
+    if (!editSiteId) {
+      Alert.alert('Validation Error', 'Dealership sites are still loading or unavailable. Please try again.');
+      return;
+    }
 
     setEditSubmitting(true);
     try {
@@ -219,8 +250,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         ...(editPassword?.trim() ? { password: editPassword.trim() } : {}),
       });
 
-      const rooftopName =
-        ROOFTOP_OPTIONS.find((r) => r.id === editSiteId)?.name || editSiteId;
+      const rooftopName = getSiteName(editSiteId);
 
       // Update user in local usersList state immediately
       setUsersList((prev) =>
@@ -506,7 +536,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                                 ? 'ALL SITES'
                                 : (item.authorizedSiteIds || [item.defaultSiteId])
                                     .filter(Boolean)
-                                    .map((siteId) => ROOFTOP_OPTIONS.find((site) => site.id === siteId)?.name || siteId)
+                                    .map((siteId) => getSiteName(siteId))
                                     .join(', ')}
                             </Text>
                           </View>
@@ -666,7 +696,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                       onPress={() => {
                         setCreateRole('CLERK');
                         if (createAuthorizedSiteIds.length === 0) {
-                          setCreateAuthorizedSiteIds([createSiteId || 'site_cranbourne_byd']);
+                          setCreateAuthorizedSiteIds([createSiteId || siteOptions[0]?.id || ''].filter(Boolean));
                         }
                       }}
                     >
@@ -692,8 +722,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                   <Text style={styles.modalInputLabel}>
                     {createRole === 'CLERK' ? 'Assigned Dealership Sites' : 'Primary Dealership Rooftop'}
                   </Text>
+                  {loadingSites && (
+                    <Text style={styles.modalHintText}>Loading dealership rooftops...</Text>
+                  )}
                   <View style={styles.sitePickerList}>
-                    {ROOFTOP_OPTIONS.map((site) => {
+                    {siteOptions.map((site) => {
                       const isChosen = createRole === 'CLERK'
                         ? createAuthorizedSiteIds.includes(site.id)
                         : createSiteId === site.id;
@@ -721,13 +754,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                         </TouchableOpacity>
                       );
                     })}
+                    {!loadingSites && siteOptions.length === 0 && (
+                      <Text style={styles.modalHintText}>No dealership rooftops returned by backend.</Text>
+                    )}
                   </View>
                   {createRole === 'CLERK' && createAuthorizedSiteIds.length > 0 && (
                     <>
                       <Text style={[styles.modalInputLabel, { marginTop: spacing.md }]}>Default Site</Text>
                       <View style={styles.sitePickerList}>
                         {createAuthorizedSiteIds.map((siteId) => {
-                          const site = ROOFTOP_OPTIONS.find((option) => option.id === siteId);
+                          const site = siteOptions.find((option) => option.id === siteId);
                           const isChosen = createSiteId === siteId;
                           return (
                             <TouchableOpacity
@@ -874,7 +910,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                       onPress={() => {
                         setEditRole('CLERK');
                         if (editAuthorizedSiteIds.length === 0) {
-                          setEditAuthorizedSiteIds([editSiteId || 'site_cranbourne_byd']);
+                          setEditAuthorizedSiteIds([editSiteId || siteOptions[0]?.id || ''].filter(Boolean));
                         }
                       }}
                     >
@@ -900,8 +936,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                   <Text style={styles.modalInputLabel}>
                     {editRole === 'CLERK' ? 'Assigned Dealership Sites' : 'Primary Dealership Rooftop'}
                   </Text>
+                  {loadingSites && (
+                    <Text style={styles.modalHintText}>Loading dealership rooftops...</Text>
+                  )}
                   <View style={styles.sitePickerList}>
-                    {ROOFTOP_OPTIONS.map((site) => {
+                    {siteOptions.map((site) => {
                       const isChosen = editRole === 'CLERK'
                         ? editAuthorizedSiteIds.includes(site.id)
                         : editSiteId === site.id;
@@ -929,13 +968,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                         </TouchableOpacity>
                       );
                     })}
+                    {!loadingSites && siteOptions.length === 0 && (
+                      <Text style={styles.modalHintText}>No dealership rooftops returned by backend.</Text>
+                    )}
                   </View>
                   {editRole === 'CLERK' && editAuthorizedSiteIds.length > 0 && (
                     <>
                       <Text style={[styles.modalInputLabel, { marginTop: spacing.md }]}>Default Site</Text>
                       <View style={styles.sitePickerList}>
                         {editAuthorizedSiteIds.map((siteId) => {
-                          const site = ROOFTOP_OPTIONS.find((option) => option.id === siteId);
+                          const site = siteOptions.find((option) => option.id === siteId);
                           const isChosen = editSiteId === siteId;
                           return (
                             <TouchableOpacity
@@ -1411,6 +1453,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
+    marginBottom: spacing.xs,
+  },
+  modalHintText: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
   modalTextInput: {

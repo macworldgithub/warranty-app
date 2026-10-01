@@ -15,9 +15,10 @@ import {
 import { colors } from '../../theme/colors';
 import { Icon } from '../../components/common/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LoanAgreement, LoanAgreementKpis, WarrantyCase } from '../../types';
+import { LoanAgreement, LoanAgreementKpis, Site, WarrantyCase } from '../../types';
 import { loanAgreementsApi } from '../../api';
 import { casesApi } from '../../api/cases.api';
+import { sitesApi } from '../../api/sites.api';
 import { offlineStorage } from '../../services/offlineStorage';
 import { Key, Home, Car, Plus, LogOut } from 'lucide-react-native';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
@@ -40,14 +41,6 @@ interface LoanVehiclesScreenProps {
   onOpenHome?: () => void;
   onLogout?: () => void;
 }
-
-const ROOFTOPS = [
-  { label: 'All Rooftops', siteId: 'all', fullName: 'All Rooftops & Dealerships' },
-  { label: 'Cranbourne', siteId: 'site_cranbourne_byd', fullName: 'Booran BYD Cranbourne' },
-  { label: 'Dandenong', siteId: 'site_dandenong_multi', fullName: 'Booran Dandenong Multi-Franchise' },
-  { label: 'Berwick', siteId: 'site_berwick_toyota_ford', fullName: 'Booran Berwick Commercials' },
-  { label: 'Cheltenham', siteId: 'site_cheltenham_mg', fullName: 'Booran MG & Chery Cheltenham' },
-];
 
 export const getDynamicLoanCategory = (
   status?: string,
@@ -107,11 +100,34 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
 
   const isTechnician = user?.role === 'TECHNICIAN';
   const isClerk = user?.role === 'CLERK';
+  const isNetworkAdmin = user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER';
   const assignedSiteIds = user?.authorizedSiteIds?.length ? user.authorizedSiteIds : [];
-  const technicianSiteId = activeSiteId || user?.defaultSiteId || assignedSiteIds[0] || 'site_cranbourne_byd';
-  const technicianSiteObj = ROOFTOPS.find((r) => r.siteId === technicianSiteId) || ROOFTOPS[1];
+  const technicianSiteId = isNetworkAdmin ? 'all' : activeSiteId || user?.defaultSiteId || assignedSiteIds[0] || '';
+  const [siteOptions, setSiteOptions] = useState<Site[]>([]);
+  const siteById = useCallback((siteId?: string) => siteOptions.find((site) => site.id === siteId), [siteOptions]);
+  const siteLabel = useCallback((site?: Site) => {
+    if (!site) return 'Assigned rooftop';
+    return (site.name || site.id).replace(/^Booran\s+/i, '').split(/\s+/)[0] || site.name || site.id;
+  }, []);
+  const technicianSiteObj = siteById(technicianSiteId);
 
   const [awaitingCount, setAwaitingCount] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    sitesApi.getSites()
+      .then((sites) => {
+        if (!mounted) return;
+        setSiteOptions((sites || []).filter((site) => site.isActive !== false));
+      })
+      .catch((err) => {
+        console.warn('[LoanVehiclesScreen] Failed to load rooftops:', err?.message || err);
+        if (mounted) setSiteOptions([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const fetchAwaitingCount = async () => {
@@ -143,7 +159,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   };
 
   const [selectedSiteId, setSelectedSiteId] = useState(
-    isClerk || isTechnician ? technicianSiteId : 'site_cranbourne_byd'
+    isClerk || isTechnician ? technicianSiteId : 'all'
   );
   const [activeTab, setActiveTab] = useState<'ALL' | 'ON_LOAN' | 'RETURNED' | 'TODAY'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -479,14 +495,14 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   const totalCount = scopedAgreements.length;
 
   const currentSiteName = isClerk || isTechnician
-    ? technicianSiteObj.fullName
-    : (ROOFTOPS.find((r) => r.siteId === selectedSiteId)?.fullName || 'Booran BYD Cranbourne');
+    ? (technicianSiteObj?.name || technicianSiteId)
+    : (selectedSiteId === 'all' ? 'All Rooftops & Dealerships' : (siteById(selectedSiteId)?.name || selectedSiteId));
 
   // If Wizard open, render it full screen
   if (isWizardOpen) {
     const activeLabel = isTechnician || isClerk
-      ? technicianSiteObj.label
-      : (ROOFTOPS.find((r) => r.siteId === selectedSiteId && r.siteId !== 'all')?.label || 'Cranbourne');
+      ? siteLabel(technicianSiteObj)
+      : siteLabel(siteById(selectedSiteId));
 
     return (
       <IssueLoanerWizardScreen
@@ -560,15 +576,71 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
               <Icon name="home" size={18} color={colors.primary} />
             </View>
             <View style={styles.rooftopCardText}>
-              <Text style={styles.rooftopCardLabel}>YOUR ASSIGNED ROOFTOP</Text>
+              <Text style={styles.rooftopCardLabel}>
+                {isNetworkAdmin ? 'ADMIN NETWORK VIEW' : 'YOUR ASSIGNED ROOFTOP'}
+              </Text>
               <Text style={styles.rooftopCardName} numberOfLines={1}>{currentSiteName}</Text>
             </View>
           </View>
           <View style={styles.assignedBadge}>
             <Icon name="lock" size={12} color={colors.textSecondary} />
-            <Text style={styles.assignedBadgeText}>Assigned</Text>
+            <Text style={styles.assignedBadgeText}>{isNetworkAdmin ? 'All Sites' : 'Assigned'}</Text>
           </View>
         </View>
+
+        {isNetworkAdmin && (
+          <View style={styles.siteFilterBlock}>
+            <Text style={styles.siteFilterLabel}>Filter by rooftop</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.siteFilterRow}
+            >
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => setSelectedSiteId('all')}
+                style={[
+                  styles.siteFilterChip,
+                  selectedSiteId === 'all' ? styles.siteFilterChipActive : styles.siteFilterChipInactive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.siteFilterChipText,
+                    selectedSiteId === 'all' && styles.siteFilterChipTextActive,
+                  ]}
+                >
+                  All Rooftops
+                </Text>
+              </TouchableOpacity>
+
+              {siteOptions.map((site) => {
+                const isSelected = selectedSiteId === site.id;
+                return (
+                  <TouchableOpacity
+                    key={site.id}
+                    activeOpacity={0.75}
+                    onPress={() => setSelectedSiteId(site.id)}
+                    style={[
+                      styles.siteFilterChip,
+                      isSelected ? styles.siteFilterChipActive : styles.siteFilterChipInactive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.siteFilterChipText,
+                        isSelected && styles.siteFilterChipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {site.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* ── HERO SECTION ───────────────────────────────────── */}
         <View style={styles.heroSection}>
@@ -1000,6 +1072,44 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#475569',
+  },
+  siteFilterBlock: {
+    marginBottom: 2,
+  },
+  siteFilterLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  siteFilterRow: {
+    gap: 8,
+    paddingRight: 6,
+  },
+  siteFilterChip: {
+    maxWidth: 220,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  siteFilterChipActive: {
+    backgroundColor: '#D71920',
+    borderColor: '#D71920',
+  },
+  siteFilterChipInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+  },
+  siteFilterChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  siteFilterChipTextActive: {
+    color: '#FFFFFF',
   },
   heroSection: {
     backgroundColor: '#FFF',

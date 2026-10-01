@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,8 @@ import { Icon } from '../../components/common/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cameraService } from '../../services/cameraService';
 import { loanAgreementsApi } from '../../api';
-import { LoanAgreement } from '../../types';
+import { sitesApi } from '../../api/sites.api';
+import { LoanAgreement, Site } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useGeofence } from '../../context/GeofenceContext';
 import { formatDateForInput } from '../../utils/date';
@@ -38,28 +39,17 @@ interface IssueLoanerWizardScreenProps {
   purpose?: 'SERVICE_LOANER' | 'TEST_DRIVE';
 }
 
-const ROOFTOPS = [
-  {
-    name: 'Cranbourne',
-    siteId: 'site_cranbourne_byd',
-    siteName: 'Booran BYD Cranbourne',
-  },
-  {
-    name: 'Dandenong',
-    siteId: 'site_dandenong_multi',
-    siteName: 'Booran Dandenong Multi-Franchise',
-  },
-  {
-    name: 'Berwick',
-    siteId: 'site_berwick_toyota_ford',
-    siteName: 'Booran Berwick Commercials',
-  },
-  {
-    name: 'Cheltenham',
-    siteId: 'site_cheltenham_mg',
-    siteName: 'Booran MG & Chery Cheltenham',
-  },
-];
+type RooftopOption = {
+  name: string;
+  siteId: string;
+  siteName: string;
+};
+
+const toRooftopOption = (site: Site): RooftopOption => ({
+  name: (site.name || site.id).replace(/^Booran\s+/i, '').split(/\s+/)[0] || site.name || site.id,
+  siteId: site.id,
+  siteName: site.name || site.id,
+});
 
 const PREPOPULATED_VEHICLES = [
   {
@@ -154,9 +144,14 @@ export const IssueLoanerWizardScreen: React.FC<
   const isOnSite = presenceStatus === 'ON_SITE';
   const isTestDrive = purpose === 'TEST_DRIVE';
   const agreementLabel = isTestDrive ? 'Test Drive' : 'Service Loaner';
-  const allowedRooftops = allowedSiteIds?.length
-    ? ROOFTOPS.filter(r => allowedSiteIds.includes(r.siteId))
-    : ROOFTOPS;
+  const [siteOptions, setSiteOptions] = useState<Site[]>([]);
+  const allowedRooftops = useMemo(() => {
+    const activeSites = siteOptions.filter((site) => site.isActive !== false);
+    const scopedSites = allowedSiteIds?.length
+      ? activeSites.filter((site) => allowedSiteIds.includes(site.id))
+      : activeSites;
+    return scopedSites.map(toRooftopOption);
+  }, [allowedSiteIds, siteOptions]);
   const fleetVehicles = allowedSiteIds?.length
     ? PREPOPULATED_VEHICLES.filter(veh =>
         allowedRooftops.some(
@@ -164,6 +159,22 @@ export const IssueLoanerWizardScreen: React.FC<
         ),
       )
     : PREPOPULATED_VEHICLES;
+
+  useEffect(() => {
+    let mounted = true;
+    sitesApi.getSites()
+      .then((sites) => {
+        if (!mounted) return;
+        setSiteOptions((sites || []).filter((site) => site.isActive !== false));
+      })
+      .catch((err) => {
+        console.warn('[IssueLoanerWizardScreen] Failed to load rooftops:', err?.message || err);
+        if (mounted) setSiteOptions([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Section Accordion State: allows expanding/collapsing each dropdown
   const [openSections, setOpenSections] = useState<{ [key: number]: boolean }>({
@@ -210,12 +221,18 @@ export const IssueLoanerWizardScreen: React.FC<
 
   // Section 2: Loan Vehicle
   const [rooftop, setRooftop] = useState(
-    allowedRooftops.some(
-      r => r.name.toLowerCase() === initialRooftop.toLowerCase(),
-    )
-      ? initialRooftop
-      : allowedRooftops[0]?.name || initialRooftop,
+    initialRooftop,
   );
+
+  useEffect(() => {
+    if (allowedRooftops.length === 0) return;
+    const currentStillAllowed = allowedRooftops.some(
+      r => r.name.toLowerCase() === rooftop.toLowerCase(),
+    );
+    if (!currentStillAllowed) {
+      setRooftop(allowedRooftops[0].name);
+    }
+  }, [allowedRooftops, rooftop]);
   const [registration, setRegistration] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
@@ -525,9 +542,12 @@ export const IssueLoanerWizardScreen: React.FC<
       const chosenRooftop =
         allowedRooftops.find(
           r => r.name.toLowerCase() === rooftop.toLowerCase(),
-        ) ||
-        allowedRooftops[0] ||
-        ROOFTOPS[0];
+        ) || allowedRooftops[0];
+
+      if (!chosenRooftop) {
+        Alert.alert('Rooftop Required', 'Dealership rooftops are still loading or unavailable. Please try again.');
+        return;
+      }
       const dueBackDate = new Date(
         `${expectedReturnDate}T${expectedReturnTime || '18:00'}`,
       );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -53,7 +53,9 @@ import { Header } from '../../components/common/Header';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
 import { notificationsService } from '../../services/notifications.service';
 import { casesApi } from '../../api/cases.api';
+import { sitesApi } from '../../api/sites.api';
 import { rooftopVehiclesService } from '../../services/rooftopVehicles.service';
+import { Site } from '../../types';
 
 interface RoadTestScreenProps {
   onOpenTickets: () => void;
@@ -89,8 +91,11 @@ export function RoadTestScreen({
 }: RoadTestScreenProps) {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId } = useAuth();
+  const isNetworkAdmin = user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER';
   const isClerk = user?.role === 'CLERK';
-  const technicianSiteId = activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || 'site_cranbourne_byd';
+  const technicianSiteId = isNetworkAdmin
+    ? 'all'
+    : activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || '';
 
   const {
     vehicle,
@@ -126,11 +131,44 @@ export function RoadTestScreen({
   const [selectedTripDetail, setSelectedTripDetail] = useState<RoadTestTripRecord | null>(null);
   const [showNotifModal, setShowNotifModal] = useState<boolean>(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+  const [siteOptions, setSiteOptions] = useState<Site[]>([]);
+  const [selectedAdminSiteId, setSelectedAdminSiteId] = useState<string>('all');
   const [workshopVehicles, setWorkshopVehicles] = useState<RoadTestVehicle[]>(
     isClerk ? [] : INITIAL_DEMO_VEHICLES
   );
 
   const isDriving = isLiveDrive || demoRunning;
+  const effectiveSiteId = isNetworkAdmin ? selectedAdminSiteId : technicianSiteId;
+  const selectedAdminSite = siteOptions.find((site) => site.id === selectedAdminSiteId);
+  const currentDriveSiteName = isNetworkAdmin
+    ? selectedAdminSiteId === 'all'
+      ? 'All Rooftops & Dealerships'
+      : selectedAdminSite?.name || selectedAdminSiteId
+    : siteName || 'Assigned Rooftop';
+  const visibleTripRecords = useMemo(
+    () =>
+      isNetworkAdmin && selectedAdminSiteId !== 'all'
+        ? tripRecords.filter((trip) => trip.siteId === selectedAdminSiteId)
+        : tripRecords,
+    [isNetworkAdmin, selectedAdminSiteId, tripRecords]
+  );
+
+  useEffect(() => {
+    if (!isNetworkAdmin) return;
+    let mounted = true;
+    sitesApi.getSites()
+      .then((sites) => {
+        if (!mounted) return;
+        setSiteOptions((sites || []).filter((site) => site.isActive !== false));
+      })
+      .catch((err) => {
+        console.warn('Failed to load drive rooftop filters', err);
+        setSiteOptions([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [isNetworkAdmin]);
 
   // Pulse animation for live tracking badge
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -181,13 +219,16 @@ export function RoadTestScreen({
     casesApi
       .getCases()
       .then((cases) => {
-        const fleetSiteId = technicianSiteId;
+        const fleetSiteId = effectiveSiteId;
+        const scopedSiteId = fleetSiteId === 'all' ? undefined : fleetSiteId;
         const assigned = isClerk
           ? cases.filter((c: any) => c.siteId === technicianSiteId)
+          : scopedSiteId
+          ? cases.filter((c: any) => c.siteId === scopedSiteId)
           : cases;
         const fleet = rooftopVehiclesService
           .getVehiclesForRooftop(fleetSiteId, assigned)
-          .filter((v) => !isClerk || v.siteId === technicianSiteId);
+          .filter((v) => !scopedSiteId || v.siteId === scopedSiteId);
         if (fleet && fleet.length > 0) {
           const mapped: RoadTestVehicle[] = fleet.map((f: any, idx: number) => ({
             id: f.id || `fleet-${idx}`,
@@ -205,13 +246,22 @@ export function RoadTestScreen({
             siteId: f.siteId || technicianSiteId,
             siteName: f.siteName || siteName || 'Booran Workshop',
           }));
-          setWorkshopVehicles(isClerk ? mapped : [...INITIAL_DEMO_VEHICLES, ...mapped]);
+          const demoVehicles = scopedSiteId
+            ? INITIAL_DEMO_VEHICLES.filter((v) => v.siteId === scopedSiteId)
+            : INITIAL_DEMO_VEHICLES;
+          setWorkshopVehicles(isClerk ? mapped : [...demoVehicles, ...mapped]);
         } else if (isClerk) {
           setWorkshopVehicles([]);
+        } else {
+          setWorkshopVehicles(
+            scopedSiteId
+              ? INITIAL_DEMO_VEHICLES.filter((v) => v.siteId === scopedSiteId)
+              : INITIAL_DEMO_VEHICLES
+          );
         }
       })
       .catch(() => {});
-  }, [isClerk, technicianSiteId, siteName]);
+  }, [effectiveSiteId, isClerk, technicianSiteId, siteName]);
 
   // Handle Starting the Drive
   const handleStartDrive = async () => {
@@ -234,8 +284,8 @@ export function RoadTestScreen({
       odometerKm: 3410,
       vin: `LGXCE43C8P01${Math.floor(100000 + Math.random() * 899999)}`,
       concern: 'Diagnostic pre-delivery verification & telemetry test.',
-      siteId: technicianSiteId,
-      siteName: siteName || 'Booran BYD Cranbourne',
+      siteId: effectiveSiteId === 'all' ? siteOptions[0]?.id || '' : effectiveSiteId,
+      siteName: currentDriveSiteName,
     };
 
     const locationGranted = await requestLocationAccess();
@@ -269,8 +319,8 @@ export function RoadTestScreen({
       odometerKm: 3410,
       vin: 'LGXCE43C8P0192831',
       concern: 'Simulated road test demonstration.',
-      siteId: technicianSiteId,
-      siteName: siteName || 'Booran BYD Cranbourne',
+      siteId: effectiveSiteId === 'all' ? siteOptions[0]?.id || '' : effectiveSiteId,
+      siteName: currentDriveSiteName,
     };
     setVehicle(vehicleToDrive);
     startDemoDrive();
@@ -540,16 +590,72 @@ export function RoadTestScreen({
             <Building2 size={20} color="#DC2626" />
           </View>
           <View style={styles.rooftopTextWrap}>
-            <Text style={styles.rooftopKicker}>YOUR ASSIGNED ROOFTOP</Text>
+            <Text style={styles.rooftopKicker}>
+              {isNetworkAdmin ? 'ADMIN NETWORK VIEW' : 'YOUR ASSIGNED ROOFTOP'}
+            </Text>
             <Text style={styles.rooftopName} numberOfLines={1}>
-              {siteName || 'Booran BYD Cranbourne'}
+              {currentDriveSiteName}
             </Text>
           </View>
           <View style={styles.assignedBadge}>
             <Lock size={12} color="#64748B" />
-            <Text style={styles.assignedBadgeText}>Assigned</Text>
+            <Text style={styles.assignedBadgeText}>{isNetworkAdmin ? 'All Sites' : 'Assigned'}</Text>
           </View>
         </View>
+
+        {isNetworkAdmin && (
+          <View style={styles.siteFilterBlock}>
+            <Text style={styles.siteFilterLabel}>Filter by rooftop</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.siteFilterRow}
+            >
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => setSelectedAdminSiteId('all')}
+                style={[
+                  styles.siteFilterChip,
+                  selectedAdminSiteId === 'all' ? styles.siteFilterChipActive : styles.siteFilterChipInactive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.siteFilterChipText,
+                    selectedAdminSiteId === 'all' && styles.siteFilterChipTextActive,
+                  ]}
+                >
+                  All Rooftops
+                </Text>
+              </TouchableOpacity>
+
+              {siteOptions.map((site) => {
+                const isSelected = selectedAdminSiteId === site.id;
+                return (
+                  <TouchableOpacity
+                    key={site.id}
+                    activeOpacity={0.75}
+                    onPress={() => setSelectedAdminSiteId(site.id)}
+                    style={[
+                      styles.siteFilterChip,
+                      isSelected ? styles.siteFilterChipActive : styles.siteFilterChipInactive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.siteFilterChipText,
+                        isSelected && styles.siteFilterChipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {site.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Card B: INTERNAL TEST DRIVE - Start a drive. */}
         <View style={styles.startDriveCard}>
@@ -610,10 +716,10 @@ export function RoadTestScreen({
         {/* Card C: Previous drives Section */}
         <View style={styles.previousSectionHeader}>
           <Text style={styles.previousTitle}>Previous drives</Text>
-          <Text style={styles.previousCount}>{tripRecords.length} drives</Text>
+          <Text style={styles.previousCount}>{visibleTripRecords.length} drives</Text>
         </View>
 
-        {tripRecords.map((item) => (
+        {visibleTripRecords.map((item) => (
           <TouchableOpacity
             key={item.id}
             activeOpacity={0.75}
@@ -1106,6 +1212,44 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#64748B',
+  },
+  siteFilterBlock: {
+    marginBottom: 14,
+  },
+  siteFilterLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#64748B',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  siteFilterRow: {
+    gap: 8,
+    paddingRight: 6,
+  },
+  siteFilterChip: {
+    maxWidth: 220,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  siteFilterChipActive: {
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
+  },
+  siteFilterChipInactive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+  },
+  siteFilterChipText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  siteFilterChipTextActive: {
+    color: '#FFFFFF',
   },
 
   // Start Drive Card

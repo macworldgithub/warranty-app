@@ -26,13 +26,6 @@ interface Step0Props {
   onCancel: () => void;
 }
 
-/* -- Mock fallback data (dev only) -- */
-const MOCK_SITES: Site[] = [
-  { id: 'site_cranbourne_byd', name: 'Booran BYD Cranbourne', code: 'CRANBOURNE_BYD', authorizedBrands: ['brand_byd'] },
-  { id: 'site_dandenong_multi', name: 'Booran Dandenong Multi', code: 'DANDENONG_MULTI', authorizedBrands: ['brand_hyundai', 'brand_kia', 'brand_mitsubishi'] },
-  { id: 'site_cheltenham_mg', name: 'Booran MG & Chery Cheltenham', code: 'CHELTENHAM_MG', authorizedBrands: ['brand_mg', 'brand_chery'] },
-  { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Commercials', code: 'BERWICK_COMMERCIALS', authorizedBrands: ['brand_toyota', 'brand_ford'] },
-];
 const MOCK_BRANDS: Brand[] = [
   { id: 'brand_byd', name: 'BYD' },
   { id: 'brand_hyundai', name: 'Hyundai' },
@@ -65,13 +58,15 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
   const [brandLoading, setBrandLoading] = useState(false);
   // authorizedBrandIds for the currently selected site (null = not yet loaded)
   const [siteAuthorizedIds, setSiteAuthorizedIds] = useState<string[] | null>(null);
+  const isNetworkAdmin = user?.role === 'ADMIN' || user?.role === 'SERVICE_MANAGER';
 
-  // Sites filtered to the technician's authorizedSiteIds
+  // Sites filtered only for restricted users. Network admins always see every live rooftop.
   const authorizedSites = useMemo(() => {
+    if (isNetworkAdmin) return sites;
     const allowed = user?.authorizedSiteIds;
     if (!allowed || allowed.length === 0) return sites; // admin/no restriction: show all
     return sites.filter((s) => allowed.includes(s.id));
-  }, [sites, user?.authorizedSiteIds]);
+  }, [isNetworkAdmin, sites, user?.authorizedSiteIds]);
 
   // True when there is exactly one allowed rooftop (no picker needed)
   const singleSiteLocked = authorizedSites.length === 1;
@@ -81,13 +76,13 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
     const fetchData = async () => {
       try {
         const [s, b] = await Promise.all([sitesApi.getSites(), brandsApi.getBrands()]);
-        const siteList = s || MOCK_SITES;
+        const siteList = (s || []).filter((site) => site.isActive !== false);
         const brandList = b || MOCK_BRANDS;
         setSites(siteList);
         setAllBrands(brandList);
 
-        // Determine allowed sites for this technician
-        const allowed = user?.authorizedSiteIds;
+        // Determine allowed sites for this user
+        const allowed = isNetworkAdmin ? undefined : user?.authorizedSiteIds;
         const allowedSites =
           allowed && allowed.length > 0
             ? siteList.filter((st) => allowed.includes(st.id))
@@ -106,18 +101,10 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
           setSiteAuthorizedIds(authIds);
         }
       } catch (err) {
-        // Dev fallback
-        setSites(MOCK_SITES);
+        console.warn('[Step0_StartTicket] Failed to load backend rooftops:', err);
+        setSites([]);
         setAllBrands(MOCK_BRANDS);
-        if (!siteId) {
-          const allowed = user?.authorizedSiteIds;
-          const fallbackSite =
-            allowed && allowed.length > 0
-              ? MOCK_SITES.find((s) => allowed.includes(s.id)) || MOCK_SITES[0]
-              : MOCK_SITES[0];
-          setSite(fallbackSite);
-          setSiteAuthorizedIds(fallbackSite.authorizedBrands ?? []);
-        }
+        setSiteAuthorizedIds([]);
       } finally {
         setLoading(false);
       }

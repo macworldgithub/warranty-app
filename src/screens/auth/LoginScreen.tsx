@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,15 +19,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useNetwork } from '../../context/NetworkContext';
 import { OtpVerificationModal } from '../../components/auth/OtpVerificationModal';
 import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
+import { sitesApi } from '../../api/sites.api';
+import { Site } from '../../types';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
-
-const ROOFTOP_OPTIONS = [
-  { id: 'site_cranbourne_byd', name: 'Booran BYD Cranbourne' },
-  { id: 'site_dandenong_multi', name: 'Booran Dandenong Multi-Franchise' },
-  { id: 'site_cheltenham_mg', name: 'Booran MG & Chery Cheltenham' },
-  { id: 'site_berwick_toyota_ford', name: 'Booran Berwick Commercials' },
-];
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -57,7 +52,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
   const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
-  const [signUpSiteId, setSignUpSiteId] = useState('site_cranbourne_byd');
+  const [signUpSiteId, setSignUpSiteId] = useState('');
+  const [rooftopOptions, setRooftopOptions] = useState<Site[]>([]);
+  const [loadingRooftops, setLoadingRooftops] = useState(true);
   const [showRooftopModal, setShowRooftopModal] = useState(false);
 
   const [showDevConfig, setShowDevConfig] = useState(false);
@@ -72,6 +69,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   // Forgot Password Modal
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    sitesApi.getSites()
+      .then((sites) => {
+        if (!mounted) return;
+        const activeSites = (sites || []).filter((site) => site.isActive !== false);
+        setRooftopOptions(activeSites);
+        setSignUpSiteId((current) => current || activeSites[0]?.id || '');
+      })
+      .catch((err) => {
+        console.warn('[LoginScreen] Failed to load rooftops:', err?.message || err);
+        if (mounted) setRooftopOptions([]);
+      })
+      .finally(() => {
+        if (mounted) setLoadingRooftops(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSignIn = async () => {
     setAuthError(null);
@@ -110,6 +128,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     }
     if (signUpPassword !== signUpConfirmPassword) {
       setAuthError('Passwords do not match.');
+      return;
+    }
+    if (!signUpSiteId) {
+      setAuthError('Rooftop list is still loading or unavailable. Please try again.');
       return;
     }
 
@@ -281,11 +303,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
               <Text style={styles.fieldLabel}>DEALERSHIP ROOFTOP</Text>
               <TouchableOpacity
                 style={styles.dropdownSelector}
-                onPress={() => setShowRooftopModal(true)}
+                onPress={() => {
+                  if (!loadingRooftops && rooftopOptions.length > 0) {
+                    setShowRooftopModal(true);
+                  }
+                }}
                 activeOpacity={0.75}
               >
                 <Text style={styles.dropdownValueText}>
-                  {ROOFTOP_OPTIONS.find(s => s.id === signUpSiteId)?.name || 'Booran BYD Cranbourne'}
+                  {loadingRooftops
+                    ? 'Loading rooftops...'
+                    : rooftopOptions.find(s => s.id === signUpSiteId)?.name || 'No rooftops available'}
                 </Text>
                 <Icon name="chevron-down" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -347,7 +375,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             </Text>
 
             <View style={styles.rooftopOptionsList}>
-              {ROOFTOP_OPTIONS.map((site) => {
+              {rooftopOptions.map((site) => {
                 const isSelected = signUpSiteId === site.id;
                 return (
                   <TouchableOpacity
