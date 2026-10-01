@@ -87,6 +87,14 @@ export const SITE_CRANBOURNE = {
   name: 'Booran BYD Cranbourne',
 };
 
+// South Morang dealership precinct: 8 Wealthiland Drive, Mill Park VIC 3082.
+// Used by the client-side fallback when the backend geofence is unavailable.
+export const SITE_SOUTH_MORANG = {
+  lat: -37.6544013,
+  lng: 145.0816436,
+  name: 'South Morang — 8 Wealthiland Drive',
+};
+
 // Preset for testing in Pakistan (e.g. Lahore hub)
 export const SITE_PAKISTAN = {
   lat: 31.5204,
@@ -99,6 +107,9 @@ export const OFF_SITE_LOCATION = {
   lat: -38.1120,
   lng: 145.2980,
 };
+
+const getReferenceSite = (siteId?: string) =>
+  siteId?.toLowerCase().includes('south_morang') ? SITE_SOUTH_MORANG : SITE_CRANBOURNE;
 
 async function askLocationPermission(): Promise<boolean> {
   if (Platform.OS === 'ios') {
@@ -252,7 +263,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     } catch {
       // Local fallback in case backend is unreachable: Compute true Haversine distance
-      const fallbackSite = localWorkshop ?? SITE_CRANBOURNE;
+      const fallbackSite = localWorkshop ?? getReferenceSite(activeSiteId);
       const dist = calculateDistanceMeters(coords.lat, coords.lng, fallbackSite.lat, fallbackSite.lng);
       const isInside = dist <= radiusMeters;
       setDistanceMeters(dist);
@@ -286,8 +297,9 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         liveCoordsRef.current = c;
         setLiveCoords(c);
 
-        const refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
-        const refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
+        const referenceSite = getReferenceSite(activeSiteId);
+        const refLat = customWorkshopRef.current?.lat ?? referenceSite.lat;
+        const refLng = customWorkshopRef.current?.lng ?? referenceSite.lng;
 
         const realDist = calculateDistanceMeters(c.latitude, c.longitude, refLat, refLng);
         const isInside = realDist <= radiusMeters;
@@ -325,7 +337,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }
     return granted;
-  }, [pingNow, radiusMeters]);
+  }, [activeSiteId, pingNow, radiusMeters]);
 
   const switchToLiveMode = useCallback(() => {
     setGpsMode('LIVE');
@@ -351,7 +363,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (activity === 'ROAD_TEST') {
         simulatedCoordsRef.current = OFF_SITE_LOCATION;
       } else {
-        simulatedCoordsRef.current = SITE_CRANBOURNE;
+        simulatedCoordsRef.current = getReferenceSite(activeSiteId);
       }
       pingNow({
         currentActivity: activity,
@@ -360,13 +372,13 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         longitude: simulatedCoordsRef.current.lng,
       });
     }
-  }, [pingNow]);
+  }, [activeSiteId, pingNow]);
 
   // Toggle simulated on-site / off-site for rapid developer demo/testing
   const toggleSimulatedPresence = useCallback(() => {
     setGpsMode('SIMULATED');
     const nextIsOff = presenceStatus === 'ON_SITE';
-    simulatedCoordsRef.current = nextIsOff ? OFF_SITE_LOCATION : SITE_CRANBOURNE;
+    simulatedCoordsRef.current = nextIsOff ? OFF_SITE_LOCATION : getReferenceSite(activeSiteId);
     const nextActivity = nextIsOff ? 'ROAD_TEST' : 'WORKSHOP';
     setCurrentActivity(nextActivity);
     pingNow({
@@ -374,7 +386,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       latitude: simulatedCoordsRef.current.lat,
       longitude: simulatedCoordsRef.current.lng,
     });
-  }, [presenceStatus, pingNow]);
+  }, [activeSiteId, presenceStatus, pingNow]);
 
   // Request location permission on mount / authentication
   useEffect(() => {
@@ -454,8 +466,9 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             setLiveCoords(c);
 
             if (gpsModeRef.current === 'LIVE') {
-              const refLat = customWorkshopRef.current?.lat ?? SITE_CRANBOURNE.lat;
-              const refLng = customWorkshopRef.current?.lng ?? SITE_CRANBOURNE.lng;
+              const referenceSite = getReferenceSite(activeSiteId);
+              const refLat = customWorkshopRef.current?.lat ?? referenceSite.lat;
+              const refLng = customWorkshopRef.current?.lng ?? referenceSite.lng;
 
               const liveDist = calculateDistanceMeters(c.latitude, c.longitude, refLat, refLng);
               const isInside = liveDist <= radiusMeters;
@@ -501,7 +514,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         GeolocationModule.clearWatch(watchId);
       }
     };
-  }, [isAuthenticated, user, hasLocationPermission, radiusMeters, gpsWatchRevision]);
+  }, [activeSiteId, isAuthenticated, user, hasLocationPermission, radiusMeters, gpsWatchRevision]);
 
   // Periodic telemetry fallback heartbeat (5s during active road test, 20s during workshop)
   useEffect(() => {

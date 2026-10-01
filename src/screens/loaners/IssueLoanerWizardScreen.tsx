@@ -495,13 +495,13 @@ export const IssueLoanerWizardScreen: React.FC<IssueLoanerWizardScreenProps> = (
         };
       }
 
+      onSuccess(signed);
       Alert.alert(
-        `Agreement #LA-2041 Activated!`,
+        `Agreement #${signed.agreementNumber || 'created'} Activated!`,
         `Customer: ${fullName}\nLoan Vehicle: ${make.toUpperCase()} ${model.toUpperCase()} • ${registration}\nDue back: ${expectedReturnDate} at ${expectedReturnTime}\n\nAgreement has been saved and synced to the dealership portal.`,
         [
           {
-            text: 'View in Loan Vehicles',
-            onPress: () => onSuccess(signed),
+            text: 'OK',
           },
         ]
       );
