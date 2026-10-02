@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 // Local testing: http://localhost:4000
 // (Can be overridden via setApiBaseUrl or developer options in LoginScreen)
 export const DEFAULT_API_HOST = 'https://warranty-evidence.omnisuiteai.com';
+// export const DEFAULT_API_HOST = 'http://localhost:4000';
 
 export const API_BASE_PATH = '/api/v1';
 

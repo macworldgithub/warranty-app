@@ -6,3 +6,6 @@ export * from './vehicles/VehicleListScreen';
 export * from './home/TechnicianHomeScreen';
 export * from './inspection/GuidedZoneCaptureScreen';
 export * from './wizard';
+export * from './hoist/HoistOverviewScreen';
+export * from './hoist/HoistInspectionScreen';
+export * from './hoist/HoistHistoryScreen';

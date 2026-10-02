@@ -44,12 +44,29 @@ import { casesApi } from './src/api';
 import { RoadTestScreen } from './src/screens/roadtest/RoadTestScreen';
 import { TechnicianHomeScreen } from './src/screens/home/TechnicianHomeScreen';
 import { GuidedZoneCaptureScreen } from './src/screens/inspection/GuidedZoneCaptureScreen';
+import { HoistOverviewScreen } from './src/screens/hoist/HoistOverviewScreen';
+import { HoistInspectionScreen } from './src/screens/hoist/HoistInspectionScreen';
+import { HoistHistoryScreen } from './src/screens/hoist/HoistHistoryScreen';
 import { RooftopVehicle } from './src/services/rooftopVehicles.service';
 import { RoadTestProvider } from './src/context/RoadTestContext';
 import { GeofenceProvider } from './src/context/GeofenceContext';
-import { WarrantyCase } from './src/types';
+import { WarrantyCase, Hoist } from './src/types';
 
-type AppScreen = 'LOGIN' | 'TECH_HOME' | 'LIST' | 'VEHICLES' | 'ZONE_CAPTURE' | 'LOANERS' | 'ROAD_TEST' | 'DETAIL' | 'WIZARD' | 'FLAG_RESOLVE' | 'PROFILE';
+type AppScreen =
+  | 'LOGIN'
+  | 'TECH_HOME'
+  | 'LIST'
+  | 'VEHICLES'
+  | 'ZONE_CAPTURE'
+  | 'LOANERS'
+  | 'ROAD_TEST'
+  | 'HOIST_OVERVIEW'
+  | 'HOIST_INSPECT'
+  | 'HOIST_HISTORY'
+  | 'DETAIL'
+  | 'WIZARD'
+  | 'FLAG_RESOLVE'
+  | 'PROFILE';
 
 function MainNavigator() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -75,6 +92,7 @@ function MainNavigator() {
   );
   const [previousScreen, setPreviousScreen] = useState<AppScreen>(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
+  const [selectedHoist, setSelectedHoist] = useState<Hoist | null>(null);
   const [selectedInspectionVehicle, setSelectedInspectionVehicle] = useState<RooftopVehicle | null>(null);
   const [caseListTab, setCaseListTab] = useState<string>('all');
   const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
@@ -198,6 +216,10 @@ function MainNavigator() {
           onOpenLoaners={() => {
             setPreviousScreen('TECH_HOME');
             setCurrentScreen('LOANERS');
+          }}
+          onOpenHoists={() => {
+            setPreviousScreen('TECH_HOME');
+            setCurrentScreen('HOIST_OVERVIEW');
           }}
           onOpenProfile={() => {
             setPreviousScreen('TECH_HOME');
@@ -455,6 +477,52 @@ function MainNavigator() {
             logout();
             setCurrentScreen('LOGIN');
           }}
+        />
+      </View>
+    );
+  }
+
+  // 2e. Daily Hoist Inspections Overview
+  if (currentScreen === 'HOIST_OVERVIEW') {
+    return (
+      <View style={{ flex: 1 }}>
+        <HoistOverviewScreen
+          onBack={() => setCurrentScreen(previousScreen || (isTechnicianExperience ? 'TECH_HOME' : 'LIST'))}
+          onInspectHoist={(hoist) => {
+            setSelectedHoist(hoist);
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('HOIST_INSPECT');
+          }}
+          onViewHistory={(hoist) => {
+            setSelectedHoist(hoist);
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('HOIST_HISTORY');
+          }}
+        />
+      </View>
+    );
+  }
+
+  // 2f. Pre-Shift Hoist Checklist Inspection
+  if (currentScreen === 'HOIST_INSPECT' && selectedHoist) {
+    return (
+      <View style={{ flex: 1 }}>
+        <HoistInspectionScreen
+          hoist={selectedHoist}
+          onBack={() => setCurrentScreen('HOIST_OVERVIEW')}
+          onInspectionCompleted={() => setCurrentScreen('HOIST_OVERVIEW')}
+        />
+      </View>
+    );
+  }
+
+  // 2g. Hoist Inspection Audit History
+  if (currentScreen === 'HOIST_HISTORY' && selectedHoist) {
+    return (
+      <View style={{ flex: 1 }}>
+        <HoistHistoryScreen
+          hoist={selectedHoist}
+          onBack={() => setCurrentScreen('HOIST_OVERVIEW')}
         />
       </View>
     );

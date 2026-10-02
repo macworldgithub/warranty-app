@@ -25,6 +25,7 @@ import {
   ChevronRight,
   LogOut,
   Camera,
+  Wrench,
 } from 'lucide-react-native';
 
 import { colors } from '../../theme/colors';
@@ -35,6 +36,7 @@ import { useCaseWizard } from '../../context/CaseWizardContext';
 import { offlineStorage } from '../../services/offlineStorage';
 import { casesApi } from '../../api/cases.api';
 import { loanAgreementsApi } from '../../api/loanAgreements.api';
+import { hoistApi } from '../../api/hoist.api';
 import { roadTestService } from '../../services/roadtest.service';
 import { rooftopVehiclesService } from '../../services/rooftopVehicles.service';
 import { notificationsService, AppNotificationPayload } from '../../services/notifications.service';
@@ -49,6 +51,7 @@ interface TechnicianHomeScreenProps {
   onOpenRoadTest: () => void;
   onOpenTickets: (tab?: string) => void;
   onOpenLoaners: () => void;
+  onOpenHoists?: () => void;
   onOpenProfile: () => void;
   onStartNewInspection: () => void;
   onOpenZoneCapture?: (vehicle?: any) => void;
@@ -240,6 +243,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
   onOpenRoadTest,
   onOpenTickets,
   onOpenLoaners,
+  onOpenHoists,
   onOpenProfile,
   onStartNewInspection,
   onOpenZoneCapture,
@@ -280,6 +284,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
   const [myCases, setMyCases] = useState<WarrantyCase[]>([]);
   const [lastDriveTimestamp, setLastDriveTimestamp] = useState<string | null>(null);
   const [agreements, setAgreements] = useState<LoanAgreement[]>([]);
+  const [hoistSummary, setHoistSummary] = useState<any>(null);
 
   // Calculate greeting by time of day
   const greeting = useMemo(() => {
@@ -352,10 +357,18 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
       } catch (loanErr) {
         console.warn('[TechnicianHomeScreen] Error fetching loan agreements:', loanErr);
       }
+
+      // 5. Fetch Hoist Summary
+      try {
+        const hSummary = await hoistApi.getSummary(user?.workshopFacility);
+        setHoistSummary(hSummary);
+      } catch (hErr) {
+        console.warn('[TechnicianHomeScreen] Error fetching hoists:', hErr);
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [isClerk, user?.id, user?.name, activeSiteId]);
+  }, [isClerk, user?.id, user?.name, user?.workshopFacility, activeSiteId]);
 
   useEffect(() => {
     loadDashboardData();
@@ -662,6 +675,29 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
               <ChevronRight size={17} color="#94A3B8" />
             </View>
           </TouchableOpacity>
+
+          {/* Item 5: Daily Hoist Inspection */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={onOpenHoists}
+            style={styles.gridCard}
+          >
+            <View style={styles.gridCardTop}>
+              <View style={[styles.gridIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Wrench size={22} color="#2563EB" />
+              </View>
+              <Text style={styles.gridTitle}>Hoist Inspections</Text>
+              <Text style={styles.gridSubtitle}>Daily pre-shift checks.</Text>
+            </View>
+            <View style={styles.gridCardFooter}>
+              <Text style={styles.gridFooterText} numberOfLines={1}>
+                {hoistSummary
+                  ? `${hoistSummary.inspectedToday}/${hoistSummary.totalHoists} bays checked`
+                  : 'Daily pre-shift checklist'}
+              </Text>
+              <ChevronRight size={17} color="#94A3B8" />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Full-Width Row 1: Notifications */}
@@ -736,7 +772,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
           style={styles.bottomBarActionBtn}
         >
           <Camera size={15} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.bottomBarActionText}>+ New Inspection</Text>
+          <Text style={styles.bottomBarActionText}>New Inspection</Text>
         </TouchableOpacity>
 
         {/* 4. Loaners */}

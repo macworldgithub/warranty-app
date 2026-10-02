@@ -90,13 +90,28 @@ export const SITE_CRANBOURNE = {
 };
 
 // ---------------------------------------------------------------------------
-// South Morang precinct — all rooftops share 8 Wealthiland Drive, South Morang VIC 3082
+// South Morang — per-brand physical addresses (confirmed by client 02 Oct 2026)
 // ---------------------------------------------------------------------------
-export const SITE_SOUTH_MORANG = {
+export const SITE_SOUTH_MORANG_HYUNDAI = {
+  lat: -37.6680,
+  lng: 145.0740,
+  name: 'South Morang Hyundai (2a Oleander Dr)',
+};
+
+export const SITE_SOUTH_MORANG_KIA_BYD = {
   lat: -37.6544013,
   lng: 145.0816436,
-  name: 'South Morang — 8 Wealthiland Drive',
+  name: 'South Morang Kia & BYD (8 Wealthiland Dr)',
 };
+
+export const SITE_SOUTH_MORANG_CHERY = {
+  lat: -37.6511,
+  lng: 145.0841,
+  name: 'South Morang Chery (545 McDonalds Rd)',
+};
+
+// Backward-compatible alias
+export const SITE_SOUTH_MORANG = SITE_SOUTH_MORANG_KIA_BYD;
 
 // Preset for testing in Pakistan (e.g. Lahore hub)
 export const SITE_PAKISTAN = {
@@ -117,12 +132,12 @@ export const OFF_SITE_LOCATION = {
 // Add new entries here whenever a new physical address is onboarded.
 // ---------------------------------------------------------------------------
 const SITE_CONFIG: Record<string, { lat: number; lng: number; name: string }> = {
-  // South Morang precinct (8 Wealthiland Drive, South Morang VIC 3082)
-  site_south_morang_byd:     SITE_SOUTH_MORANG,
-  site_south_morang_chery:   SITE_SOUTH_MORANG,
-  site_south_morang_hyundai: SITE_SOUTH_MORANG,
-  site_south_morang_kia:     SITE_SOUTH_MORANG,
-  site_south_morang_lepas:   SITE_SOUTH_MORANG,
+  // South Morang individual rooftop addresses
+  site_south_morang_hyundai: SITE_SOUTH_MORANG_HYUNDAI,
+  site_south_morang_byd:     SITE_SOUTH_MORANG_KIA_BYD,
+  site_south_morang_kia:     SITE_SOUTH_MORANG_KIA_BYD,
+  site_south_morang_chery:   SITE_SOUTH_MORANG_CHERY,
+  site_south_morang_lepas:   SITE_SOUTH_MORANG_KIA_BYD,
   // Cranbourne precinct
   site_chery_cranbourne:   SITE_CRANBOURNE,
   site_cranbourne_hyundai: SITE_CRANBOURNE,

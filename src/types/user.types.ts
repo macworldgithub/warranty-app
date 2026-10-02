@@ -7,6 +7,8 @@ export interface User {
   role: UserRole;
   defaultSiteId?: string;
   authorizedSiteIds?: string[];
+  authorizedBrandIds?: string[];
+  workshopFacility?: 'hyundai_chery' | 'byd_kia' | 'all' | 'general' | string;
   avatarUrl?: string;
 }
 
