@@ -160,7 +160,7 @@ export const HoistInspectionScreen: React.FC<HoistInspectionScreenProps> = ({
         >
           <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <View style={styles.headerCenter} pointerEvents="none">
           <Text style={styles.headerTitle}>Pre-Shift Safety Check</Text>
           <Text style={styles.headerSubtitle}>{hoist.name} ({hoist.brand})</Text>
         </View>
@@ -406,6 +406,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 6,
+    zIndex: 10,
+    elevation: 10,
   },
   headerCenter: {
     flex: 1,

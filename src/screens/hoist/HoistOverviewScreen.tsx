@@ -114,7 +114,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
         >
           <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <View style={styles.headerCenter} pointerEvents="none">
           <Text style={styles.headerTitle}>Daily Hoist Inspection</Text>
           <Text style={styles.headerSubtitle}>Mandatory Pre-Shift Equipment Checks</Text>
         </View>
@@ -403,6 +403,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 6,
+    zIndex: 10,
+    elevation: 10,
   },
   headerCenter: {
     flex: 1,

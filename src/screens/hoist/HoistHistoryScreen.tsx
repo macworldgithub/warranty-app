@@ -69,7 +69,7 @@ export const HoistHistoryScreen: React.FC<HoistHistoryScreenProps> = ({
         >
           <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <View style={styles.headerCenter} pointerEvents="none">
           <Text style={styles.headerTitle}>{hoist.name} History</Text>
           <Text style={styles.headerSubtitle}>
             {hoist.facilityName} · {hoist.brand} ({hoist.type})
@@ -147,7 +147,7 @@ export const HoistHistoryScreen: React.FC<HoistHistoryScreenProps> = ({
                   <View style={styles.inspectorRow}>
                     <User size={13} color={colors.textSecondary} />
                     <Text style={styles.inspectorText}>
-                      Inspector: <strong>{insp.inspectorName}</strong> ({insp.inspectorRole})
+                      Inspector: <Text style={{ fontWeight: 'bold' }}>{insp.inspectorName}</Text> ({insp.inspectorRole})
                     </Text>
                     <Text style={styles.timeText}>
                       {insp.signedAt
@@ -225,6 +225,8 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 6,
+    zIndex: 10,
+    elevation: 10,
   },
   headerCenter: {
     flex: 1,
