@@ -30,6 +30,7 @@ import {
   Plus,
   Bell,
   Gauge,
+  Wrench,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/common/Header';
@@ -58,6 +59,7 @@ interface VehicleListScreenProps {
   onOpenLoaners?: () => void;
   onOpenRoadTest?: () => void;
   onOpenHome?: () => void;
+  onOpenHoists?: () => void;
   onLogout?: () => void;
   onOpenZoneCapture?: (item: RooftopVehicle) => void;
   onStartNewInspection?: () => void;
@@ -70,6 +72,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onOpenProfile,
   onOpenLoaners,
   onOpenHome,
+  onOpenHoists,
   onLogout,
   onOpenZoneCapture,
   onStartNewInspection,
@@ -889,7 +892,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
         }}
       />
 
-      {/* ── 3. Fixed Bottom Navigation Bar (Home, Tickets, + Capture Photo, Loaners, shaun) ── */}
+      {/* ── 3. Fixed Bottom Navigation Bar (Home, Tickets, Hoists, Loaners, shaun) ── */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
         {/* 1. Home */}
         <TouchableOpacity
@@ -911,24 +914,14 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
           <Text style={styles.bottomBarLabel}>Tickets</Text>
         </TouchableOpacity>
 
-        {/* 3. Center Primary Action Pill Button */}
+        {/* 3. Hoists */}
         <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() =>
-            canCaptureInspection
-              ? (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture(filteredVehicles[0]) : onStartNewCase())
-              : onOpenTickets('awaiting')
-          }
-          style={styles.bottomBarActionBtn}
+          activeOpacity={0.7}
+          onPress={onOpenHoists}
+          style={styles.bottomBarTab}
         >
-          {canCaptureInspection ? (
-            <Camera size={16} color="#FFFFFF" strokeWidth={2.2} />
-          ) : (
-            <FileText size={16} color="#FFFFFF" strokeWidth={2.2} />
-          )}
-          <Text style={styles.bottomBarActionText}>
-            {canCaptureInspection ? 'New Inspection' : 'Review Queue'}
-          </Text>
+          <Wrench size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Hoists</Text>
         </TouchableOpacity>
 
         {/* 4. Loaners */}

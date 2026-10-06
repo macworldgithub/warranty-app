@@ -745,7 +745,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
         </Text>
       </ScrollView>
 
-      {/* ── 3. Bottom Navigation Bar (Drive and Loaners style) ──────────── */}
+      {/* ── 3. Bottom Navigation Bar (Drive, Hoists, Loaners) ──────────── */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 10, 24) }]}>
         {/* 1. Home (ACTIVE) */}
         <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
@@ -765,14 +765,14 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
           <Text style={styles.bottomBarLabel}>Drive</Text>
         </TouchableOpacity>
 
-        {/* 3. Center Red Primary Action Pill Button: New Inspection */}
+        {/* 3. Hoists */}
         <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture() : undefined)}
-          style={styles.bottomBarActionBtn}
+          activeOpacity={0.7}
+          onPress={onOpenHoists}
+          style={styles.bottomBarTab}
         >
-          <Camera size={15} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.bottomBarActionText}>New Inspection</Text>
+          <Wrench size={22} color={colors.textSecondary} />
+          <Text style={styles.bottomBarLabel}>Hoists</Text>
         </TouchableOpacity>
 
         {/* 4. Loaners */}

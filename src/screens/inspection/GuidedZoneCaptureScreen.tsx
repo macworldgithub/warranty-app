@@ -26,6 +26,7 @@ import {
   Layers,
   CheckCircle2,
   Bell,
+  Wrench,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/common/Header';
@@ -44,6 +45,7 @@ interface GuidedZoneCaptureScreenProps {
   onOpenHome?: () => void;
   onOpenTickets?: () => void;
   onOpenLoaners?: () => void;
+  onOpenHoists?: () => void;
   onOpenProfile?: () => void;
   onLogout?: () => void;
   onCompleteInspection?: (vehicle: RooftopVehicle) => void;
@@ -76,6 +78,7 @@ export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = (
   onOpenHome,
   onOpenTickets,
   onOpenLoaners,
+  onOpenHoists,
   onOpenProfile,
   onLogout,
   onCompleteInspection,
@@ -583,17 +586,7 @@ export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = (
           <Text style={styles.bottomBarLabel}>Home</Text>
         </TouchableOpacity>
 
-        {/* 2. Tickets */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenTickets}
-          style={styles.bottomBarTab}
-        >
-          <FileText size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Tickets</Text>
-        </TouchableOpacity>
-
-        {/* 3. Center Red Primary Floating Pill Button: + Capture Photo */}
+        {/* 2. Center Red Primary Floating Pill Button: + Capture Photo */}
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => handleCapturePhoto(false)}
@@ -603,13 +596,23 @@ export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = (
           <Text style={styles.bottomBarActionText}>+ Capture Photo</Text>
         </TouchableOpacity>
 
+        {/* 3. Hoists */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={onOpenHoists}
+          style={styles.bottomBarTab}
+        >
+          <Wrench size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Hoists</Text>
+        </TouchableOpacity>
+
         {/* 4. Loaners */}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={onOpenLoaners}
           style={styles.bottomBarTab}
         >
-          <Car size={22} color="#64748B" />
+          <Key size={22} color="#64748B" />
           <Text style={styles.bottomBarLabel}>Loaners</Text>
         </TouchableOpacity>
 

@@ -38,6 +38,7 @@ import {
   Info,
   Calendar,
   User,
+  Wrench,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
@@ -63,6 +64,7 @@ interface RoadTestScreenProps {
   onOpenLoaners: () => void;
   onOpenProfile: () => void;
   onOpenHome?: () => void;
+  onOpenHoists?: () => void;
   onLogout?: () => void;
 }
 
@@ -87,6 +89,7 @@ export function RoadTestScreen({
   onOpenLoaners,
   onOpenProfile,
   onOpenHome,
+  onOpenHoists,
   onLogout,
 }: RoadTestScreenProps) {
   const insets = useSafeAreaInsets();
@@ -515,14 +518,10 @@ export function RoadTestScreen({
             <Text style={[styles.bottomBarLabel, { color: '#DC2626', fontWeight: '700' }]}>Drive</Text>
           </TouchableOpacity>
 
-          {/* 3. Center Red Primary Action: Stop Drive */}
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleStopDrive}
-            style={styles.bottomBarActionBtn}
-          >
-            <Square size={14} color="#FFFFFF" fill="#FFFFFF" />
-            <Text style={styles.bottomBarActionText}>Stop Drive</Text>
+          {/* 3. Hoists */}
+          <TouchableOpacity activeOpacity={0.7} onPress={onOpenHoists} style={styles.bottomBarTab}>
+            <Wrench size={22} color={colors.textSecondary} />
+            <Text style={styles.bottomBarLabel}>Hoists</Text>
           </TouchableOpacity>
 
           {/* 4. Loaners */}
@@ -771,14 +770,10 @@ export function RoadTestScreen({
           <Text style={[styles.bottomBarLabel, { color: '#DC2626', fontWeight: '700' }]}>Drive</Text>
         </TouchableOpacity>
 
-        {/* 3. Center Red Primary Action: + Start Drive */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleStartDrive}
-          style={styles.bottomBarActionBtn}
-        >
-          <Plus size={16} color="#FFFFFF" strokeWidth={3} />
-          <Text style={styles.bottomBarActionText}>Start Drive</Text>
+        {/* 3. Hoists */}
+        <TouchableOpacity activeOpacity={0.7} onPress={onOpenHoists} style={styles.bottomBarTab}>
+          <Wrench size={22} color={colors.textSecondary} />
+          <Text style={styles.bottomBarLabel}>Hoists</Text>
         </TouchableOpacity>
 
         {/* 4. Loaners */}

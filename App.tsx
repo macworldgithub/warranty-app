@@ -88,9 +88,9 @@ function MainNavigator() {
     !user?.role;
 
   const [currentScreen, setCurrentScreen] = useState<AppScreen>(
-    isAuthenticated ? (isTechnicianExperience ? 'TECH_HOME' : 'LIST') : 'LOGIN'
+    isAuthenticated ? 'TECH_HOME' : 'LOGIN'
   );
-  const [previousScreen, setPreviousScreen] = useState<AppScreen>(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
+  const [previousScreen, setPreviousScreen] = useState<AppScreen>('TECH_HOME');
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
   const [selectedHoist, setSelectedHoist] = useState<Hoist | null>(null);
   const [selectedInspectionVehicle, setSelectedInspectionVehicle] = useState<RooftopVehicle | null>(null);
@@ -100,9 +100,9 @@ function MainNavigator() {
 
   useEffect(() => {
     if (isAuthenticated && currentScreen === 'LOGIN') {
-      setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
+      setCurrentScreen('TECH_HOME');
     }
-  }, [isAuthenticated, isTechnicianExperience]);
+  }, [isAuthenticated]);
 
   // Deep-Link Navigation when Technician Taps Notification Banner or System Tray Push
   const handleNotificationPress = async (notif: AppNotificationPayload) => {
@@ -182,12 +182,12 @@ function MainNavigator() {
 
   // If user logs out, go to LOGIN
   if (!isAuthenticated && currentScreen !== 'LOGIN') {
-    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST')} />;
+    return <LoginScreen onLoginSuccess={() => setCurrentScreen('TECH_HOME')} />;
   }
 
   // 1. Login Screen
   if (currentScreen === 'LOGIN') {
-    return <LoginScreen onLoginSuccess={() => setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST')} />;
+    return <LoginScreen onLoginSuccess={() => setCurrentScreen('TECH_HOME')} />;
   }
 
   // 1b. Technician Portal Home Screen (New Figma UI with real data)
@@ -298,8 +298,13 @@ function MainNavigator() {
             setPreviousScreen('LIST');
             setCurrentScreen('ROAD_TEST');
           }}
+          onOpenHoists={() => {
+            setPreviousScreen('LIST');
+            setCurrentScreen('HOIST_OVERVIEW');
+          }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
+            setPreviousScreen('LIST');
+            setCurrentScreen('TECH_HOME');
           }}
           onLogout={() => {
             logout();
@@ -346,8 +351,13 @@ function MainNavigator() {
             setPreviousScreen('VEHICLES');
             setCurrentScreen('ROAD_TEST');
           }}
+          onOpenHoists={() => {
+            setPreviousScreen('VEHICLES');
+            setCurrentScreen('HOIST_OVERVIEW');
+          }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
+            setPreviousScreen('VEHICLES');
+            setCurrentScreen('TECH_HOME');
           }}
           onLogout={() => {
             logout();
@@ -380,10 +390,17 @@ function MainNavigator() {
         <GuidedZoneCaptureScreen
           vehicle={selectedInspectionVehicle}
           onBack={() => setCurrentScreen(previousScreen || 'VEHICLES')}
-          onOpenHome={() => setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST')}
+          onOpenHome={() => {
+            setPreviousScreen('ZONE_CAPTURE');
+            setCurrentScreen('TECH_HOME');
+          }}
           onOpenTickets={() => {
             setCaseListTab('all');
             setCurrentScreen('LIST');
+          }}
+          onOpenHoists={() => {
+            setPreviousScreen('ZONE_CAPTURE');
+            setCurrentScreen('HOIST_OVERVIEW');
           }}
           onOpenLoaners={() => {
             setPreviousScreen('ZONE_CAPTURE');
@@ -437,8 +454,13 @@ function MainNavigator() {
             setPreviousScreen('LOANERS');
             setCurrentScreen('ROAD_TEST');
           }}
+          onOpenHoists={() => {
+            setPreviousScreen('LOANERS');
+            setCurrentScreen('HOIST_OVERVIEW');
+          }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
+            setPreviousScreen('LOANERS');
+            setCurrentScreen('TECH_HOME');
           }}
           onLogout={() => {
             logout();
@@ -470,8 +492,13 @@ function MainNavigator() {
             setPreviousScreen('ROAD_TEST');
             setCurrentScreen('PROFILE');
           }}
+          onOpenHoists={() => {
+            setPreviousScreen('ROAD_TEST');
+            setCurrentScreen('HOIST_OVERVIEW');
+          }}
           onOpenHome={() => {
-            setCurrentScreen(isTechnicianExperience ? 'TECH_HOME' : 'LIST');
+            setPreviousScreen('ROAD_TEST');
+            setCurrentScreen('TECH_HOME');
           }}
           onLogout={() => {
             logout();
@@ -487,7 +514,7 @@ function MainNavigator() {
     return (
       <View style={{ flex: 1 }}>
         <HoistOverviewScreen
-          onBack={() => setCurrentScreen(previousScreen || (isTechnicianExperience ? 'TECH_HOME' : 'LIST'))}
+          onBack={() => setCurrentScreen(previousScreen || 'TECH_HOME')}
           onInspectHoist={(hoist) => {
             setSelectedHoist(hoist);
             setPreviousScreen('HOIST_OVERVIEW');
@@ -497,6 +524,31 @@ function MainNavigator() {
             setSelectedHoist(hoist);
             setPreviousScreen('HOIST_OVERVIEW');
             setCurrentScreen('HOIST_HISTORY');
+          }}
+          onOpenHome={() => {
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('TECH_HOME');
+          }}
+          onOpenRoadTest={() => {
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('ROAD_TEST');
+          }}
+          onOpenLoaners={() => {
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('LOANERS');
+          }}
+          onOpenTickets={(tab) => {
+            setCaseListTab(tab || 'all');
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('LIST');
+          }}
+          onOpenVehicles={() => {
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('VEHICLES');
+          }}
+          onOpenProfile={() => {
+            setPreviousScreen('HOIST_OVERVIEW');
+            setCurrentScreen('PROFILE');
           }}
         />
       </View>

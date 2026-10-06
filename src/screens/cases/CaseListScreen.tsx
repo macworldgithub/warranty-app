@@ -15,7 +15,7 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
-import { Bell, FileText, CheckCircle2, Clock, Car, Key, Home } from 'lucide-react-native';
+import { Bell, FileText, CheckCircle2, Clock, Car, Key, Home, Wrench } from 'lucide-react-native';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
@@ -42,6 +42,7 @@ interface CaseListScreenProps {
   onOpenLoaners?: () => void;
   onOpenRoadTest?: () => void;
   onOpenHome?: () => void;
+  onOpenHoists?: () => void;
   onLogout: () => void;
 }
 
@@ -87,6 +88,7 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   onOpenLoaners,
   onOpenRoadTest,
   onOpenHome,
+  onOpenHoists,
   onLogout: _onLogout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -871,14 +873,14 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {isAdmin ? (
           <>
-            {/* 1. Home / Tickets */}
+            {/* 1. Home */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => setActiveTab('all')}
+              onPress={onOpenHome || (() => setActiveTab('all'))}
               style={styles.bottomBarTab}
             >
-              <Home size={20} color={activeTab === 'all' ? colors.primary : colors.textSecondary} />
-              <Text style={[styles.bottomBarLabel, activeTab === 'all' && { color: colors.primary }]}>
+              <Home size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>
                 Home
               </Text>
             </TouchableOpacity>
@@ -895,14 +897,14 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               </Text>
             </TouchableOpacity>
 
-            {/* 3. Vehicles (Center) */}
+            {/* 3. Hoists */}
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={onOpenVehicles}
+              onPress={onOpenHoists}
               style={styles.bottomBarTab}
             >
-              <FileText size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Vehicles</Text>
+              <Wrench size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Hoists</Text>
             </TouchableOpacity>
 
             {/* 4. Loaners */}
@@ -957,16 +959,14 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
               <Text style={styles.bottomBarLabel}>Drive</Text>
             </TouchableOpacity>
 
-            {/* 3. Red Primary Action Button (Center) */}
+            {/* 3. Hoists */}
             <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={handleCreateNew}
-              style={styles.bottomBarActionBtn}
+              activeOpacity={0.7}
+              onPress={onOpenHoists}
+              style={styles.bottomBarTab}
             >
-              <Icon name="plus" size={15} color="#FFFFFF" />
-              <Text style={styles.bottomBarActionText} numberOfLines={1}>
-                New Warranty Case
-              </Text>
+              <Wrench size={20} color={colors.textSecondary} />
+              <Text style={styles.bottomBarLabel}>Hoists</Text>
             </TouchableOpacity>
 
             {/* 4. Loaners */}

@@ -20,7 +20,7 @@ import { loanAgreementsApi } from '../../api';
 import { casesApi } from '../../api/cases.api';
 import { sitesApi } from '../../api/sites.api';
 import { offlineStorage } from '../../services/offlineStorage';
-import { Key, Home, Car, Plus, LogOut } from 'lucide-react-native';
+import { Key, Home, Car, Plus, LogOut, Wrench } from 'lucide-react-native';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
 import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
@@ -39,6 +39,7 @@ interface LoanVehiclesScreenProps {
   onStartNewCase?: () => void;
   onOpenRoadTest?: () => void;
   onOpenHome?: () => void;
+  onOpenHoists?: () => void;
   onLogout?: () => void;
 }
 
@@ -74,6 +75,7 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   onStartNewCase,
   onOpenRoadTest,
   onOpenHome,
+  onOpenHoists,
   onLogout,
 }) => {
   const insets = useSafeAreaInsets();
@@ -847,10 +849,10 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
           <Text style={styles.bottomTabLabel}>Drive</Text>
         </TouchableOpacity>
 
-        {/* 3. + New Agreement (Center Action Button) */}
-        <TouchableOpacity style={styles.newAgreementBtn} onPress={chooseAgreementPurpose} activeOpacity={0.85}>
-          <Plus size={16} color="#FFF" strokeWidth={2.5} />
-          <Text style={styles.newAgreementBtnText}>New Agreement</Text>
+        {/* 3. Hoists */}
+        <TouchableOpacity style={styles.bottomTab} onPress={onOpenHoists} activeOpacity={0.75}>
+          <Wrench size={20} color={colors.textSecondary} />
+          <Text style={styles.bottomTabLabel}>Hoists</Text>
         </TouchableOpacity>
 
         {/* 4. Loaners (active) */}
