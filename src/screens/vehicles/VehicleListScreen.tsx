@@ -35,6 +35,7 @@ import {
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/common/Header';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import {
   notificationsService,
   AppNotificationPayload,
@@ -71,6 +72,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onOpenCase,
   onOpenProfile,
   onOpenLoaners,
+  onOpenRoadTest,
   onOpenHome,
   onOpenHoists,
   onLogout,
@@ -892,62 +894,22 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
         }}
       />
 
-      {/* ── 3. Fixed Bottom Navigation Bar (Home, Tickets, Hoists, Loaners, shaun) ── */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
-        {/* 1. Home */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenHome}
-          style={styles.bottomBarTab}
-        >
-          <Home size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Home</Text>
-        </TouchableOpacity>
-
-        {/* 2. Tickets */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => onOpenTickets('all')}
-          style={styles.bottomBarTab}
-        >
-          <FileText size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Tickets</Text>
-        </TouchableOpacity>
-
-        {/* 3. Hoists */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenHoists}
-          style={styles.bottomBarTab}
-        >
-          <Wrench size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Hoists</Text>
-        </TouchableOpacity>
-
-        {/* 4. Loaners */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenLoaners}
-          style={styles.bottomBarTab}
-        >
-          <Key size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Loaners</Text>
-        </TouchableOpacity>
-
-        {/* 5. User Profile / Initials Avatar */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenProfile}
-          style={styles.bottomBarTab}
-        >
-          <View style={styles.bottomBarAvatarCircle}>
-            <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>
-            {userFirstName}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── 3. Bottom Navigation Bar with sorted items & action ── */}
+      <BottomNavBar
+        activeTab="vehicles"
+        onOpenHome={onOpenHome}
+        onOpenDrive={onOpenRoadTest}
+        onOpenHoists={onOpenHoists}
+        onOpenLoaners={onOpenLoaners}
+        onOpenVehicles={() => {}}
+        onOpenTickets={onOpenTickets}
+        onOpenProfile={onOpenProfile}
+        actionButton={{
+          label: 'New Inspection',
+          icon: 'camera',
+          onPress: () => (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture(undefined as any) : undefined),
+        }}
+      />
 
       {/* Notifications Modal */}
       <NotificationModal

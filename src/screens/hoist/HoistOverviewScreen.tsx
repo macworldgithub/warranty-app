@@ -35,6 +35,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { useAuth } from '../../context/AuthContext';
 import { hoistApi } from '../../api/hoist.api';
 import {
@@ -79,6 +80,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
   onOpenLoaners,
   onOpenTickets,
   onOpenProfile,
+  onOpenVehicles,
 }) => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -234,11 +236,13 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
           onPress={() => setActiveTab('bays')}
           activeOpacity={0.8}
         >
-          <Wrench size={15} color={activeTab === 'bays' ? '#FFFFFF' : '#64748B'} />
+          <Wrench size={14} color={activeTab === 'bays' ? '#FFFFFF' : '#64748B'} />
           <Text
             style={[styles.viewSegmentText, activeTab === 'bays' && styles.viewSegmentTextActive]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
-            Bays & Checklist
+            Bays & Checks
           </Text>
         </TouchableOpacity>
 
@@ -251,7 +255,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
           activeOpacity={0.8}
         >
           <BarChart3
-            size={15}
+            size={14}
             color={activeTab === 'compliance' ? '#FFFFFF' : '#64748B'}
           />
           <Text
@@ -259,12 +263,26 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
               styles.viewSegmentText,
               activeTab === 'compliance' && styles.viewSegmentTextActive,
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
-            Daily Compliance
+            Compliance
           </Text>
           {complianceRate < 100 && (
-            <View style={styles.segmentBadge}>
-              <Text style={styles.segmentBadgeText}>{complianceRate}%</Text>
+            <View
+              style={[
+                styles.segmentBadge,
+                activeTab === 'compliance' && styles.segmentBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.segmentBadgeText,
+                  activeTab === 'compliance' && styles.segmentBadgeTextActive,
+                ]}
+              >
+                {complianceRate}%
+              </Text>
             </View>
           )}
         </TouchableOpacity>
@@ -274,15 +292,29 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
           onPress={() => setActiveTab('logs')}
           activeOpacity={0.8}
         >
-          <History size={15} color={activeTab === 'logs' ? '#FFFFFF' : '#64748B'} />
+          <History size={14} color={activeTab === 'logs' ? '#FFFFFF' : '#64748B'} />
           <Text
             style={[styles.viewSegmentText, activeTab === 'logs' && styles.viewSegmentTextActive]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
-            Inspection Logs
+            Logs
           </Text>
           {inspections.length > 0 && (
-            <View style={styles.segmentBadgeNeutral}>
-              <Text style={styles.segmentBadgeNeutralText}>{inspections.length}</Text>
+            <View
+              style={[
+                styles.segmentBadgeNeutral,
+                activeTab === 'logs' && styles.segmentBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.segmentBadgeNeutralText,
+                  activeTab === 'logs' && styles.segmentBadgeTextActive,
+                ]}
+              >
+                {inspections.length}
+              </Text>
             </View>
           )}
         </TouchableOpacity>
@@ -302,8 +334,10 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
               styles.facilityTabText,
               selectedFacility === 'all' && styles.facilityTabTextActive,
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
-            All Workshops ({totalBays})
+            All ({totalBays})
           </Text>
         </TouchableOpacity>
 
@@ -319,6 +353,8 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
               styles.facilityTabText,
               selectedFacility === 'hyundai_chery' && styles.facilityTabTextActiveLight,
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             Hyundai/Chery (11)
           </Text>
@@ -336,6 +372,8 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
               styles.facilityTabText,
               selectedFacility === 'byd_kia' && styles.facilityTabTextActiveLight,
             ]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
             BYD/Kia (12)
           </Text>
@@ -1080,69 +1118,16 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
       </Modal>
 
       {/* ── FIXED BOTTOM NAVIGATION BAR ─────────────────────────────────── */}
-      <View
-        style={[
-          styles.bottomBar,
-          { paddingBottom: Math.max(insets.bottom + 10, 24) },
-        ]}
-      >
-        {/* 1. Home */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenHome}
-          style={styles.bottomBarTab}
-        >
-          <Home size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Home</Text>
-        </TouchableOpacity>
-
-        {/* 2. Drive */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenRoadTest}
-          style={styles.bottomBarTab}
-        >
-          <Car size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Drive</Text>
-        </TouchableOpacity>
-
-        {/* 3. Hoists (ACTIVE) */}
-        <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
-          <Wrench size={22} color="#DC2626" />
-          <Text
-            style={[
-              styles.bottomBarLabel,
-              { color: '#DC2626', fontWeight: '800' },
-            ]}
-          >
-            Hoists
-          </Text>
-        </TouchableOpacity>
-
-        {/* 4. Loaners */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenLoaners}
-          style={styles.bottomBarTab}
-        >
-          <Key size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Loaners</Text>
-        </TouchableOpacity>
-
-        {/* 5. User Profile */}
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onPress={onOpenProfile}
-          style={styles.bottomBarUserTab}
-        >
-          <View style={styles.bottomBarAvatar}>
-            <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>
-            {userFirstName.toLowerCase()}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNavBar
+        activeTab="hoist"
+        onOpenHome={onOpenHome}
+        onOpenDrive={onOpenRoadTest}
+        onOpenHoists={() => {}}
+        onOpenLoaners={onOpenLoaners}
+        onOpenVehicles={onOpenVehicles}
+        onOpenTickets={onOpenTickets}
+        onOpenProfile={onOpenProfile}
+      />
     </View>
   );
 };
@@ -1191,54 +1176,65 @@ const styles = StyleSheet.create({
   viewSegmentContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    gap: 6,
+    gap: 5,
   },
   viewSegmentBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 8,
+    gap: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
+    minWidth: 0,
   },
   viewSegmentBtnActive: {
     backgroundColor: '#D71920',
   },
   viewSegmentText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748B',
+    flexShrink: 1,
   },
   viewSegmentTextActive: {
     color: '#FFFFFF',
   },
   segmentBadge: {
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 6,
+    borderRadius: 5,
+    marginLeft: 2,
+  },
+  segmentBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
   },
   segmentBadgeText: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '800',
     color: '#D97706',
   },
+  segmentBadgeTextActive: {
+    color: '#FFFFFF',
+  },
   segmentBadgeNeutral: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 5,
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 6,
+    borderRadius: 5,
+    marginLeft: 2,
   },
   segmentBadgeNeutralText: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#475569',
   },
 
   // ── FACILITY FILTER TABS ───────────────────────────────────────────

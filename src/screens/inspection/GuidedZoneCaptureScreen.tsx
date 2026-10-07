@@ -30,6 +30,7 @@ import {
 } from 'lucide-react-native';
 import { colors } from '../../theme/colors';
 import { Header } from '../../components/common/Header';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { GUIDED_CAPTURE_ZONES, CaptureZone } from '../../components/evidence/GuidedZoneStepper';
 import { cameraService } from '../../services/cameraService';
 import { offlineStorage, VehicleZoneInspection } from '../../services/offlineStorage';
@@ -574,62 +575,22 @@ export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = (
         </View>
       </ScrollView>
 
-      {/* ── 3. Bottom Navigation Bar Matching Exact Design ─────────────── */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
-        {/* 1. Home */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenHome}
-          style={styles.bottomBarTab}
-        >
-          <Home size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Home</Text>
-        </TouchableOpacity>
-
-        {/* 2. Center Red Primary Floating Pill Button: + Capture Photo */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => handleCapturePhoto(false)}
-          style={styles.bottomBarActionBtn}
-        >
-          <Camera size={16} color="#FFFFFF" strokeWidth={2.2} />
-          <Text style={styles.bottomBarActionText}>+ Capture Photo</Text>
-        </TouchableOpacity>
-
-        {/* 3. Hoists */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenHoists}
-          style={styles.bottomBarTab}
-        >
-          <Wrench size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Hoists</Text>
-        </TouchableOpacity>
-
-        {/* 4. Loaners */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenLoaners}
-          style={styles.bottomBarTab}
-        >
-          <Key size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Loaners</Text>
-        </TouchableOpacity>
-
-        {/* 5. User Profile / Initials Avatar */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenProfile}
-          style={styles.bottomBarTab}
-        >
-          <View style={styles.bottomBarAvatarCircle}>
-            <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>
-            {userFirstName}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── 3. Bottom Navigation Bar with sorted items & action ─────────────── */}
+      <BottomNavBar
+        activeTab="vehicles"
+        onOpenHome={onOpenHome}
+        onOpenDrive={onOpenHome}
+        onOpenHoists={onOpenHoists}
+        onOpenLoaners={onOpenLoaners}
+        onOpenVehicles={onBack}
+        onOpenTickets={onOpenTickets}
+        onOpenProfile={onOpenProfile}
+        actionButton={{
+          label: 'Capture Photo',
+          icon: 'camera',
+          onPress: () => handleCapturePhoto(false),
+        }}
+      />
     </View>
   );
 };

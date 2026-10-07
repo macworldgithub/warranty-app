@@ -6,3 +6,4 @@ export * from './Header';
 export * from './ProgressBar';
 export * from './Input';
 export * from './Tabs';
+export * from './BottomNavBar';

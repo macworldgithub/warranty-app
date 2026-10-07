@@ -41,6 +41,7 @@ import { roadTestService } from '../../services/roadtest.service';
 import { rooftopVehiclesService } from '../../services/rooftopVehicles.service';
 import { notificationsService, AppNotificationPayload } from '../../services/notifications.service';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { WarrantyCase, LoanAgreement } from '../../types';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
@@ -745,60 +746,22 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
         </Text>
       </ScrollView>
 
-      {/* ── 3. Bottom Navigation Bar (Drive, Hoists, Loaners) ──────────── */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 10, 24) }]}>
-        {/* 1. Home (ACTIVE) */}
-        <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
-          <Home size={22} color="#DC2626" />
-          <Text style={[styles.bottomBarLabel, { color: '#DC2626', fontWeight: '700' }]}>
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        {/* 2. Drive */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenRoadTest}
-          style={styles.bottomBarTab}
-        >
-          <Car size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Drive</Text>
-        </TouchableOpacity>
-
-        {/* 3. Hoists */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenHoists}
-          style={styles.bottomBarTab}
-        >
-          <Wrench size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Hoists</Text>
-        </TouchableOpacity>
-
-        {/* 4. Loaners */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onOpenLoaners}
-          style={styles.bottomBarTab}
-        >
-          <Key size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Loaners</Text>
-        </TouchableOpacity>
-
-        {/* 5. User Profile */}
-        <TouchableOpacity
-          activeOpacity={0.75}
-          onPress={onOpenProfile}
-          style={styles.bottomBarUserTab}
-        >
-          <View style={styles.bottomBarAvatar}>
-            <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>
-            {userFirstName.toLowerCase()}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── 3. Bottom Navigation Bar with sorted items & context action ──────────── */}
+      <BottomNavBar
+        activeTab="home"
+        onOpenHome={() => {}}
+        onOpenDrive={onOpenRoadTest}
+        onOpenHoists={onOpenHoists}
+        onOpenLoaners={onOpenLoaners}
+        onOpenVehicles={onOpenVehicles}
+        onOpenTickets={onOpenTickets}
+        onOpenProfile={onOpenProfile}
+        actionButton={{
+          label: 'New Inspection',
+          icon: 'camera',
+          onPress: () => (onStartNewInspection ? onStartNewInspection() : onOpenZoneCapture ? onOpenZoneCapture() : undefined),
+        }}
+      />
 
       {/* Notification Modal */}
       <NotificationModal

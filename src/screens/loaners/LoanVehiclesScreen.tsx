@@ -21,6 +21,7 @@ import { casesApi } from '../../api/cases.api';
 import { sitesApi } from '../../api/sites.api';
 import { offlineStorage } from '../../services/offlineStorage';
 import { Key, Home, Car, Plus, LogOut, Wrench } from 'lucide-react-native';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { ReturnLoanerModal } from './ReturnLoanerModal';
 import { IssueLoanerWizardScreen } from './IssueLoanerWizardScreen';
 import { LoanAgreementPdfModal } from './LoanAgreementPdfModal';
@@ -442,7 +443,27 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
   };
 
   const chooseAgreementPurpose = () => {
-    openAgreementWizard('SERVICE_LOANER');
+    Alert.alert(
+      'Issue Loan Agreement',
+      'Select agreement purpose:',
+      [
+        {
+          text: 'Service Loan Vehicle',
+          onPress: () => {
+            setWizardPurpose('SERVICE_LOANER');
+            setIsWizardOpen(true);
+          },
+        },
+        {
+          text: 'Customer Test Drive',
+          onPress: () => {
+            setWizardPurpose('TEST_DRIVE');
+            setIsWizardOpen(true);
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const todayDateStr = new Date().toDateString();
@@ -836,41 +857,21 @@ export const LoanVehiclesScreen: React.FC<LoanVehiclesScreenProps> = ({
       </ScrollView>
 
       {/* ── BOTTOM NAVIGATION BAR ───────────────────────────────────────── */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
-        {/* 1. Home */}
-        <TouchableOpacity style={styles.bottomTab} onPress={onOpenHome || (() => onOpenTickets?.('all'))} activeOpacity={0.75}>
-          <Home size={20} color={colors.textSecondary} />
-          <Text style={styles.bottomTabLabel}>Home</Text>
-        </TouchableOpacity>
-
-        {/* 2. Drive */}
-        <TouchableOpacity style={styles.bottomTab} onPress={onOpenRoadTest} activeOpacity={0.75}>
-          <Car size={20} color={colors.textSecondary} />
-          <Text style={styles.bottomTabLabel}>Drive</Text>
-        </TouchableOpacity>
-
-        {/* 3. Hoists */}
-        <TouchableOpacity style={styles.bottomTab} onPress={onOpenHoists} activeOpacity={0.75}>
-          <Wrench size={20} color={colors.textSecondary} />
-          <Text style={styles.bottomTabLabel}>Hoists</Text>
-        </TouchableOpacity>
-
-        {/* 4. Loaners (active) */}
-        <TouchableOpacity style={styles.bottomTab} activeOpacity={0.75}>
-          <Key size={20} color="#D71920" />
-          <Text style={[styles.bottomTabLabel, { color: '#D71920', fontWeight: '700' }]}>Loaners</Text>
-        </TouchableOpacity>
-
-        {/* 5. User avatar */}
-        <TouchableOpacity style={styles.bottomTab} onPress={onOpenProfile} activeOpacity={0.75}>
-          <View style={styles.bottomAvatar}>
-            <Text style={styles.bottomAvatarText}>{getUserInitials(user?.name)}</Text>
-          </View>
-          <Text style={styles.bottomTabLabel} numberOfLines={1}>
-            {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'shaun'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNavBar
+        activeTab="loaner"
+        onOpenHome={onOpenHome || (() => onOpenTickets?.('all'))}
+        onOpenDrive={onOpenRoadTest}
+        onOpenHoists={onOpenHoists}
+        onOpenLoaners={() => {}}
+        onOpenVehicles={onOpenVehicles}
+        onOpenTickets={onOpenTickets ? (tab) => onOpenTickets(tab as any) : undefined}
+        onOpenProfile={onOpenProfile}
+        actionButton={{
+          label: 'New Agreement',
+          icon: 'plus',
+          onPress: chooseAgreementPurpose,
+        }}
+      />
 
       {/* ── MODALS ─────────────────────────────────────────────────────── */}
       <ReturnLoanerModal

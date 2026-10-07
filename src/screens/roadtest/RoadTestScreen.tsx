@@ -52,6 +52,7 @@ import { useGeofence } from '../../context/GeofenceContext';
 import { RoadTestRouteMap, MiniRoutePreview } from '../../components/roadtest/RoadTestRouteMap';
 import { Header } from '../../components/common/Header';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { notificationsService } from '../../services/notifications.service';
 import { casesApi } from '../../api/cases.api';
 import { sitesApi } from '../../api/sites.api';
@@ -504,40 +505,17 @@ export function RoadTestScreen({
           </TouchableOpacity>
         </View>
 
-        {/* 5. Website-Style Bottom Navigation Bar (Figma Image 1) */}
-        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 10, 24) }]}>
-          {/* 1. Home */}
-          <TouchableOpacity activeOpacity={0.7} onPress={onOpenHome || onOpenTickets} style={styles.bottomBarTab}>
-            <Home size={22} color={colors.textSecondary} />
-            <Text style={styles.bottomBarLabel}>Home</Text>
-          </TouchableOpacity>
-
-          {/* 2. Drive (ACTIVE) */}
-          <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
-            <Car size={22} color="#DC2626" />
-            <Text style={[styles.bottomBarLabel, { color: '#DC2626', fontWeight: '700' }]}>Drive</Text>
-          </TouchableOpacity>
-
-          {/* 3. Hoists */}
-          <TouchableOpacity activeOpacity={0.7} onPress={onOpenHoists} style={styles.bottomBarTab}>
-            <Wrench size={22} color={colors.textSecondary} />
-            <Text style={styles.bottomBarLabel}>Hoists</Text>
-          </TouchableOpacity>
-
-          {/* 4. Loaners */}
-          <TouchableOpacity activeOpacity={0.7} onPress={onOpenLoaners} style={styles.bottomBarTab}>
-            <Key size={22} color={colors.textSecondary} />
-            <Text style={styles.bottomBarLabel}>Loaners</Text>
-          </TouchableOpacity>
-
-          {/* 5. Profile */}
-          <TouchableOpacity activeOpacity={0.75} onPress={onOpenProfile} style={styles.bottomBarUserTab}>
-            <View style={styles.bottomBarAvatar}>
-              <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
-            </View>
-            <Text style={styles.bottomBarLabel} numberOfLines={1}>{userFirstName}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* 5. Bottom Navigation Bar */}
+        <BottomNavBar
+          activeTab="drive"
+          onOpenHome={onOpenHome}
+          onOpenDrive={() => {}}
+          onOpenHoists={onOpenHoists}
+          onOpenLoaners={onOpenLoaners}
+          onOpenVehicles={onOpenVehicles}
+          onOpenTickets={onOpenTickets}
+          onOpenProfile={onOpenProfile}
+        />
 
         <NotificationModal
           visible={showNotifModal}
@@ -756,40 +734,22 @@ export function RoadTestScreen({
         ))}
       </ScrollView>
 
-      {/* 3. Website-Style Bottom Navigation Bar (Figma Image 2) */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 10, 24) }]}>
-        {/* 1. Home */}
-        <TouchableOpacity activeOpacity={0.7} onPress={onOpenHome || onOpenTickets} style={styles.bottomBarTab}>
-          <Home size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Home</Text>
-        </TouchableOpacity>
-
-        {/* 2. Drive (ACTIVE) */}
-        <TouchableOpacity activeOpacity={0.7} style={styles.bottomBarTab}>
-          <Car size={22} color="#DC2626" />
-          <Text style={[styles.bottomBarLabel, { color: '#DC2626', fontWeight: '700' }]}>Drive</Text>
-        </TouchableOpacity>
-
-        {/* 3. Hoists */}
-        <TouchableOpacity activeOpacity={0.7} onPress={onOpenHoists} style={styles.bottomBarTab}>
-          <Wrench size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Hoists</Text>
-        </TouchableOpacity>
-
-        {/* 4. Loaners */}
-        <TouchableOpacity activeOpacity={0.7} onPress={onOpenLoaners} style={styles.bottomBarTab}>
-          <Key size={22} color={colors.textSecondary} />
-          <Text style={styles.bottomBarLabel}>Loaners</Text>
-        </TouchableOpacity>
-
-        {/* 5. Profile */}
-        <TouchableOpacity activeOpacity={0.75} onPress={onOpenProfile} style={styles.bottomBarUserTab}>
-          <View style={styles.bottomBarAvatar}>
-            <Text style={styles.bottomBarAvatarText}>{userInitials}</Text>
-          </View>
-          <Text style={styles.bottomBarLabel} numberOfLines={1}>{userFirstName}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* 3. Bottom Navigation Bar with sorted items & Start Drive action */}
+      <BottomNavBar
+        activeTab="drive"
+        onOpenHome={onOpenHome}
+        onOpenDrive={() => {}}
+        onOpenHoists={onOpenHoists}
+        onOpenLoaners={onOpenLoaners}
+        onOpenVehicles={onOpenVehicles}
+        onOpenTickets={onOpenTickets}
+        onOpenProfile={onOpenProfile}
+        actionButton={{
+          label: 'Start Drive',
+          icon: 'plus',
+          onPress: handleStartDrive,
+        }}
+      />
 
       {/* Trip Details Inspection Modal */}
       <Modal

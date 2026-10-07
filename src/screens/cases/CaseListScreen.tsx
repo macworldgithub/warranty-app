@@ -20,6 +20,7 @@ import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Header } from '../../components/common/Header';
 import { Tabs, TabItem } from '../../components/common/Tabs';
+import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { useAuth } from '../../context/AuthContext';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { casesApi } from '../../api/cases.api';
@@ -869,137 +870,22 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
         }}
       />
 
-      {/* Website-Style 5-Item Symmetrical Bottom Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
-        {isAdmin ? (
-          <>
-            {/* 1. Home */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenHome || (() => setActiveTab('all'))}
-              style={styles.bottomBarTab}
-            >
-              <Home size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>
-                Home
-              </Text>
-            </TouchableOpacity>
-
-            {/* 2. Drive (Always visible) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>
-                Drive
-              </Text>
-            </TouchableOpacity>
-
-            {/* 3. Hoists */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenHoists}
-              style={styles.bottomBarTab}
-            >
-              <Wrench size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Hoists</Text>
-            </TouchableOpacity>
-
-            {/* 4. Loaners */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenLoaners}
-              style={styles.bottomBarTab}
-            >
-              <Key size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Loaners</Text>
-            </TouchableOpacity>
-
-            {/* 5. Logged-in User Profile */}
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={onOpenProfile}
-              style={styles.bottomBarUserTab}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={[styles.bottomBarAvatar, styles.bottomBarAvatarAdmin]}>
-                <Text style={[styles.bottomBarAvatarText, styles.bottomBarAvatarTextAdmin]}>
-                  {getUserInitials(user?.name)}
-                </Text>
-              </View>
-              <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {/* Technician Layout */}
-            {/* 1. Home */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenHome || (() => setActiveTab('all'))}
-              style={styles.bottomBarTab}
-            >
-              <Home size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>
-                Home
-              </Text>
-            </TouchableOpacity>
-
-            {/* 2. Drive (Always visible in bottom navbar) */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenRoadTest}
-              style={styles.bottomBarTab}
-            >
-              <Car size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Drive</Text>
-            </TouchableOpacity>
-
-            {/* 3. Hoists */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenHoists}
-              style={styles.bottomBarTab}
-            >
-              <Wrench size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>Hoists</Text>
-            </TouchableOpacity>
-
-            {/* 4. Loaners */}
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={onOpenLoaners}
-              style={styles.bottomBarTab}
-            >
-              <Key size={20} color={colors.textSecondary} />
-              <Text style={styles.bottomBarLabel}>
-                Loaners
-              </Text>
-            </TouchableOpacity>
-
-            {/* 5. Profile */}
-            <TouchableOpacity
-              activeOpacity={0.75}
-              onPress={onOpenProfile}
-              style={styles.bottomBarUserTab}
-              accessibilityLabel="Account Profile"
-            >
-              <View style={styles.bottomBarAvatar}>
-                <Text style={styles.bottomBarAvatarText}>
-                  {getUserInitials(user?.name)}
-                </Text>
-              </View>
-              <Text style={styles.bottomBarLabel} numberOfLines={1}>
-                {user?.name ? user.name.trim().split(/\s+/)[0].toLowerCase() : 'profile'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+      {/* Bottom Navigation Bar */}
+      <BottomNavBar
+        activeTab="tickets"
+        onOpenHome={onOpenHome || (() => setActiveTab('all'))}
+        onOpenDrive={onOpenRoadTest}
+        onOpenHoists={onOpenHoists}
+        onOpenLoaners={onOpenLoaners}
+        onOpenVehicles={onOpenVehicles}
+        onOpenTickets={() => setActiveTab('all')}
+        onOpenProfile={onOpenProfile}
+        actionButton={{
+          label: 'New Ticket',
+          icon: 'plus',
+          onPress: onStartNewCase,
+        }}
+      />
 
       {/* Notification Bell History Modal */}
       <NotificationModal
