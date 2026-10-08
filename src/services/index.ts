@@ -7,5 +7,6 @@ export * from './scanbot.service';
 export * from './barcodeScanner.service';
 export * from './cameraService';
 export * from './voiceRecordingService';
+export * from './brandPacks.service';
 
 

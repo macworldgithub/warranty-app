@@ -21,7 +21,7 @@ import { useAuth } from './AuthContext';
 interface CaseWizardState {
   currentStep: number; // 0 to 6
   caseId: string | null;
-  
+
   // Step 0 - Start Ticket
   siteId: string;
   siteName: string;
@@ -74,7 +74,7 @@ interface CaseWizardContextType extends CaseWizardState {
   setStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
-  
+
   // Step 0 Setters
   setSite: (site: Site) => void;
   setBrand: (brand: Brand) => void;
@@ -230,6 +230,9 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const setBrand = async (brand: Brand) => {
+    const brandId = brand.id || (brand as any).brandId || 'brand_byd';
+    const brandName = brand.name || (brand as any).brandName || 'BYD';
+
     setState(prev => ({
       ...prev,
       brandId: brand.id,
@@ -244,7 +247,16 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!brand.id) return;
 
     try {
-      const bp = await brandPacksApi.getActiveByBrandId(brand.id);
+      const bp = await brandPacksApi.getActiveByBrandId(brandId);
+      const evalRes = await brandPacksApi.evaluateRules({
+        brandId,
+        faultCategory: state.faultCategory || 'General / other',
+        partReplaced: state.partReplaced,
+        noiseFault: state.noiseFault,
+        diagnosticsAvailable: state.diagnosticsAvailable,
+        repairStage: state.repairStage,
+      });
+
       setState(prev => ({
         ...prev,
         activeBrandPack: bp,
@@ -258,6 +270,10 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }));
     }
   };
+
+  useEffect(() => {
+    evaluateRules();
+  }, [evaluateRules]);
 
   const setRoNumber = (ro: string) => {
     setState(prev => ({ ...prev, roNumber: ro.toUpperCase() }));

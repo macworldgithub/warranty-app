@@ -235,6 +235,14 @@ export const Step0_StartTicket: React.FC<Step0Props> = ({ onNext, onCancel }) =>
                 );
               })}
             </View>
+            <View style={styles.criteriaInfoRow}>
+              <Icon name="shield" size={14} color={colors.primary} />
+              <Text style={styles.criteriaInfoText}>
+                {brandId?.toLowerCase().includes('byd')
+                  ? 'BYD Attachment A Pack Active (Tier 1 + Fault Annex 2)'
+                  : 'Multi-Brand Standard Pack Active (Tier 1 Baseline)'}
+              </Text>
+            </View>
           </>
         )}
       </Card>
@@ -378,6 +386,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     marginTop: spacing.lg,
+  },
+  criteriaInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceHighlight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: spacing.borderRadius.sm,
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(225, 31, 38, 0.15)',
+  },
+  criteriaInfoText: {
+    fontSize: typography.sizes.xs,
+    color: colors.primary,
+    fontWeight: typography.weights.semibold,
   },
 });
 
