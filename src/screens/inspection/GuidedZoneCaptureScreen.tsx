@@ -35,13 +35,14 @@ import { GUIDED_CAPTURE_ZONES, CaptureZone } from '../../components/evidence/Gui
 import { cameraService } from '../../services/cameraService';
 import { offlineStorage, VehicleZoneInspection } from '../../services/offlineStorage';
 import { evidenceUploadService } from '../../services/evidenceUpload.service';
-import { RooftopVehicle } from '../../services/rooftopVehicles.service';
+import { rooftopVehiclesService, RooftopVehicle } from '../../services/rooftopVehicles.service';
 import { useAuth } from '../../context/AuthContext';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { EvidenceItem } from '../../types';
 
 interface GuidedZoneCaptureScreenProps {
   vehicle?: RooftopVehicle | null;
+  onSelectVehicle?: (vehicle: RooftopVehicle) => void;
   onBack: () => void;
   onOpenHome?: () => void;
   onOpenTickets?: () => void;
@@ -74,7 +75,8 @@ const DEFAULT_VEHICLE: RooftopVehicle = {
 };
 
 export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = ({
-  vehicle = DEFAULT_VEHICLE,
+  vehicle,
+  onSelectVehicle,
   onBack,
   onOpenHome,
   onOpenTickets,
@@ -85,7 +87,7 @@ export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = (
   onCompleteInspection,
 }) => {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, activeSiteId } = useAuth();
   const {
     vin: wizardVin,
     make: wizardMake,
@@ -269,6 +271,59 @@ export const GuidedZoneCaptureScreen: React.FC<GuidedZoneCaptureScreenProps> = (
   }, [user?.name]);
 
   const inspectionNumber = activeVehicle.inspectionNumber || activeVehicle.roNumber || '180001';
+
+  const isVehicleSelectionMode = !vehicle && !wizardVin;
+  const selectableVehicles = useMemo(
+    () =>
+      rooftopVehiclesService.getVehiclesForRooftop(
+        activeSiteId || user?.defaultSiteId || user?.authorizedSiteIds?.[0] || 'site_cranbourne_byd'
+      ),
+    [activeSiteId, user?.defaultSiteId, user?.authorizedSiteIds]
+  );
+
+  if (isVehicleSelectionMode) {
+    return (
+      <View style={styles.container}>
+        <Header
+          title="New Inspection"
+          onBack={onBack}
+          onLogout={onLogout}
+          showBrandLogo={false}
+        />
+        <ScrollView contentContainerStyle={styles.vehicleSelectionContainer}>
+          <Text style={styles.vehicleSelectionTitle}>Select a vehicle</Text>
+          <Text style={styles.vehicleSelectionSubtitle}>
+            Choose the vehicle you want to inspect. No vehicle has been selected yet.
+          </Text>
+
+          {selectableVehicles.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              activeOpacity={0.85}
+              style={styles.vehicleSelectionCard}
+              onPress={() => onSelectVehicle?.(item)}
+            >
+              <View style={styles.vehicleSelectionIcon}>
+                <Car size={22} color={colors.primary} />
+              </View>
+              <View style={styles.vehicleSelectionDetails}>
+                <Text style={styles.vehicleSelectionName}>
+                  {item.year} {item.make} {item.model}
+                </Text>
+                <Text style={styles.vehicleSelectionMeta}>
+                  {item.rego} · VIN {item.vin}
+                </Text>
+                <Text style={styles.vehicleSelectionStatus}>
+                  {item.warrantyStatus}
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -599,6 +654,60 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  vehicleSelectionContainer: {
+    padding: 20,
+    paddingBottom: 48,
+  },
+  vehicleSelectionTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 6,
+  },
+  vehicleSelectionSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+    marginBottom: 20,
+  },
+  vehicleSelectionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    gap: 12,
+  },
+  vehicleSelectionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surfaceHighlight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleSelectionDetails: {
+    flex: 1,
+  },
+  vehicleSelectionName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  vehicleSelectionMeta: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  vehicleSelectionStatus: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 5,
   },
   scroll: {
     flex: 1,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Modal,
+  useWindowDimensions,
+  BackHandler,
   View,
   Text,
   StyleSheet,
@@ -37,6 +38,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
   onClose,
   onSelectNotification,
 }) => {
+  const { height } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [notifications, setNotifications] = useState<AppNotificationPayload[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -52,6 +54,12 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
       refreshList();
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
+    return () => subscription.remove();
+  }, [visible, onClose]);
 
   useEffect(() => {
     const unsubscribe = notificationsService.onNotification(() => {
@@ -131,13 +139,10 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     }
   };
 
+  if (!visible) return null;
+
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
+    <View style={[styles.panel, { height }]}>
       <View style={styles.overlay}>
         <View style={styles.modalCard}>
           {/* Modal Header */}
@@ -320,11 +325,15 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  panel: {
+    position: 'absolute', top: 0, left: 0, right: 0,
+    zIndex: 10000, elevation: 30,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',

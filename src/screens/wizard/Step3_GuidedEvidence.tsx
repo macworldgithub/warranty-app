@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -11,7 +12,9 @@ import { spacing } from '../../theme/spacing';
 import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { Card } from '../../components/common/Card';
 import { EvidenceCard } from '../../components/evidence/EvidenceCard';
+import { ManufacturerBulletins } from '../../components/evidence/ManufacturerBulletins';
 import { GuidedZoneStepper } from '../../components/evidence/GuidedZoneStepper';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 
@@ -29,6 +32,10 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
     getEvidenceForRule,
     addVoiceNote,
     roNumber,
+    brandName,
+    brandId,
+    activeBrandPack,
+    isLoadingRules,
     isFlaggedMode,
     flaggedRuleKeys,
   } = useCaseWizard();
@@ -49,8 +56,6 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
     return !!ev?.fileUri || !!ev?.serverUrl;
   });
 
-  const isTier1Complete = completedTier1.length === mandatoryTier1.length;
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header */}
@@ -63,12 +68,32 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
             size="sm"
           />
         </View>
-        <Text style={styles.sectionDesc}>
-          Take photos or videos of the issue. All items are optional.
-        </Text>
+        <Text style={styles.sectionDesc}>Capture the evidence required for this manufacturer and repair.</Text>
       </View>
 
+      <Card
+        title={`${brandName || 'Selected manufacturer'} evidence path`}
+        subtitle={
+          activeBrandPack
+            ? `${activeBrandPack.name} · Version ${activeBrandPack.version}`
+            : 'Loading the manufacturer warranty requirements'
+        }
+        rightAction={
+          isLoadingRules ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Badge label={`${tier1Rules.length} capture items`} variant="primary" size="sm" />
+          )
+        }
+      >
+        <Text style={styles.pathDescription}>
+          These capture items come from the active {brandName || 'manufacturer'} warranty pack.
+          Follow this path for the selected manufacturer’s warranty evidence.
+        </Text>
+      </Card>
+
       {/* Flagged Mode Alert */}
+      <ManufacturerBulletins key={brandId} brandId={brandId || undefined} brandName={brandName} />
       {isFlaggedMode && (
         <View style={styles.flagBanner}>
           <Icon name="flag" size={18} color={colors.flagged} />
@@ -78,13 +103,15 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
         </View>
       )}
 
-      {/* Guided 10-Zone Capture Stepper */}
-      <GuidedZoneStepper
-        evidenceItems={evidenceItems}
-        onSaveEvidence={saveEvidenceItem}
-        onRemoveEvidence={removeEvidenceItem}
-        roNumber={roNumber}
-      />
+      {/* Use the legacy generic path only while no manufacturer rules are available. */}
+      {!isLoadingRules && resolvedRules.length === 0 && (
+        <GuidedZoneStepper
+          evidenceItems={evidenceItems}
+          onSaveEvidence={saveEvidenceItem}
+          onRemoveEvidence={removeEvidenceItem}
+          roNumber={roNumber}
+        />
+      )}
 
       {/* Dynamic Evidence Cards */}
       {tier1Rules.map(rule => {
@@ -104,6 +131,15 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
           />
         );
       })}
+
+      {!isLoadingRules && resolvedRules.length > 0 && tier1Rules.length === 0 && (
+        <Card title="No additional capture items">
+          <Text style={styles.pathDescription}>
+            The selected manufacturer pack has no Tier 1 evidence items for this repair.
+            Continue to review the other required evidence sections.
+          </Text>
+        </Card>
+      )}
 
       {/* Nav Row */}
       <View style={styles.navRow}>
@@ -148,6 +184,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     color: colors.textSecondary,
     marginTop: 4,
+  },
+  pathDescription: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
   flagBanner: {
     flexDirection: 'row',

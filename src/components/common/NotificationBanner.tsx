@@ -7,6 +7,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -30,6 +31,7 @@ export function NotificationBanner({
   onPress,
   onDismiss,
 }: NotificationBannerProps) {
+  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(-120)).current;
 
   useEffect(() => {
@@ -110,6 +112,7 @@ export function NotificationBanner({
       style={[
         styles.container,
         {
+          top: insets.top + 110,
           transform: [{ translateY: slideAnim }],
         },
       ]}
@@ -177,7 +180,7 @@ export function NotificationBanner({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 48 : 12,
+    top: 110,
     left: 12,
     right: 12,
     zIndex: 9999,

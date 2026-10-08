@@ -42,6 +42,7 @@ import { rooftopVehiclesService } from '../../services/rooftopVehicles.service';
 import { notificationsService, AppNotificationPayload } from '../../services/notifications.service';
 import { NotificationModal } from '../../components/notifications/NotificationModal';
 import { BottomNavBar } from '../../components/common/BottomNavBar';
+import { LogoutDialog } from '../../components/common/LogoutDialog';
 import { WarrantyCase, LoanAgreement } from '../../types';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
@@ -261,24 +262,12 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
   const isClerk = user?.role === 'CLERK';
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of Booran Motors Portal?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            onLogout ? onLogout() : logout();
-          },
-        },
-      ]
-    );
+    onLogout ? onLogout() : logout();
   };
 
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
 
   // Real Data States
@@ -485,7 +474,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
   return (
     <View style={styles.container}>
       {/* ── 1. Top Red Brand Header Bar (Exact match to screenshot) ──────── */}
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'ios' ? 8 : 12) }]}>
+      <View collapsable={false} style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'ios' ? 8 : 12) }]}>
         <View style={styles.headerContent}>
           {/* Logo on Left */}
           <View style={styles.logoWrap}>
@@ -493,7 +482,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
           </View>
 
           {/* Right Action Items: Off-site pill + Bell Button */}
-          <View style={styles.headerRight}>
+          <View collapsable={false} style={styles.headerRight}>
             {/* Geofence Pill Badge */}
             <TouchableOpacity
               activeOpacity={0.8}
@@ -521,6 +510,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
               onPress={() => setShowNotifModal(true)}
               style={styles.bellButton}
               accessibilityLabel="Notifications"
+              hitSlop={8}
             >
               <Bell size={22} color="#FFFFFF" strokeWidth={2} />
               {unreadNotifCount > 0 && (
@@ -533,9 +523,10 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
             {/* Logout Button on Extreme Right */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={handleLogout}
+              onPress={() => setShowLogoutDialog(true)}
               style={styles.logoutButton}
               accessibilityLabel="Log Out"
+              hitSlop={8}
             >
               <LogOut size={20} color="#FFFFFF" strokeWidth={2.2} />
             </TouchableOpacity>
@@ -749,7 +740,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
       {/* ── 3. Bottom Navigation Bar with sorted items & context action ──────────── */}
       <BottomNavBar
         activeTab="home"
-        onOpenHome={() => {}}
+        onOpenHome={() => { }}
         onOpenDrive={onOpenRoadTest}
         onOpenHoists={onOpenHoists}
         onOpenLoaners={onOpenLoaners}
@@ -764,6 +755,7 @@ export const TechnicianHomeScreen: React.FC<TechnicianHomeScreenProps> = ({
       />
 
       {/* Notification Modal */}
+      <LogoutDialog visible={showLogoutDialog} onCancel={() => setShowLogoutDialog(false)} onConfirm={() => { setShowLogoutDialog(false); handleLogout(); }} />
       <NotificationModal
         visible={showNotifModal}
         onClose={() => setShowNotifModal(false)}
@@ -783,6 +775,9 @@ const styles = StyleSheet.create({
 
   // ── HEADER ──────────────────────────────────────────────────────────
   header: {
+    position: 'relative',
+    zIndex: 20,
+    flexShrink: 0,
     backgroundColor: '#D71920',
     paddingHorizontal: 16,
     paddingBottom: 14,
@@ -799,14 +794,19 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   logoWrap: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
   },
   logoImage: {
+    maxWidth: '100%',
     width: 140,
     height: 38,
   },
   headerRight: {
+    zIndex: 1,
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

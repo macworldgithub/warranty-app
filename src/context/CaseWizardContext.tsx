@@ -235,14 +235,28 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       brandId: brand.id,
       brandName: brand.name,
       make: brand.name,
+      activeBrandPack: null,
+      resolvedRules: [],
+      isLoadingRules: Boolean(brand.id),
     }));
+
+    // Clearing the brand when the dealership changes must not trigger a request.
+    if (!brand.id) return;
+
     try {
       const bp = await brandPacksApi.getActiveByBrandId(brand.id);
       setState(prev => ({
         ...prev,
         activeBrandPack: bp,
+        resolvedRules: bp.rules || [],
+        isLoadingRules: false,
       }));
-    } catch (e) {}
+    } catch {
+      setState(prev => ({
+        ...prev,
+        isLoadingRules: false,
+      }));
+    }
   };
 
   const setRoNumber = (ro: string) => {

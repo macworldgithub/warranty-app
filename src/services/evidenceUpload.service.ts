@@ -12,6 +12,10 @@ export const evidenceUploadService = {
     roNumber?: string;
     evidenceItem: EvidenceItem;
     caseId?: string;
+    brandId?: string;
+    siteId?: string;
+    brandPackId?: string;
+    brandPackVersion?: number;
     vehicleDetails?: {
       make?: string;
       model?: string;
@@ -40,6 +44,10 @@ export const evidenceUploadService = {
       if (!targetCaseId && cleanVin) {
         try {
           const created = await casesApi.createCase({
+            brandId: params.brandId,
+            siteId: params.siteId,
+            brandPackId: params.brandPackId,
+            brandPackVersion: params.brandPackVersion,
             vin: cleanVin,
             roNumber: roNumber || '180001',
             make: vehicleDetails?.make || 'BYD',

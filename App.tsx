@@ -43,7 +43,7 @@ import {
 import { casesApi } from './src/api';
 import { RoadTestScreen } from './src/screens/roadtest/RoadTestScreen';
 import { TechnicianHomeScreen } from './src/screens/home/TechnicianHomeScreen';
-import { GuidedZoneCaptureScreen } from './src/screens/inspection/GuidedZoneCaptureScreen';
+import { ManufacturerInspectionScreen as GuidedZoneCaptureScreen } from './src/screens/inspection/ManufacturerInspectionScreen';
 import { HoistOverviewScreen } from './src/screens/hoist/HoistOverviewScreen';
 import { HoistInspectionScreen } from './src/screens/hoist/HoistInspectionScreen';
 import { HoistHistoryScreen } from './src/screens/hoist/HoistHistoryScreen';
@@ -233,6 +233,7 @@ function MainNavigator() {
           onStartNewInspection={() => {
             setSelectedInspectionVehicle(null);
             setPreviousScreen('TECH_HOME');
+            // Open the inspection flow in vehicle-selection mode.
             setCurrentScreen('ZONE_CAPTURE');
           }}
           onOpenCase={(caseItem) => {
@@ -371,6 +372,7 @@ function MainNavigator() {
           onStartNewInspection={() => {
             setSelectedInspectionVehicle(null);
             setPreviousScreen('VEHICLES');
+            // Open the inspection flow in vehicle-selection mode.
             setCurrentScreen('ZONE_CAPTURE');
           }}
         />
@@ -389,6 +391,7 @@ function MainNavigator() {
         />
         <GuidedZoneCaptureScreen
           vehicle={selectedInspectionVehicle}
+          onSelectVehicle={(vehicle) => setSelectedInspectionVehicle(vehicle)}
           onBack={() => setCurrentScreen(previousScreen || 'VEHICLES')}
           onOpenHome={() => {
             setPreviousScreen('ZONE_CAPTURE');

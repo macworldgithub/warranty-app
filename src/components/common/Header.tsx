@@ -9,7 +9,9 @@ import { Badge } from './Badge';
 import { useNetwork } from '../../context/NetworkContext';
 import { useGeofence } from '../../context/GeofenceContext';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut } from 'lucide-react-native';
+import { Bell, LogOut } from 'lucide-react-native';
+import { NotificationModal } from '../notifications/NotificationModal';
+import { LogoutDialog } from './LogoutDialog';
 
 const booranLogo = require('../../assets/images/booran-motors-transparent.png');
 
@@ -59,29 +61,15 @@ export const Header: React.FC<HeaderProps> = ({
   } = useGeofence();
 
   const [showPresenceModal, setShowPresenceModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  const shouldShowLogout = showLogout !== undefined ? showLogout : !onBack;
+  const shouldShowLogout = showLogout !== undefined ? showLogout : true;
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of Booran Motors Portal?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            if (onLogout) {
-              onLogout();
-            } else {
-              logout();
-            }
-          },
-        },
-      ]
-    );
+    if (onLogout) onLogout();
+    else logout();
   };
 
   useEffect(() => {
@@ -107,7 +95,7 @@ export const Header: React.FC<HeaderProps> = ({
   const hasTitleContent = Boolean(title || subtitle);
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
+    <View collapsable={false} style={[styles.header, { paddingTop: insets.top + spacing.xs }]}>
       <View style={styles.topRow}>
         {onBack ? (
           <TouchableOpacity
@@ -149,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
           <View style={styles.spacer} />
         )}
 
-        <View style={styles.rightArea}>
+        <View collapsable={false} style={styles.rightArea}>
           {/* Blinking Geofence Presence Badge */}
           {showPresenceBadge && (
             <TouchableOpacity
@@ -204,12 +192,17 @@ export const Header: React.FC<HeaderProps> = ({
             />
           )}
 
-          {rightAction}
+          {rightAction || (isAuthenticated && (
+            <TouchableOpacity onPress={() => setShowNotifications(true)} style={styles.logoutBtn} accessibilityLabel="Notifications">
+              <Bell size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          ))}
 
           {shouldShowLogout && isAuthenticated && (
             <TouchableOpacity
               activeOpacity={0.75}
-              onPress={handleLogout}
+              onPress={() => setShowLogoutDialog(true)}
+              hitSlop={8}
               style={styles.logoutBtn}
               accessibilityLabel="Log Out"
             >
@@ -219,8 +212,14 @@ export const Header: React.FC<HeaderProps> = ({
         </View>
       </View>
 
+      <NotificationModal
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        onSelectNotification={notification => Alert.alert(notification.title || 'Notification', notification.instruction || notification.body || '')}
+      />
+      <LogoutDialog visible={showLogoutDialog} onCancel={() => setShowLogoutDialog(false)} onConfirm={() => { setShowLogoutDialog(false); handleLogout(); }} />
       {/* Geofence Status Modal */}
-      <Modal
+      {showPresenceModal && <Modal
         visible={showPresenceModal}
         transparent
         animationType="fade"
@@ -338,13 +337,16 @@ export const Header: React.FC<HeaderProps> = ({
             </View>
           </View>
         </TouchableOpacity>
-      </Modal>
+      </Modal>}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   header: {
+    position: 'relative',
+    zIndex: 20,
+    flexShrink: 0,
     backgroundColor: colors.headerBg,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.12)',
@@ -374,10 +376,12 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   logoContainer: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
   brandLogoImg: {
+    maxWidth: '100%',
     width: 124,
     height: 34,
   },
@@ -397,6 +401,7 @@ const styles = StyleSheet.create({
   },
   titleArea: {
     flex: 1,
+    minWidth: 0,
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
   },
@@ -413,6 +418,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   rightArea: {
+    zIndex: 1,
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
