@@ -213,7 +213,8 @@ export function RoadTestScreen({
         liveCoords.latitude,
         liveCoords.longitude,
         liveCoords.speedKmh ?? 0,
-        insideGeofence
+        insideGeofence,
+        liveCoords.timestamp
       );
     }
   }, [isLiveDrive, liveCoords, insideGeofence, recordLivePoint]);

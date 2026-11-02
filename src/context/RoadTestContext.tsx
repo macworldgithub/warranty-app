@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
-import { calculateDistanceMeters } from './GeofenceContext';
+import { RoadTestGpsTracker } from '../utils/roadTestGps';
 import { useAuth } from './AuthContext';
 import { roadTestService } from '../services/roadtest.service';
 
@@ -217,7 +217,7 @@ interface RoadTestContextValue {
   stopAndSaveDrive: (notes?: string) => Promise<void>;
   saveDiagnosisAndComplete: (data: { outcome: 'Passed' | 'Flagged'; notes: string }) => Promise<void>;
   cancelPendingCompletion: () => void;
-  recordLivePoint: (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => void;
+  recordLivePoint: (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean, gpsTimestamp?: number) => void;
   loadVehicleByROOrRego: (query: string) => boolean;
   deleteTripRecord: (id: string) => Promise<void>;
   updateTripRecord: (id: string, updates: Partial<RoadTestTripRecord>) => Promise<void>;
@@ -260,8 +260,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   const liveTimerRef = useRef<any>(null);
   const activeIndexRef = useRef(1);
   const lastPointRef = useRef<{ lat: number; lng: number } | null>(null);
-  const movementAnchorRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
-  const speedSamplesRef = useRef<number[]>([]);
+  const liveGpsTrackerRef = useRef(new RoadTestGpsTracker());
   const wasOutsideRef = useRef<boolean>(false);
   const pointsBufferRef = useRef<RoutePoint[]>([DEFAULT_DEMO_ROUTE[0]]);
 
@@ -623,8 +622,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
 
     setRoutePoints([]);
     pointsBufferRef.current = [];
-    movementAnchorRef.current = null;
-    speedSamplesRef.current = [];
+    liveGpsTrackerRef.current.reset();
     lastPointRef.current = null;
     wasOutsideRef.current = false;
     distanceKmRef.current = 0;
@@ -666,64 +664,15 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
   }, [clearTimer, user, technicianSiteId]);
 
   const recordLivePoint = useCallback(
-    (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean) => {
-      const now = Date.now();
-      const nativeSpeed = typeof speedKmh === 'number' && speedKmh > 0 ? Math.round(speedKmh) : 0;
-      let calculatedSpeed = 0;
-
-      if (!movementAnchorRef.current) {
-        movementAnchorRef.current = { lat, lng, time: now };
-      } else {
-        const dtSec = (now - movementAnchorRef.current.time) / 1000;
-        const incMeters = calculateDistanceMeters(
-          movementAnchorRef.current.lat,
-          movementAnchorRef.current.lng,
-          lat,
-          lng
-        );
-
-        // Movement threshold (>= 1.5m to eliminate stationary jitter)
-        if (incMeters >= 1.5 && incMeters <= 5000) {
-          setDistanceKm((prev) => {
-            const next = Number((prev + incMeters / 1000).toFixed(2));
-            distanceKmRef.current = next;
-            return next;
-          });
-
-          if (dtSec >= 0.5) {
-            calculatedSpeed = Math.round((incMeters / dtSec) * 3.6);
-            if (calculatedSpeed > 160) calculatedSpeed = 0; // Filter impossible GPS telemetry jump
-          }
-          movementAnchorRef.current = { lat, lng, time: now };
-        } else if (dtSec > 3.5) {
-          // Stationary for > 3.5 seconds: advance anchor so distance does not accumulate drift
-          movementAnchorRef.current = { lat, lng, time: now };
-        }
+    (lat: number, lng: number, speedKmh?: number, isInsideFence?: boolean, gpsTimestamp?: number) => {
+      const sample = liveGpsTrackerRef.current.sample({ latitude: lat, longitude: lng, speedKmh, timestamp: gpsTimestamp ?? Date.now() });
+      if (!sample) return;
+      if (sample.distanceMeters > 0) {
+        // Accumulate full precision; round only when displaying or saving the trip.
+        distanceKmRef.current += sample.distanceMeters / 1000;
+        setDistanceKm(distanceKmRef.current);
       }
-
-      // Select most accurate instantaneous speed reading
-      let rawSpeed = 0;
-      if (nativeSpeed > 0 && calculatedSpeed > 0) {
-        rawSpeed = Math.round((nativeSpeed + calculatedSpeed) / 2);
-      } else if (nativeSpeed > 0) {
-        rawSpeed = nativeSpeed;
-      } else if (calculatedSpeed > 0) {
-        rawSpeed = calculatedSpeed;
-      }
-
-      // Smooth with rolling window (last 3 samples)
-      if (rawSpeed > 0) {
-        speedSamplesRef.current.push(rawSpeed);
-        if (speedSamplesRef.current.length > 3) speedSamplesRef.current.shift();
-      } else {
-        if (speedSamplesRef.current.length > 0) {
-          speedSamplesRef.current.shift();
-        }
-      }
-
-      const smoothedSpeed = speedSamplesRef.current.length > 0
-        ? Math.round(speedSamplesRef.current.reduce((a, b) => a + b, 0) / speedSamplesRef.current.length)
-        : 0;
+      const smoothedSpeed = sample.speedKmh;
 
       setSpeedKph(smoothedSpeed);
       if (smoothedSpeed > 0) {

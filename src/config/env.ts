@@ -1,11 +1,9 @@
 import { Platform } from 'react-native';
 
 // API Base URL:
-// https://warranty-evidence.omnisuiteai.com
 // Local testing on a physical device: use the development computer's LAN IP.
 // (Can be overridden via setApiBaseUrl or developer options in LoginScreen)
-export const DEFAULT_API_HOST = 'https://warranty-evidence.omnisuiteai.com';
-// export const DEFAULT_API_HOST = 'http://192.168.100.33:4000';
+export const DEFAULT_API_HOST = 'http://192.168.100.33:4000';
 
 export const API_BASE_PATH = '/api/v1';
 

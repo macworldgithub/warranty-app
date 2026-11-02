@@ -37,7 +37,6 @@ import { ENV } from '../config/env';
 
 const CANDIDATE_URL_BASES = [
   ENV.API_URL,
-  'https://warranty-evidence.omnisuiteai.com/api/v1',
 ];
 
 async function fetchFromCandidates<T = any>(
