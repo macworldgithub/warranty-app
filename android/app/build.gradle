@@ -85,6 +85,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        manifestPlaceholders["booranLocalHttp"] = "false"
     }
     signingConfigs {
         debug {
@@ -97,8 +98,12 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            manifestPlaceholders["booranLocalHttp"] = "true"
         }
         release {
+            // Opt in only for APKs that connect to the local HTTP backend.
+            manifestPlaceholders["booranLocalHttp"] =
+                providers.gradleProperty("allowLocalHttp").orElse("false").get()
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
             signingConfig signingConfigs.debug

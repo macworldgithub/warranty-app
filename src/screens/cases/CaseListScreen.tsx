@@ -97,7 +97,8 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   const { startNewCase } = useCaseWizard();
 
   const [cases, setCases] = useState<WarrantyCase[]>([]);
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,8 +151,9 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
   }, []);
 
   const fetchCases = useCallback(async () => {
+    setLoadError(null);
     try {
-      const filters: any = { limit: 100 };
+      const filters: Parameters<typeof casesApi.getCases>[0] = {};
       if (isClerk && clerkSiteId) {
         filters.siteId = clerkSiteId;
       } else if (!isAdmin && user?.id) {
@@ -186,7 +188,8 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
       });
 
       setCases(mergedWithLocal);
-    } catch {
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Check your connection and try again.');
       // Load offline pending drafts with local evidence items
       const pending = isAdmin ? [] : offlineStorage.getPendingUploads();
       const pendingWithLocal = pending.map((c) => {
@@ -466,7 +469,15 @@ export const CaseListScreen: React.FC<CaseListScreenProps> = ({
             )}
 
             {/* When on Awaiting Tab: Direct Clean Awaiting Header (Remove Booran Intelligence hero and KPI bars) */}
-            {activeTab === 'awaiting' ? (
+            {loading ? (
+              <Text style={styles.emptyTitle}>Loading warranty cases…</Text>
+            ) : loadError ? (
+              <>
+                <Text style={styles.emptyTitle}>Couldn’t load warranty cases</Text>
+                <Text style={styles.emptySubtitle}>{loadError}</Text>
+                <Button title="Retry" variant="primary" onPress={fetchCases} />
+              </>
+            ) : activeTab === 'awaiting' ? (
               <View style={styles.awaitingHeaderSection}>
                 <View style={styles.awaitingHeaderTop}>
                   <View style={styles.awaitingHeaderBadge}>

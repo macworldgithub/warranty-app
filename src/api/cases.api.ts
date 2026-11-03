@@ -21,19 +21,29 @@ export interface CaseFilters {
 
 export const casesApi = {
   getCases: async (filters?: CaseFilters): Promise<WarrantyCase[]> => {
-    let query = '';
-    if (filters) {
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, val]) => {
-        if (val !== undefined && val !== null && val !== '') {
-          params.append(key, String(val));
-        }
-      });
-      const str = params.toString();
-      if (str) query = `?${str}`;
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters ?? {})) {
+      if (value !== undefined && value !== null && value !== '') {
+        params.set(key, String(value));
+      }
     }
-    const res = await apiClient.get<any>(`/warranty-cases${query}`);
-    return Array.isArray(res) ? res : (res?.data ?? []);
+    const fetchPage = () => apiClient.get<WarrantyCase[] | {
+      data: WarrantyCase[];
+      meta?: { hasNextPage: boolean };
+    }>(`/warranty-cases?${params.toString()}`);
+
+    const fetchAll = filters?.page === undefined && filters?.limit === undefined;
+    if (fetchAll) params.set('limit', '100');
+    const cases: WarrantyCase[] = [];
+    let page = 1;
+    while (true) {
+      if (fetchAll) params.set('page', String(page));
+      const result = await fetchPage();
+      if (Array.isArray(result)) return [...cases, ...result];
+      cases.push(...(result?.data ?? []));
+      if (!fetchAll || !result?.meta?.hasNextPage || !result.data.length) return cases;
+      page += 1;
+    }
   },
 
   getCaseById: async (id: string): Promise<WarrantyCase> => {

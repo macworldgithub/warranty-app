@@ -74,6 +74,7 @@ export interface GeofenceContextType {
   setPresenceActivity: (activity: 'WORKSHOP' | 'ROAD_TEST' | 'INSPECTION' | 'IDLE', ro?: string) => void;
   toggleSimulatedPresence: () => void;
   requestLocationAccess: () => Promise<boolean>;
+  restartLocationWatch: () => void;
   switchToLiveMode: () => void;
   updateSiteRadius: (radius: number) => Promise<void>;
 }
@@ -212,6 +213,10 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Incrementing this value deliberately tears down and recreates watchPosition.
   // Permission can remain granted while Android silently removes an old watcher.
   const [gpsWatchRevision, setGpsWatchRevision] = useState(0);
+  const restartLocationWatch = useCallback(() => {
+    prevGeoPosRef.current = null;
+    setGpsWatchRevision(revision => revision + 1);
+  }, []);
 
   // Active refs to avoid stale closure during intervals/listeners
   const liveCoordsRef = useRef<LiveGpsCoords | null>(null);
@@ -331,6 +336,8 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const granted = await askLocationPermission();
     setHasLocationPermission(granted);
     if (granted && isNativeGeolocationAvailable && GeolocationModule?.getCurrentPosition) {
+      liveCoordsRef.current = null;
+      setLiveCoords(null);
       setGpsMode('LIVE');
       setGpsWatchRevision((revision) => revision + 1);
       prevGeoPosRef.current = null;
@@ -538,6 +545,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           (err: any) => {
             console.warn(`Geolocation watch error (highAccuracy=${useHighAccuracy}):`, err);
             if (useHighAccuracy) {
+              if (watchId !== null) GeolocationModule.clearWatch(watchId);
               watchId = startWatcher(false);
             }
           },
@@ -610,6 +618,7 @@ export const GeofenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setPresenceActivity,
         toggleSimulatedPresence,
         requestLocationAccess,
+        restartLocationWatch,
         switchToLiveMode,
         updateSiteRadius,
       }}

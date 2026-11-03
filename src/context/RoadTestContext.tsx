@@ -333,7 +333,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
             note: it.technicianNotes || 'Road test completed.',
             siteId: it.siteId || technicianSiteId,
             siteName: it.siteName || 'Booran Workshop',
-            routePoints: it.routePoints && it.routePoints.length > 0 ? it.routePoints : DEFAULT_DEMO_ROUTE,
+            routePoints: it.routePoints ?? [],
           }));
           setTripRecords(mapped);
         } else if (!isSingleSiteOperator) {
@@ -415,7 +415,7 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
       const minutes = Math.floor(elapsedSecRef.current / 60);
       const seconds = elapsedSecRef.current % 60;
       const durationStr = `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-      const currentDist = Number(distanceKmRef.current.toFixed(2)) || 0.1;
+      const currentDist = Number(distanceKmRef.current.toFixed(3));
       const currentMax = Math.round(maxSpeedKphRef.current) || 0;
       const currentPoints = pointsBufferRef.current;
 
@@ -548,9 +548,9 @@ export function RoadTestProvider({ children }: { children: React.ReactNode }) {
       const minutes = Math.floor(elapsedSecRef.current / 60);
       const seconds = elapsedSecRef.current % 60;
       const durationStr = minutes > 0 ? `${minutes} min` : `${seconds}s`;
-      const currentDist = Number(distanceKmRef.current.toFixed(1)) || 0.1;
+      const currentDist = Number(distanceKmRef.current.toFixed(3));
       const currentMax = Math.round(maxSpeedKphRef.current) || 0;
-      const currentPoints = pointsBufferRef.current.length > 0 ? [...pointsBufferRef.current] : DEFAULT_DEMO_ROUTE;
+      const currentPoints = [...pointsBufferRef.current];
 
       const techName = user?.name || 'Active Technician';
       const recordId = activeDriveIdRef.current || `trip-${Date.now()}`;

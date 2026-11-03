@@ -464,7 +464,7 @@ export function RoadTestRouteMap({
         <View style={styles.figmaFloatingStats}>
           <View style={styles.figmaStatItem}>
             <MapPin size={13} color="#DC2626" />
-            <Text style={styles.figmaStatVal}>{floatingStats.distanceKm.toFixed(1)} km</Text>
+            <Text style={styles.figmaStatVal}>{floatingStats.distanceKm < 1 ? Math.round(floatingStats.distanceKm * 1000) + " m" : floatingStats.distanceKm.toFixed(2) + " km"}</Text>
           </View>
           <View style={styles.figmaStatDivider} />
           <View style={styles.figmaStatItem}>

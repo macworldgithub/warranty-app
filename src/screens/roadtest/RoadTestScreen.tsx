@@ -127,6 +127,7 @@ export function RoadTestScreen({
     liveCoords,
     customWorkshop,
     requestLocationAccess,
+    restartLocationWatch,
     setPresenceActivity,
   } = useGeofence();
 
@@ -142,6 +143,32 @@ export function RoadTestScreen({
   );
 
   const isDriving = isLiveDrive || demoRunning;
+  const [gpsStalled, setGpsStalled] = useState(false);
+  const lastFixTime = liveCoords?.timestamp;
+
+  useEffect(() => {
+    setGpsStalled(false);
+    if (!isLiveDrive) return;
+
+    const staleAfterMs = 12000;
+    const retryDelayMs = 45000;
+    const timeSinceFix = lastFixTime ? Math.max(0, Date.now() - lastFixTime) : 0;
+    const stallTimer = setTimeout(() => setGpsStalled(true), Math.max(0, staleAfterMs - timeSinceFix));
+    let retryTimer: ReturnType<typeof setInterval> | undefined;
+    const firstRetry = setTimeout(() => {
+      restartLocationWatch();
+      retryTimer = setInterval(restartLocationWatch, retryDelayMs);
+    }, Math.max(0, retryDelayMs - timeSinceFix));
+    return () => {
+      clearTimeout(stallTimer);
+      clearTimeout(firstRetry);
+      if (retryTimer !== undefined) clearInterval(retryTimer);
+    };
+  }, [isLiveDrive, lastFixTime, restartLocationWatch]);
+
+  const gpsStatus = isLiveDrive && (gpsStalled || routePoints.length === 0)
+    ? (gpsStalled && routePoints.length > 0 ? 'GPS signal lost' : 'Waiting for GPS')
+    : null;
   const effectiveSiteId = isNetworkAdmin ? selectedAdminSiteId : technicianSiteId;
   const selectedAdminSite = siteOptions.find((site) => site.id === selectedAdminSiteId);
   const currentDriveSiteName = isNetworkAdmin
@@ -208,7 +235,7 @@ export function RoadTestScreen({
 
   // Stream live GPS into RoadTestContext when driving in live mode
   useEffect(() => {
-    if (isLiveDrive && liveCoords) {
+    if (isLiveDrive && liveCoords && liveCoords.timestamp && Date.now() - liveCoords.timestamp < 12000) {
       recordLivePoint(
         liveCoords.latitude,
         liveCoords.longitude,
@@ -474,7 +501,7 @@ export function RoadTestScreen({
               <View style={styles.metricIconWrap}>
                 <MapPin size={20} color="#DC2626" />
               </View>
-              <Text style={styles.metricVal}>{distanceKm.toFixed(1)} km</Text>
+              <Text style={styles.metricVal}>{distanceKm < 1 ? Math.round(distanceKm * 1000) + " m" : distanceKm.toFixed(2) + " km"}</Text>
               <Text style={styles.metricLabel}>DISTANCE</Text>
             </View>
 
@@ -485,7 +512,7 @@ export function RoadTestScreen({
               <View style={styles.metricIconWrap}>
                 <Gauge size={20} color="#DC2626" />
               </View>
-              <Text style={styles.metricVal}>{speedKph} km/h</Text>
+              <Text style={styles.metricVal}>{gpsStatus ?? `${speedKph} km/h`}</Text>
               <Text style={styles.metricLabel}>SPEED</Text>
             </View>
           </View>
@@ -719,7 +746,7 @@ export function RoadTestScreen({
                 <Text style={styles.completeBadgeText}>COMPLETE</Text>
               </View>
               <Text style={styles.driveMetrics}>
-                {item.duration} • {item.distanceKm} km
+                {item.duration} • {item.routePoints?.length ? `${item.distanceKm} km` : 'No GPS data'}
               </Text>
               <Text style={styles.driveTime}>
                 {item.dateLabel || item.startTime}
@@ -795,13 +822,13 @@ export function RoadTestScreen({
 
               <View style={styles.modalStatCard}>
                 <MapPin size={16} color="#DC2626" />
-                <Text style={styles.modalStatVal}>{selectedTripDetail?.distanceKm} km</Text>
+                <Text style={styles.modalStatVal}>{selectedTripDetail?.routePoints?.length ? `${selectedTripDetail.distanceKm} km` : 'No GPS data'}</Text>
                 <Text style={styles.modalStatLabel}>DISTANCE</Text>
               </View>
 
               <View style={styles.modalStatCard}>
                 <Gauge size={16} color="#DC2626" />
-                <Text style={styles.modalStatVal}>{getDisplayMaxSpeed(selectedTripDetail)} km/h</Text>
+                <Text style={styles.modalStatVal}>{selectedTripDetail?.routePoints?.length ? `${getDisplayMaxSpeed(selectedTripDetail)} km/h` : 'No GPS data'}</Text>
                 <Text style={styles.modalStatLabel}>MAX SPEED</Text>
               </View>
             </View>
