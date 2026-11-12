@@ -34,9 +34,10 @@ export const authApi = {
         response?.accessToken;
       const rawUser = resData?.user || response?.user || resData;
 
-      if (token) {
-        apiClient.setToken(token);
+      if (typeof token !== 'string' || !token || !rawUser?.id) {
+        throw new Error('The server did not return a valid sign-in session.');
       }
+      apiClient.setToken(token);
 
       const role: UserRole = rawUser?.role
         ? (String(rawUser.role).toUpperCase() as UserRole)
@@ -51,22 +52,6 @@ export const authApi = {
         message: resData?.message || response?.message,
       };
     } catch (err: any) {
-      // Offline fallback login for demo/workshop
-      if (email.includes('@') || email.length >= 3) {
-        const fallbackUser: User = {
-          id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          name: email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          email: email.toLowerCase(),
-          role: 'TECHNICIAN',
-          defaultSiteId: 'site_cranbourne_byd',
-          authorizedSiteIds: ['site_cranbourne_byd', 'site_dandenong_hyundai', 'site_south_morang_chery'],
-        };
-        return {
-          user: fallbackUser,
-          token: `demo_token_${Date.now()}`,
-          message: 'Signed in successfully.',
-        };
-      }
       throw err;
     }
   },

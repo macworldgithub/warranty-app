@@ -524,8 +524,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             icon="mail"
             value={signInEmail}
             onChangeText={setSignInEmail}
-            placeholder="name@booran.com.au"
-            keyboardType="email-address"
+            placeholder="Username or email"
           />
 
           <Field
