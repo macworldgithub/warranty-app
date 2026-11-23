@@ -1,3 +1,4 @@
+import { isFaultPhotoRule } from '../utils/faultPhotos';
 import { WarrantyCase, CreateWarrantyCaseDto, EvidenceItem } from '../types';
 
 interface LocalDraft extends Partial<CreateWarrantyCaseDto> {
@@ -198,7 +199,7 @@ class OfflineStorageService {
       existing.capturedZoneKeys.push(zoneKey);
     }
 
-    const idx = existing.evidenceItems.findIndex((e) => e.ruleKey === zoneKey);
+    const idx = existing.evidenceItems.findIndex((e) => e.ruleKey === zoneKey && (!isFaultPhotoRule(zoneKey) || e.id === evidenceItem.id));
     if (idx >= 0) {
       existing.evidenceItems[idx] = evidenceItem;
     } else {

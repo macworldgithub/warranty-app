@@ -63,7 +63,7 @@ export const casesApi = {
 
   addEvidence: async (
     caseId: string,
-    evidenceItem: EvidenceItem
+    evidenceItem: EvidenceItem & { evidenceId?: string }
   ): Promise<WarrantyCase> => {
     return apiClient.post<WarrantyCase>(
       `/warranty-cases/${caseId}/evidence`,

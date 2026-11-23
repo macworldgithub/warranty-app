@@ -1,5 +1,5 @@
 export type HoistStatus = 'OPERATIONAL' | 'FAULT_IDENTIFIED' | 'OUT_OF_SERVICE';
-export type HoistFacility = 'hyundai_chery' | 'byd_kia' | 'general' | 'all';
+export type HoistFacility = 'hyundai_chery' | 'byd_kia' | 'general' | 'southland' | 'all';
 export type InspectionStatus = 'PASS' | 'FAULT_IDENTIFIED' | 'TAGGED_OUT';
 export type ChecklistItemStatus = 'PASS' | 'FAULT' | 'NA';
 export type FaultSeverity = 'NONE' | 'MINOR' | 'MODERATE' | 'CRITICAL';
@@ -8,7 +8,7 @@ export interface Hoist {
   id: string;
   hoistNumber: number;
   name: string;
-  facility: 'hyundai_chery' | 'byd_kia' | 'general';
+  facility: 'hyundai_chery' | 'byd_kia' | 'general' | 'southland';
   facilityName: string;
   siteId: string;
   brand: string;
@@ -38,7 +38,7 @@ export interface HoistInspection {
   id: string;
   hoistId: string;
   hoistNumber: number;
-  facility: 'hyundai_chery' | 'byd_kia' | 'general';
+  facility: 'hyundai_chery' | 'byd_kia' | 'general' | 'southland';
   siteId: string;
   inspectorId: string;
   inspectorName: string;

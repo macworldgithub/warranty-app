@@ -38,6 +38,7 @@ import { colors } from '../../theme/colors';
 import { BottomNavBar } from '../../components/common/BottomNavBar';
 import { useAuth } from '../../context/AuthContext';
 import { hoistApi } from '../../api/hoist.api';
+import { sitesApi } from '../../api/sites.api';
 import {
   Hoist,
   HoistFacility,
@@ -92,7 +93,9 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
 
   // Determine user's assigned facility default
   const defaultFacility: HoistFacility =
-    user?.workshopFacility === 'hyundai_chery'
+    String(user?.workshopFacility) === 'southland'
+      ? 'southland'
+      : user?.workshopFacility === 'hyundai_chery'
       ? 'hyundai_chery'
       : user?.workshopFacility === 'byd_kia'
         ? 'byd_kia'
@@ -100,6 +103,24 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
 
   const [selectedFacility, setSelectedFacility] = useState<HoistFacility>(defaultFacility);
   const [hoists, setHoists] = useState<Hoist[]>([]);
+  const [siteNames, setSiteNames] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let active = true;
+    void sitesApi.getSites().then(sites => {
+      if (active && Array.isArray(sites)) {
+        setSiteNames(Object.fromEntries(sites.map(site => [site.id, site.name])));
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const locationLabel = (hoist: Hoist) => {
+    const siteId = hoist.siteId;
+    const siteName = siteId && (siteNames[siteId] || siteId.replace(/^site_/, '')
+      .split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '));
+    return siteName ? `${hoist.facilityName} · ${siteName}` : hoist.facilityName;
+  };
   const [summary, setSummary] = useState<HoistSummary | null>(null);
   const [inspections, setInspections] = useState<HoistInspection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -378,6 +399,15 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
             BYD/Kia (12)
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.facilityTab, selectedFacility === 'southland' && styles.facilityTabActive]}
+          onPress={() => setSelectedFacility('southland')}
+        >
+          <Text style={[styles.facilityTabText, selectedFacility === 'southland' && styles.facilityTabTextActive]}>
+            Southland{selectedFacility === 'southland' ? ` (${totalBays})` : ''}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── MAIN SCROLL CONTENT ─────────────────────────────────────────── */}
@@ -469,7 +499,9 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
                 <Wrench size={40} color={colors.textMuted} />
                 <Text style={styles.emptyTitle}>No Hoists Found</Text>
                 <Text style={styles.emptySubtitle}>
-                  No hoist bays matching your search or filters.
+                  {selectedFacility === 'southland' && hoists.length === 0
+                    ? 'No active Southland hoists are configured.'
+                    : 'No hoist bays matching your search or filters.'}
                 </Text>
               </View>
             ) : (
@@ -506,7 +538,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
                         </View>
                         <View style={styles.hoistTitleBlock}>
                           <Text style={styles.hoistName}>{hoist.name}</Text>
-                          <Text style={styles.hoistFacility}>{hoist.facilityName}</Text>
+                          <Text style={styles.hoistFacility}>{locationLabel(hoist)}</Text>
                         </View>
                         <View
                           style={[
@@ -684,6 +716,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
               </View>
             </View>
 
+            {selectedFacility !== 'southland' && <>
             {/* Facility Compliance Breakdown */}
             <Text style={styles.complianceSectionTitle}>Workshop Facility Breakdown</Text>
 
@@ -739,6 +772,8 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
               </View>
             </View>
 
+            </>}
+
             {/* Lockout / Tagout Safety Register */}
             <Text style={styles.complianceSectionTitle}>Lockout / Tagout (LOTO) & Defect Register</Text>
             {hoists.filter((h) => h.lockoutTagoutActive || h.status !== 'OPERATIONAL').length === 0 ? (
@@ -767,7 +802,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.lotoFacility}>{h.facilityName}</Text>
+                    <Text style={styles.lotoFacility}>{locationLabel(h)}</Text>
                     <Text style={styles.lotoNotes}>
                       {h.activeFaultNotes || 'Maintenance inspection scheduled.'}
                     </Text>

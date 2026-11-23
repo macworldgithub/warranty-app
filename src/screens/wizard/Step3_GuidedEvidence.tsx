@@ -13,7 +13,7 @@ import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
-import { EvidenceCard } from '../../components/evidence/EvidenceCard';
+import { EvidenceRuleCard } from '../../components/evidence/EvidenceCard';
 import { ManufacturerBulletins } from '../../components/evidence/ManufacturerBulletins';
 import { GuidedZoneStepper } from '../../components/evidence/GuidedZoneStepper';
 import { useCaseWizard } from '../../context/CaseWizardContext';
@@ -119,10 +119,11 @@ export const Step3_GuidedEvidence: React.FC<Step3Props> = ({ onNext, onPrev }) =
         const isFlagged = isFlaggedMode && flaggedRuleKeys.includes(rule.ruleKey);
 
         return (
-          <EvidenceCard
+          <EvidenceRuleCard
             key={rule.id || rule.ruleKey}
             rule={rule}
             evidence={evidence}
+            evidenceItems={evidenceItems}
             roNumber={roNumber}
             isFlagged={isFlagged}
             onSaveEvidence={saveEvidenceItem}

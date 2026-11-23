@@ -1,3 +1,4 @@
+import { isFaultPhotoRule } from '../utils/faultPhotos';
 import { casesApi } from '../api';
 import { offlineStorage } from './offlineStorage';
 import {
@@ -106,6 +107,7 @@ class SyncManager {
                     name: oemFileName,
                   } as any);
                   formData.append('ruleKey', ev.ruleKey);
+                  if (isFaultPhotoRule(ev.ruleKey) && ev.id) formData.append('evidenceId', ev.id);
                   formData.append('evidenceName', ev.ruleName || ev.ruleKey);
                   if (ev.ocrExtractedText) formData.append('ocrExtractedText', ev.ocrExtractedText);
 
@@ -113,6 +115,7 @@ class SyncManager {
                 } else if (ev.storageUrl && !ev.storageUrl.startsWith('file://') && !ev.storageUrl.startsWith('content://')) {
                   await casesApi.addEvidence(serverCaseId, {
                     ruleKey: ev.ruleKey,
+                    evidenceId: isFaultPhotoRule(ev.ruleKey) ? ev.id : undefined,
                     name: ev.ruleName || ev.ruleKey,
                     mediaType: (ev.mediaType as any) || 'image',
                     storageUrl: ev.storageUrl,

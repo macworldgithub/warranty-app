@@ -14,7 +14,7 @@ import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Header } from '../../components/common/Header';
-import { EvidenceCard } from '../../components/evidence/EvidenceCard';
+import { EvidenceRuleCard } from '../../components/evidence/EvidenceCard';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 import { WarrantyCase, BrandPackRule } from '../../types';
 
@@ -99,10 +99,11 @@ export const FlagResolutionScreen: React.FC<FlagResolutionScreenProps> = ({
           const flagInfo = activeFlags.find(f => f.ruleKey === rule.ruleKey);
 
           return (
-            <EvidenceCard
+            <EvidenceRuleCard
               key={rule.id || rule.ruleKey}
               rule={rule}
               evidence={evidence}
+              evidenceItems={evidenceItems}
               roNumber={roNumber}
               isFlagged={true}
               flagInstruction={flagInfo?.instruction}

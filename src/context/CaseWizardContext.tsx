@@ -1,3 +1,4 @@
+import { isFaultPhotoRule } from '../utils/faultPhotos';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   WarrantyCase,
@@ -99,7 +100,7 @@ interface CaseWizardContextType extends CaseWizardState {
 
   // Evidence & Notes Actions
   saveEvidenceItem: (item: Partial<EvidenceItem> & { ruleKey: string }) => void;
-  removeEvidenceItem: (ruleKey: string) => void;
+  removeEvidenceItem: (ruleKey: string, evidenceId?: string) => void;
   getEvidenceForRule: (ruleKey: string) => EvidenceItem | undefined;
   addVoiceNote: (note: VoiceNote) => void;
   removeVoiceNote: (noteId: string) => void;
@@ -292,7 +293,7 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const inspection = offlineStorage.getVehicleInspection(cleanVin);
         if (inspection?.evidenceItems && inspection.evidenceItems.length > 0) {
           for (const item of inspection.evidenceItems) {
-            const exists = mergedEvidence.some(e => e.ruleKey === item.ruleKey);
+            const exists = mergedEvidence.some(e => e.ruleKey === item.ruleKey && (!isFaultPhotoRule(item.ruleKey) || (item.id && e.id === item.id)));
             if (!exists) {
               mergedEvidence.push(item);
             }
@@ -396,7 +397,7 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       const oemName = item.oemFileName || namingEngine.generateOemFileName(rule, prev.roNumber);
 
-      const existingIndex = prev.evidenceItems.findIndex(e => e.ruleKey === item.ruleKey);
+      const existingIndex = prev.evidenceItems.findIndex(e => e.ruleKey === item.ruleKey && (!isFaultPhotoRule(item.ruleKey) || (item.id && e.id === item.id)));
       const newEvidence: EvidenceItem = {
         id: item.id || `ev_${Date.now()}_${item.ruleKey}`,
         ruleKey: item.ruleKey,
@@ -438,10 +439,10 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  const removeEvidenceItem = (ruleKey: string) => {
+  const removeEvidenceItem = (ruleKey: string, evidenceId?: string) => {
     setState(prev => ({
       ...prev,
-      evidenceItems: prev.evidenceItems.filter(e => e.ruleKey !== ruleKey),
+      evidenceItems: prev.evidenceItems.filter(e => e.ruleKey !== ruleKey || (evidenceId && e.id !== evidenceId)),
     }));
   };
 
@@ -593,6 +594,11 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const submitCase = async (): Promise<WarrantyCase> => {
+    const missingFaultPhotos = state.resolvedRules.filter(rule => rule.isMandatory && isFaultPhotoRule(rule.ruleKey) &&
+      !state.evidenceItems.some(item => item.ruleKey === rule.ruleKey && (item.fileUri || item.storageUrl || item.serverUrl)));
+    if (missingFaultPhotos.length) {
+      throw new Error('Add a photo for each required section: ' + missingFaultPhotos.map(rule => rule.name).join(', '));
+    }
     // Generate DTO with solid defaults matching backend DTO schema
     const dto = {
       siteId: state.siteId || 'site_cranbourne_byd',
@@ -660,6 +666,7 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 name: oemFileName,
               } as any);
               formData.append('ruleKey', ev.ruleKey);
+              if (isFaultPhotoRule(ev.ruleKey) && ev.id) formData.append('evidenceId', ev.id);
               formData.append('evidenceName', ev.ruleName || ev.ruleKey);
               if (ev.ocrExtractedText) {
                 formData.append('ocrExtractedText', ev.ocrExtractedText);
@@ -669,6 +676,7 @@ export const CaseWizardProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             } else if (ev.storageUrl && !ev.storageUrl.startsWith('file://') && !ev.storageUrl.startsWith('content://')) {
               await casesApi.addEvidence(createdCase.id, {
                 ruleKey: ev.ruleKey,
+                evidenceId: isFaultPhotoRule(ev.ruleKey) ? ev.id : undefined,
                 name: ev.ruleName || ev.ruleKey,
                 mediaType: (ev.mediaType as any) || 'image',
                 storageUrl: ev.storageUrl,

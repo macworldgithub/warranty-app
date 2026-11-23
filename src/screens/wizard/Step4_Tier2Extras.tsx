@@ -12,7 +12,7 @@ import { Icon } from '../../components/common/Icon';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
-import { EvidenceCard } from '../../components/evidence/EvidenceCard';
+import { EvidenceRuleCard } from '../../components/evidence/EvidenceCard';
 import { useCaseWizard } from '../../context/CaseWizardContext';
 
 interface Step4Props {
@@ -72,10 +72,11 @@ export const Step4_Tier2Extras: React.FC<Step4Props> = ({ onNext, onPrev }) => {
           const isFlagged = isFlaggedMode && flaggedRuleKeys.includes(rule.ruleKey);
 
           return (
-            <EvidenceCard
+            <EvidenceRuleCard
               key={rule.id || rule.ruleKey}
               rule={rule}
               evidence={evidence}
+              evidenceItems={evidenceItems}
               roNumber={roNumber}
               isFlagged={isFlagged}
               onSaveEvidence={saveEvidenceItem}

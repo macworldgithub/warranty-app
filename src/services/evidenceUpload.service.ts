@@ -1,3 +1,4 @@
+import { isFaultPhotoRule } from '../utils/faultPhotos';
 import { casesApi } from '../api/cases.api';
 import { EvidenceItem, WarrantyCase } from '../types';
 import { offlineStorage } from './offlineStorage';
@@ -90,13 +91,14 @@ export const evidenceUploadService = {
             name: oemFileName,
           } as any);
           formData.append('ruleKey', evidenceItem.ruleKey);
+          if (isFaultPhotoRule(evidenceItem.ruleKey) && evidenceItem.id) formData.append('evidenceId', evidenceItem.id);
           formData.append('evidenceName', evidenceItem.ruleName || evidenceItem.ruleKey);
           if (evidenceItem.ocrExtractedText) {
             formData.append('ocrExtractedText', evidenceItem.ocrExtractedText);
           }
 
           uploadedCase = (await casesApi.uploadEvidenceFile(targetCaseId, formData)) as any;
-          const found = uploadedCase?.evidenceItems?.find((e) => e.ruleKey === evidenceItem.ruleKey);
+          const found = uploadedCase?.evidenceItems?.find((e) => e.ruleKey === evidenceItem.ruleKey && (!isFaultPhotoRule(evidenceItem.ruleKey) || e.id === evidenceItem.id));
           serverStorageUrl = found?.storageUrl;
         } catch (uploadErr) {
           console.warn('[EvidenceUpload] uploadEvidenceFile failed, falling back to addEvidence:', uploadErr);
@@ -108,6 +110,7 @@ export const evidenceUploadService = {
         try {
           const fallbackRes = await casesApi.addEvidence(targetCaseId, {
             ruleKey: evidenceItem.ruleKey,
+            evidenceId: isFaultPhotoRule(evidenceItem.ruleKey) ? evidenceItem.id : undefined,
             name: evidenceItem.ruleName || evidenceItem.ruleKey,
             mediaType: evidenceItem.mediaType || 'image',
             storageUrl: evidenceItem.storageUrl || evidenceItem.fileUri || '',
@@ -116,7 +119,7 @@ export const evidenceUploadService = {
             durationSeconds: evidenceItem.durationSeconds,
           });
           uploadedCase = fallbackRes;
-          const found = fallbackRes?.evidenceItems?.find((e) => e.ruleKey === evidenceItem.ruleKey);
+          const found = fallbackRes?.evidenceItems?.find((e) => e.ruleKey === evidenceItem.ruleKey && (!isFaultPhotoRule(evidenceItem.ruleKey) || e.id === evidenceItem.id));
           serverStorageUrl = found?.storageUrl || evidenceItem.storageUrl || evidenceItem.fileUri;
         } catch (addErr) {
           console.warn('[EvidenceUpload] addEvidence fallback failed:', addErr);
@@ -124,7 +127,7 @@ export const evidenceUploadService = {
       }
 
       // 4. Update local offlineStorage with server URL if available
-      if (serverStorageUrl && cleanVin) {
+      if (serverStorageUrl && cleanVin && !isFaultPhotoRule(evidenceItem.ruleKey)) {
         const updatedItem = {
           ...evidenceItem,
           storageUrl: serverStorageUrl,

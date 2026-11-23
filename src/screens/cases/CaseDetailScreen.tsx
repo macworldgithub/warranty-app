@@ -1,3 +1,4 @@
+import { isFaultPhotoRule } from '../../utils/faultPhotos';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -148,14 +149,14 @@ export const CaseDetailScreen: React.FC<CaseDetailScreenProps> = ({
 
     // 1. Add server/case evidence items first
     (currentCase.evidenceItems || []).forEach((item) => {
-      const key = item.ruleKey || item.id;
+      const key = isFaultPhotoRule(item.ruleKey) ? `${item.ruleKey}:${item.id || getEvidenceUri(item)}` : item.ruleKey || item.id;
       if (key) itemsMap.set(key, item);
     });
 
     // 2. Merge local inspection items from offlineStorage (e.g. from Guided Zone Capture)
     if (localInspection?.evidenceItems) {
       localInspection.evidenceItems.forEach((localEv) => {
-        const key = localEv.ruleKey || localEv.id;
+        const key = isFaultPhotoRule(localEv.ruleKey) ? `${localEv.ruleKey}:${localEv.id || getEvidenceUri(localEv)}` : localEv.ruleKey || localEv.id;
         if (!key) return;
         if (!itemsMap.has(key)) {
           itemsMap.set(key, localEv);

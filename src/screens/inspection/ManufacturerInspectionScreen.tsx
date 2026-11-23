@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import { isFaultPhotoRule } from '../../utils/faultPhotos';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Header } from '../../components/common/Header';
 import { Button } from '../../components/common/Button';
-import { EvidenceCard } from '../../components/evidence/EvidenceCard';
+import { EvidenceRuleCard } from '../../components/evidence/EvidenceCard';
 import { ManufacturerBulletins } from '../../components/evidence/ManufacturerBulletins';
 import { brandsApi } from '../../api/brands.api';
 import { brandPacksApi } from '../../api/brandPacks.api';
@@ -89,6 +90,7 @@ export const ManufacturerInspectionScreen: React.FC<Props> = ({ vehicle, onSelec
     setInspection(next);
   }, [vehicle, pack, brandId]);
 
+  const uploadQueue = useRef(Promise.resolve());
   const persist = (next: VehicleZoneInspection) => { offlineStorage.saveVehicleInspection(next); setInspection(next); };
   const saveEvidence = (item: Partial<EvidenceItem> & { ruleKey: string }) => {
     if (!inspection || !pack || !vehicle) return;
@@ -99,13 +101,16 @@ export const ManufacturerInspectionScreen: React.FC<Props> = ({ vehicle, onSelec
       ruleName: rule.name, mediaType: rule.mediaType, isMandatory: rule.isMandatory,
       tier: rule.tier, oemFileName: namingEngine.generateOemFileName(rule, inspection.roNumber || 'RO'),
     };
-    const next = { ...inspection, evidenceItems: [...inspection.evidenceItems.filter(entry => entry.ruleKey !== rule.ruleKey), evidence], capturedZoneKeys: [...new Set([...inspection.capturedZoneKeys, rule.ruleKey])] };
+    const next = { ...inspection, evidenceItems: [...inspection.evidenceItems.filter(entry => entry.ruleKey !== rule.ruleKey || (isFaultPhotoRule(rule.ruleKey) && entry.id !== evidence.id)), evidence], capturedZoneKeys: [...new Set([...inspection.capturedZoneKeys, rule.ruleKey])] };
     persist(next);
-    void evidenceUploadService.uploadEvidenceToServer({ vin: inspection.vin, roNumber: inspection.roNumber, evidenceItem: evidence, vehicleDetails: vehicle, brandId: pack.brandId, siteId: vehicle.siteId, brandPackId: pack.id, brandPackVersion: pack.version }).then(result => {
+    uploadQueue.current = uploadQueue.current.then(async () => {
+      const pending = offlineStorage.getVehicleInspection(inspection.vin);
+      if (!pending?.evidenceItems.some(entry => entry.id === evidence.id && entry.fileUri === evidence.fileUri)) return;
+      const result = await evidenceUploadService.uploadEvidenceToServer({ vin: inspection.vin, roNumber: inspection.roNumber, evidenceItem: evidence, vehicleDetails: vehicle, brandId: pack.brandId, siteId: vehicle.siteId, brandPackId: pack.id, brandPackVersion: pack.version });
       if (!result.success || !result.storageUrl) return;
       const latest = offlineStorage.getVehicleInspection(inspection.vin);
       if (!latest || latest.brandPackId !== pack.id) return;
-      const updated = { ...latest, evidenceItems: latest.evidenceItems.map(entry => entry.id === evidence.id ? { ...entry, storageUrl: result.storageUrl, isUploaded: true } : entry) };
+      const updated = { ...latest, evidenceItems: latest.evidenceItems.map(entry => entry.id === evidence.id && entry.fileUri === evidence.fileUri ? { ...entry, storageUrl: result.storageUrl, isUploaded: true } : entry) };
       offlineStorage.saveVehicleInspection(updated);
       setInspection(current => current?.vin === updated.vin ? updated : current);
     });
@@ -136,7 +141,13 @@ export const ManufacturerInspectionScreen: React.FC<Props> = ({ vehicle, onSelec
             </> : <>
               <Text style={styles.description}>{vehicle.make} {vehicle.model} · {vehicle.vin}</Text>
               {pack.rules.length === 0 && <Text>No evidence requirements have been configured for this manufacturer.</Text>}
-              {inspection && pack.rules.map(rule => <EvidenceCard key={`${pack.id}_${rule.ruleKey}`} rule={rule} evidence={inspection.evidenceItems.find(item => item.ruleKey === rule.ruleKey)} roNumber={inspection.roNumber || 'RO'} onSaveEvidence={saveEvidence} onRemoveEvidence={key => persist({ ...inspection, evidenceItems: inspection.evidenceItems.filter(item => item.ruleKey !== key), capturedZoneKeys: inspection.capturedZoneKeys.filter(item => item !== key), status: 'IN_PROGRESS' })} onAddVoiceNote={() => {}} />)}
+              {inspection && pack.rules.map(rule => <EvidenceRuleCard evidenceItems={inspection.evidenceItems} key={`${pack.id}_${rule.ruleKey}`} rule={rule} evidence={inspection.evidenceItems.find(item => item.ruleKey === rule.ruleKey)} roNumber={inspection.roNumber || 'RO'} onSaveEvidence={saveEvidence} onRemoveEvidence={(key, id) => {
+                const evidenceItems = inspection.evidenceItems.filter(item => item.ruleKey !== key || (id && item.id !== id));
+                const capturedZoneKeys = evidenceItems.some(item => item.ruleKey === key)
+                  ? inspection.capturedZoneKeys
+                  : inspection.capturedZoneKeys.filter(item => item !== key);
+                persist({ ...inspection, evidenceItems, capturedZoneKeys, status: 'IN_PROGRESS' });
+              }} onAddVoiceNote={() => {}} />)}
               <Button title="Complete & Save Inspection" disabled={!ready || !inspection} onPress={() => { if (inspection) { persist({ ...inspection, status: 'COMPLETE' }); onCompleteInspection?.(vehicle); } }} />
             </>}
           </>}

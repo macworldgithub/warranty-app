@@ -1,3 +1,4 @@
+import { isFaultPhotoRule } from '../../utils/faultPhotos';
 import React, { useState } from 'react';
 import {
   View,
@@ -28,7 +29,8 @@ interface EvidenceCardProps {
   evidence?: EvidenceItem;
   roNumber: string;
   onSaveEvidence: (item: Partial<EvidenceItem> & { ruleKey: string }) => void;
-  onRemoveEvidence: (ruleKey: string) => void;
+  onRemoveEvidence: (ruleKey: string, evidenceId?: string) => void;
+  photoLabel?: string;
   onAddVoiceNote: (note: VoiceNote) => void;
   isFlagged?: boolean;
   flagInstruction?: string;
@@ -43,6 +45,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
   onAddVoiceNote,
   isFlagged = false,
   flagInstruction,
+  photoLabel,
 }) => {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -109,6 +112,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 
       if (res.success && res.fileUri) {
         onSaveEvidence({
+          id: isFaultPhotoRule(rule.ruleKey) ? evidence?.id : undefined,
           ruleKey: rule.ruleKey,
           ruleName: rule.name,
           mediaType: rule.mediaType,
@@ -149,7 +153,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
             />
           </View>
           <View style={styles.titleArea}>
-            <Text style={styles.ruleTitle}>{rule.name}</Text>
+            <Text style={styles.ruleTitle}>{photoLabel || rule.name}</Text>
           </View>
         </View>
 
@@ -341,13 +345,13 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
               onPress={() => setShowVoiceRecorder(!showVoiceRecorder)}
               style={{ flex: 1 }}
             />
-            <TouchableOpacity
+            {(!isFaultPhotoRule(rule.ruleKey) || !evidence?.isUploaded) && <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => onRemoveEvidence(rule.ruleKey)}
+              onPress={() => onRemoveEvidence(rule.ruleKey, isFaultPhotoRule(rule.ruleKey) ? evidence?.id : undefined)}
               style={styles.deleteBtn}
             >
               <Icon name="trash" size={16} color={colors.danger} />
-            </TouchableOpacity>
+            </TouchableOpacity>}
           </View>
         </View>
       ) : (
@@ -355,7 +359,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
         <View style={styles.unopenedContainer}>
           <View style={styles.captureBtnRow}>
             <Button
-              title={isVideo ? 'Record Video (.mp4)' : 'Capture Photo'}
+              title={isVideo ? 'Record Video (.mp4)' : photoLabel ? 'Add Photo' : 'Capture Photo'}
               variant={rule.isMandatory ? 'primary' : 'secondary'}
               size="md"
               loading={isCapturing}
@@ -450,6 +454,23 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
           ) : null}
         </View>
       </Modal>
+    </View>
+  );
+};
+
+export const EvidenceRuleCard: React.FC<EvidenceCardProps & { evidenceItems: EvidenceItem[] }> = ({ evidenceItems, ...props }) => {
+  if (!isFaultPhotoRule(props.rule.ruleKey)) return <EvidenceCard {...props} />;
+  const photos = evidenceItems.filter(item => item.ruleKey === props.rule.ruleKey &&
+    (item.fileUri || item.storageUrl || item.serverUrl));
+  if (!photos.length) return <EvidenceCard {...props} />;
+  return (
+    <View>
+      {photos.map((photo, index) => (
+        <EvidenceCard {...props} key={photo.id || index} evidence={photo}
+          photoLabel={index === 0 ? undefined : `Photo ${index + 1}`}
+          isFlagged={index === 0 && props.isFlagged} />
+      ))}
+      <EvidenceCard {...props} evidence={undefined} photoLabel="Add another fault photo" isFlagged={false} />
     </View>
   );
 };
