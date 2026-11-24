@@ -116,6 +116,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
   }, []);
 
   const locationLabel = (hoist: Hoist) => {
+    if (hoist.facility === 'southland') return hoist.facilityName + ' · Southland Cluster';
     const siteId = hoist.siteId;
     const siteName = siteId && (siteNames[siteId] || siteId.replace(/^site_/, '')
       .split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '));
@@ -584,7 +585,7 @@ export const HoistOverviewScreen: React.FC<HoistOverviewScreenProps> = ({
                         <View style={styles.detailRow}>
                           <Text style={styles.detailLabel}>Manufacturer:</Text>
                           <Text style={styles.detailValue}>
-                            {hoist.brand} ({hoist.capacityKg} kg cap)
+                            {hoist.brand}{hoist.capacityKg ? ' (' + hoist.capacityKg + ' kg cap)' : ''}
                           </Text>
                         </View>
                       </View>

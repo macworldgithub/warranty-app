@@ -1,3 +1,4 @@
+import { QuickVehicleInspectionScreen } from './src/screens/inspection/QuickVehicleInspectionScreen';
 import React, { useState, useEffect } from 'react';
 import {
   StatusBar,
@@ -57,6 +58,8 @@ type AppScreen =
   | 'TECH_HOME'
   | 'LIST'
   | 'VEHICLES'
+  | 'SAVED_INSPECTIONS'
+  | 'QUICK_INSPECTION'
   | 'ZONE_CAPTURE'
   | 'LOANERS'
   | 'ROAD_TEST'
@@ -93,6 +96,7 @@ function MainNavigator() {
   const [previousScreen, setPreviousScreen] = useState<AppScreen>('TECH_HOME');
   const [selectedCase, setSelectedCase] = useState<WarrantyCase | null>(null);
   const [selectedHoist, setSelectedHoist] = useState<Hoist | null>(null);
+  const [inspectionReport, setInspectionReport] = useState<{ id: string; siteId: string }>();
   const [selectedInspectionVehicle, setSelectedInspectionVehicle] = useState<RooftopVehicle | null>(null);
   const [caseListTab, setCaseListTab] = useState<string>('all');
   const [activeNotification, setActiveNotification] = useState<AppNotificationPayload | null>(null);
@@ -231,10 +235,8 @@ function MainNavigator() {
             setCurrentScreen('ZONE_CAPTURE');
           }}
           onStartNewInspection={() => {
-            setSelectedInspectionVehicle(null);
             setPreviousScreen('TECH_HOME');
-            // Open the inspection flow in vehicle-selection mode.
-            setCurrentScreen('ZONE_CAPTURE');
+            setCurrentScreen('QUICK_INSPECTION');
           }}
           onOpenCase={(caseItem) => {
             setSelectedCase(caseItem);
@@ -370,10 +372,18 @@ function MainNavigator() {
             setCurrentScreen('ZONE_CAPTURE');
           }}
           onStartNewInspection={() => {
-            setSelectedInspectionVehicle(null);
             setPreviousScreen('VEHICLES');
-            // Open the inspection flow in vehicle-selection mode.
-            setCurrentScreen('ZONE_CAPTURE');
+            setCurrentScreen('QUICK_INSPECTION');
+          }}
+          onOpenInspectionReport={(id, siteId) => {
+            setInspectionReport({ id, siteId });
+            setPreviousScreen('VEHICLES');
+            setCurrentScreen('SAVED_INSPECTIONS');
+          }}
+          onViewSavedInspections={() => {
+            setInspectionReport(undefined);
+            setPreviousScreen('VEHICLES');
+            setCurrentScreen('SAVED_INSPECTIONS');
           }}
         />
       </View>
@@ -381,6 +391,10 @@ function MainNavigator() {
   }
 
   // 2b-2. Guided Zone Capture Screen (Exact Match to Figma UI)
+  if (currentScreen === 'QUICK_INSPECTION' || currentScreen === 'SAVED_INSPECTIONS') {
+    return <QuickVehicleInspectionScreen key={currentScreen} showSaved={currentScreen === 'SAVED_INSPECTIONS'} initialReport={currentScreen === 'SAVED_INSPECTIONS' ? inspectionReport : undefined} onBack={() => setCurrentScreen(previousScreen || 'VEHICLES')} />;
+  }
+
   if (currentScreen === 'ZONE_CAPTURE') {
     return (
       <View style={{ flex: 1 }}>
@@ -400,10 +414,6 @@ function MainNavigator() {
           onOpenTickets={() => {
             setCaseListTab('all');
             setCurrentScreen('LIST');
-          }}
-          onOpenHoists={() => {
-            setPreviousScreen('ZONE_CAPTURE');
-            setCurrentScreen('HOIST_OVERVIEW');
           }}
           onOpenLoaners={() => {
             setPreviousScreen('ZONE_CAPTURE');

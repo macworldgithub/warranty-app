@@ -185,7 +185,7 @@ export const HoistInspectionScreen: React.FC<HoistInspectionScreenProps> = ({
           <View style={styles.infoBannerText}>
             <Text style={styles.infoBannerTitle}>{hoist.name} · {hoist.type}</Text>
             <Text style={styles.infoBannerSub}>
-              {hoist.facilityName} · Rated Capacity: {hoist.capacityKg} kg
+              {hoist.facilityName} · Rated Capacity: {hoist.capacityKg ? hoist.capacityKg + ' kg' : 'Unrecorded'}
             </Text>
           </View>
         </View>

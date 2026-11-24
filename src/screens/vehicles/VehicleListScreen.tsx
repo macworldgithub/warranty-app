@@ -42,6 +42,7 @@ import {
 } from '../../services/notifications.service';
 import { useAuth } from '../../context/AuthContext';
 import { useCaseWizard } from '../../context/CaseWizardContext';
+import { apiClient } from '../../api/client';
 import { casesApi } from '../../api/cases.api';
 import { sitesApi } from '../../api/sites.api';
 import { offlineStorage } from '../../services/offlineStorage';
@@ -52,7 +53,15 @@ import {
 import { GUIDED_CAPTURE_ZONES } from '../../components/evidence/GuidedZoneStepper';
 import { Site, WarrantyCase } from '../../types';
 
+interface InspectionSummary {
+  id: string;
+  createdAt: string;
+  inspection: { siteId: string; vin?: string; rego?: string; roNumber?: string; status: string;
+    vehicleDetails?: { year?: number; make?: string; model?: string } };
+}
+
 interface VehicleListScreenProps {
+  onOpenInspectionReport?: (id: string, siteId: string) => void;
   onOpenTickets: (tab?: string) => void;
   onStartNewCase: (initialData?: any) => void;
   onOpenCase: (caseItem: WarrantyCase) => void;
@@ -64,6 +73,7 @@ interface VehicleListScreenProps {
   onLogout?: () => void;
   onOpenZoneCapture?: (item: RooftopVehicle) => void;
   onStartNewInspection?: () => void;
+  onViewSavedInspections?: () => void;
 }
 
 export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
@@ -78,6 +88,8 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   onLogout,
   onOpenZoneCapture,
   onStartNewInspection,
+  onViewSavedInspections,
+  onOpenInspectionReport,
 }) => {
   const insets = useSafeAreaInsets();
   const { user, activeSiteId } = useAuth();
@@ -160,11 +172,32 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   }, [fetchCases]);
 
   const onRefresh = () => {
+    setInspectionRevision(value => value + 1);
     setRefreshing(true);
     fetchCases();
   };
 
   const effectiveSiteId = isAdmin ? selectedAdminSiteId : technicianSiteId;
+
+  const [inspectionRevision, setInspectionRevision] = useState(0);
+  const [savedInspections, setSavedInspections] = useState<InspectionSummary[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    setSavedInspections([]);
+    const assigned = new Set([user?.defaultSiteId, ...(user?.authorizedSiteIds || [])]);
+    const siteIds = effectiveSiteId === 'all'
+      ? sites.filter(site => user?.role === 'ADMIN' || assigned.has(site.id)).map(site => site.id)
+      : effectiveSiteId ? [effectiveSiteId] : [];
+    void Promise.allSettled(siteIds.map(siteId => apiClient.get<InspectionSummary[]>(
+      '/vehicle-inspections?' + new URLSearchParams({ siteId }).toString()
+    ))).then(results => {
+      if (active) setSavedInspections(results.flatMap(result => result.status === 'fulfilled' ? result.value : [])
+        .filter(report => report.id?.startsWith('quick_'))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+    });
+    return () => { active = false; };
+  }, [effectiveSiteId, sites, user, inspectionRevision]);
 
   const currentSite = useMemo(() => {
     if (isAdmin && effectiveSiteId === 'all') {
@@ -186,9 +219,40 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
     );
   }, [effectiveSiteId, isAdmin, sites]);
 
+  const vehicleKey = (siteId: string, vin?: string) => vin?.trim()
+    ? siteId + ':' + vin.trim().toUpperCase()
+    : undefined;
+
+  // The API returns newest first. Keep the latest card for each vehicle at each rooftop.
+  const vehicleInspections = useMemo(() => {
+    const seen = new Set<string>();
+    return savedInspections.filter(report => {
+      const { siteId, vin } = report.inspection;
+      const key = vehicleKey(siteId, vin);
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [savedInspections]);
   const vehicles = useMemo(() => {
-    return rooftopVehiclesService.getVehiclesForRooftop(effectiveSiteId, cases);
-  }, [effectiveSiteId, cases, syncTimestamp]);
+    const inspectedVehicles = new Set(vehicleInspections.map(({ inspection }) => vehicleKey(inspection.siteId, inspection.vin)));
+    return rooftopVehiclesService.getVehiclesForRooftop(effectiveSiteId, cases)
+      .filter(vehicle => {
+        const key = vehicleKey(vehicle.siteId, vehicle.vin);
+        return !key || !inspectedVehicles.has(key);
+      });
+  }, [effectiveSiteId, cases, syncTimestamp, vehicleInspections]);
+
+  const visibleInspections = vehicleInspections.filter(({ inspection }) => {
+    if (activeFilter === 'complete' && inspection.status !== 'COMPLETE') return false;
+    if (activeFilter === 'in_progress' && inspection.status === 'COMPLETE') return false;
+    if (activeFilter === 'defects') return false;
+    const q = searchQuery.trim().toLowerCase();
+    return [inspection.vin, inspection.rego, inspection.roNumber, inspection.vehicleDetails?.make, inspection.vehicleDetails?.model]
+      .filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+
 
   // Dynamic Zone Metrics Calculator for each vehicle
   const getVehicleZoneMetrics = useCallback((veh: RooftopVehicle) => {
@@ -268,16 +332,16 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
   }, []);
 
   // KPI Calculations (Real & Dynamic)
-  const totalCount = vehicles.length;
+  const totalCount = vehicles.length + vehicleInspections.length;
   const inProgressCount = useMemo(() => {
-    return vehicles.filter((v) => !getVehicleZoneMetrics(v).isComplete).length;
-  }, [vehicles, getVehicleZoneMetrics]);
+    return vehicles.filter((v) => !getVehicleZoneMetrics(v).isComplete).length + vehicleInspections.filter(report => report.inspection.status !== 'COMPLETE').length;
+  }, [vehicles, getVehicleZoneMetrics, vehicleInspections]);
   const completeCount = useMemo(() => {
-    return vehicles.filter((v) => getVehicleZoneMetrics(v).isComplete).length;
-  }, [vehicles, getVehicleZoneMetrics]);
+    return vehicles.filter((v) => getVehicleZoneMetrics(v).isComplete).length + vehicleInspections.filter(report => report.inspection.status === 'COMPLETE').length;
+  }, [vehicles, getVehicleZoneMetrics, vehicleInspections]);
   const defectsCount = useMemo(() => {
     return vehicles.filter((v) => getVehicleZoneMetrics(v).totalDefects > 0).length;
-  }, [vehicles, getVehicleZoneMetrics]);
+  }, [vehicles, getVehicleZoneMetrics, vehicleInspections]);
 
   // Filtered Inspections
   const filteredVehicles = useMemo(() => {
@@ -526,6 +590,9 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
             <View style={styles.heroCard}>
               <Text style={styles.heroEyebrow}>BOORAN VEHICLE INSPECT</Text>
               <Text style={styles.heroTitle}>Vehicle Inspection</Text>
+              {onViewSavedInspections && <TouchableOpacity onPress={onViewSavedInspections} accessibilityRole="button">
+                <Text style={{ color: '#FFFFFF', textDecorationLine: 'underline', paddingVertical: 8 }}>View Saved Inspections</Text>
+              </TouchableOpacity>}
               <Text style={styles.heroSubtitle}>
                 Photograph each vehicle zone, let AI surface scratches, dents and defects, then deliver a condition report.
               </Text>
@@ -710,11 +777,31 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
             {/* Section Header */}
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeaderTitle}>Recent inspections</Text>
-              <Text style={styles.sectionHeaderCount}>{filteredVehicles.length} reports</Text>
+              <Text style={styles.sectionHeaderCount}>{filteredVehicles.length + visibleInspections.length} vehicles</Text>
             </View>
+            {visibleInspections.map(report => {
+              const item = report.inspection;
+              const vehicle = item.vehicleDetails;
+              const identifiers = [item.rego, item.roNumber, item.vin].filter(Boolean).join(' · ');
+              const name = [vehicle?.year, vehicle?.make, vehicle?.model].filter(Boolean).join(' ');
+              const complete = item.status === 'COMPLETE';
+              return <TouchableOpacity key={report.id} accessibilityRole="button"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginTop: 8,
+                  borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.surface }}
+                onPress={() => onOpenInspectionReport?.(report.id, item.siteId)}>
+                <FileText size={20} color={colors.primary} />
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{name || identifiers}</Text>
+                  {!!name && <Text style={{ color: colors.textSecondary }}>{identifiers}</Text>}
+                  <Text style={{ color: colors.textSecondary }}>{new Date(report.createdAt).toLocaleString()}</Text>
+                </View>
+                <Text style={{ fontWeight: '700', color: complete ? colors.success : colors.warning }}>{complete ? 'Complete' : 'Draft'}</Text>
+                <ArrowRight size={16} color={colors.textSecondary} />
+              </TouchableOpacity>;
+            })}
           </View>
         }
-        ListEmptyComponent={
+        ListEmptyComponent={visibleInspections.length ? undefined :
           <View style={styles.emptyContainer}>
             {loading ? (
               <ActivityIndicator color={colors.primary} size="large" />
@@ -728,7 +815,7 @@ export const VehicleListScreen: React.FC<VehicleListScreenProps> = ({
                 {canCaptureInspection ? (
                   <TouchableOpacity
                     style={styles.emptyActionBtn}
-                    onPress={() => onStartNewCase()}
+                    onPress={onStartNewInspection}
                   >
                     <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
                     <Text style={styles.emptyActionBtnText}>Start New Inspection</Text>
